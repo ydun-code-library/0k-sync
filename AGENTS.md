@@ -12,7 +12,7 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 **STATUS: IN DEVELOPMENT** - Last Updated: 2026-01-12
 
 ## Repository Information
-- **GitHub Repository**: TBD (not yet created)
+- **GitHub Repository**: https://github.com/Jimmyh-world/sync-relay
 - **Local Directory**: `/home/jimmyb/crabnebula/sync-relay`
 - **Primary Purpose**: Provide E2E encrypted synchronization between Tauri app instances
 
