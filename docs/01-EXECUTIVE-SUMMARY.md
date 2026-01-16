@@ -1,6 +1,6 @@
 # CrabNebula Sync - Executive Summary
 
-**Version:** 1.0.0
+**Version:** 2.0.0
 **Date:** 2026-01-16
 **Author:** James (LTIS Investments AB)
 **Audience:** Technical Executives, Architects, Decision Makers
@@ -18,7 +18,7 @@ However, **sync is hard**. Developers face a painful choice:
 | Option | Problem |
 |--------|---------|
 | **Firebase/Supabase** | Vendor lock-in, data leaves device unencrypted, recurring costs |
-| **Build custom** | 6-12 months of networking, encryption, conflict resolution |
+| **Build custom** | Months of networking, encryption, conflict resolution work |
 | **Skip sync** | Users stuck on single device, competitive disadvantage |
 
 ### The Tauri Ecosystem Gap
@@ -57,64 +57,44 @@ Device A                     RELAY                      Device B
 
 ### What We're NOT Building
 
-- ❌ **Data storage** — Relay is pass-through only, not a database
-- ❌ **Hole punching** — All connections outbound to relay (simpler)
-- ❌ **User accounts** — Zero-knowledge pairing via QR/codes
-- ❌ **Proprietary dependencies** — 100% open source stack
+- **Data storage** — Relay is pass-through only, not a database
+- **Conflict resolution** — CRDTs are app responsibility (we transport blobs)
+- **User accounts** — Zero-knowledge pairing via QR/codes
+- **Proprietary dependencies** — 100% open source stack
 
 ---
 
-## 3. Product Tiers
+## 3. Technical Validation Status
 
-Six tiers serve the full market, from hobbyist to enterprise:
+### Production Readiness Gates
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                                                                         │
-│  Tier 1: Vibe Coder          Free, iroh public network, zero setup     │
-│  Tier 2: Home Developer      Self-hosted container, your hardware       │
-│  Tier 3: Vercel-style        Deploy to PaaS, developer pays platform   │
-│  ──────────────────────────────────────────────────────────────────    │
-│  Tier 4: Community Sync      CrabNebula hosted, free/cheap with limits │
-│  Tier 5: Cloud               CrabNebula dedicated, usage-based pricing │
-│  Tier 6: Enterprise          Customer deploys, license + support       │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-         Open Source (Tiers 1-3)              CrabNebula Revenue (Tiers 4-6)
-```
+Three gates must be addressed before GA release:
 
-### Tier Details
+| Gate | Status | Action Required |
+|------|--------|-----------------|
+| **Security Audit** | ⚠️ Blocked | `snow` crate requires targeted code review OR swap to HACL* verified bindings |
+| **Enterprise Compliance** | ⚠️ Blocked | "FIPS Mode" fallback using AES-GCM/PBKDF2 for regulated markets |
+| **Infrastructure** | ✅ Ready | Cloudflare Tunnel validated; Fly.io hybrid for production SLA |
 
-| Tier | Relay Infrastructure | User Cost | CrabNebula Revenue |
-|------|---------------------|-----------|-------------------|
-| **1. Vibe Coder** | [iroh](https://github.com/n0-computer/iroh) public network | $0 | $0 |
-| **2. Home Developer** | Self-hosted Docker container | Electricity | $0 |
-| **3. Vercel-style** | Container on Vercel/Railway/Fly.io | ~$5-50/mo to platform | $0 |
-| **4. Community Sync** | CrabNebula shared infrastructure | Free (100MB) or $5/mo | Subscription |
-| **5. Cloud** | CrabNebula dedicated per-app | Usage-based | Usage fees |
-| **6. Enterprise** | Customer infrastructure + license | Annual license | License + support |
+### Validated Technology Choices
 
-### Developer Experience (All Tiers)
+| Component | Choice | Version | Validation |
+|-----------|--------|---------|------------|
+| P2P networking | [iroh](https://github.com/n0-computer/iroh) | **Pin v0.35.x** | 200K+ connections, Delta Chat production |
+| Transport encryption | [snow](https://github.com/mcginty/snow) (Noise XX) | **v0.9.7+** | Security advisories fixed |
+| Blob encryption | XChaCha20-Poly1305 | RustCrypto | 192-bit nonces, no coordination needed |
+| Key derivation | Argon2id | RustCrypto | Device-adaptive parameters |
+| WebSocket | tokio-tungstenite | 0.21.x | 120K connections benchmarked |
+| Storage | SQLite + WAL | via sqlx | 70K+ writes/sec |
 
-```rust
-// One line to add sync to any Tauri app
-tauri::Builder::default()
-    .plugin(tauri_plugin_sync::init())
-    .run(tauri::generate_context!())
-```
-
-```typescript
-// Frontend usage (any framework)
-await sync.enable();
-await sync.push(encryptedBlob);
-const blobs = await sync.pull();
-```
-
-Changing tiers = changing one config value. No code changes.
+**iroh Version Strategy:**
+- Current stable: v0.35.x (pin for production)
+- Canary series: v0.90+ (breaking changes, track for direction)
+- Migration: Plan upgrade sprint when 1.0 RC ships
 
 ---
 
-## 4. Technical Architecture
+## 4. Architecture Overview
 
 ### Protocol Stack
 
@@ -124,13 +104,27 @@ Changing tiers = changing one config value. No code changes.
 ├─────────────────────────────────────────┤
 │  Layer 3: Envelope                      │  Routing, cursor, timestamp
 ├─────────────────────────────────────────┤
-│  Layer 2: E2E Encryption                │  Group Key (ChaCha20-Poly1305)
+│  Layer 2: E2E Encryption                │  XChaCha20-Poly1305 (Group Key)
 ├─────────────────────────────────────────┤
-│  Layer 1: Transport Encryption          │  Noise Protocol XX (snow crate)
+│  Layer 1: Transport Encryption          │  Noise Protocol XX (snow v0.9.7+)
 ├─────────────────────────────────────────┤
-│  Layer 0: Transport                     │  WebSocket / QUIC
+│  Layer 0: Transport                     │  WebSocket / QUIC (iroh)
 └─────────────────────────────────────────┘
 ```
+
+### Cryptographic Primitives
+
+| Function | Algorithm | Notes |
+|----------|-----------|-------|
+| DH | Curve25519 | Via Noise Protocol |
+| Cipher | XChaCha20-Poly1305 | 192-bit nonce (not 96-bit) |
+| Hash | BLAKE2s | Noise Protocol |
+| KDF | Argon2id | Device-adaptive: 12-64 MiB based on RAM |
+
+**Why XChaCha20 (not standard ChaCha20)?**
+- 192-bit nonces eliminate collision risk (safe threshold: 2^80 vs 2^32)
+- Random nonce generation safe without cross-device coordination
+- Negligible performance overhead (one HChaCha20 block)
 
 ### Security Model
 
@@ -141,98 +135,96 @@ Changing tiers = changing one config value. No code changes.
 | **Forward secrecy** | Noise Protocol XX handshake pattern |
 | **Replay protection** | Monotonic cursors + nonces |
 
-### Why No Hole Punching?
+### Mobile Architecture: Wake-on-Push
 
-Direct P2P would require NAT traversal complexity. Instead:
-
-- All devices make **outbound** WebSocket connections to relay
-- NAT allows outbound connections (no hole punching needed)
-- Relay has public endpoint via Cloudflare Tunnel (free tier)
-- Trade-off: Slightly higher latency, dramatically simpler implementation
-
-For Tier 1 (iroh), hole punching is handled by iroh's infrastructure—not our code.
-
----
-
-## 5. Technology Choices
-
-### 100% Open Source Stack
-
-| Component | Choice | License | Rationale |
-|-----------|--------|---------|-----------|
-| Transport encryption | [snow](https://github.com/mcginty/snow) (Noise Protocol) | Apache-2.0 | Battle-tested (WireGuard uses Noise) |
-| P2P networking | [iroh](https://github.com/n0-computer/iroh) | MIT | Production-proven, 200k+ concurrent connections |
-| WebSocket | [tokio-tungstenite](https://github.com/snapview/tokio-tungstenite) | MIT | Mature, production-ready |
-| Key derivation | [argon2](https://docs.rs/argon2) (RustCrypto) | Apache-2.0/MIT | OWASP recommended |
-| Plugin framework | [Tauri 2.0](https://v2.tauri.app/develop/plugins/) | MIT/Apache-2.0 | Native mobile support |
-| Public endpoint | [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) | Free tier | DDoS protection, TLS termination |
-
-**No vendor lock-in.** Every component is replaceable with alternatives.
-
----
-
-## 6. Business Model
-
-### CrabNebula Revenue Streams
-
-| Tier | Model | Target Market |
-|------|-------|---------------|
-| **Community Sync** | Freemium (100MB free, $5/mo pro) | Indie developers |
-| **Cloud** | Usage-based (per GB, per 1K connections) | Funded startups, SaaS |
-| **Enterprise** | Annual license + support contract | Banks, healthcare, government |
-
-### Competitive Positioning
-
-| Competitor | Weakness | CrabNebula Advantage |
-|------------|----------|---------------------|
-| **Firebase** | Vendor lock-in, no E2E encryption | Zero-knowledge, open source |
-| **Supabase** | Server-centric, requires accounts | Local-first, no accounts |
-| **Custom solutions** | 6-12 month build time | One-line integration |
-| **Syncthing** | File sync only, not app state | App state sync, cursor-based |
-
-### Strategic Fit
-
-CrabNebula Cloud already provides **distribution** for Tauri apps. Sync is the natural complement:
+Mobile platforms kill WebSocket connections within ~30 seconds of backgrounding. Solution:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    CrabNebula Cloud                              │
-│                                                                  │
-│   ┌─────────────────┐              ┌─────────────────┐          │
-│   │  Distribution   │              │      Sync       │          │
-│   │  (existing)     │              │   (proposed)    │          │
-│   │                 │              │                 │          │
-│   │  • CDN          │              │  • Relay        │          │
-│   │  • Updates      │              │  • E2E encrypt  │          │
-│   │  • Analytics    │              │  • Multi-device │          │
-│   └─────────────────┘              └─────────────────┘          │
-│                                                                  │
-│           Build → Distribute → Sync → Complete Tauri Platform   │
-└─────────────────────────────────────────────────────────────────┘
+FOREGROUND MODE           BACKGROUND MODE           WAKE EVENT
+─────────────────         ──────────────────        ───────────
+• iroh endpoint ACTIVE    • All sockets CLOSED      • Push notification
+• P2P connections OPEN    • Push token ACTIVE       • BGAppRefreshTask
+• Real-time sync ON       • Zero network usage      • User returns
 ```
+
+**Key principle:** Never block on app close. Fire-and-forget flush with 500ms timeout. Stranded commits sync on next launch.
 
 ---
 
-## 7. Implementation Approach
+## 5. Product Tiers
+
+Six tiers serve the full market:
+
+| Tier | Infrastructure | Target User |
+|------|----------------|-------------|
+| **1. Vibe Coder** | iroh public network | Hobbyist, zero setup |
+| **2. Home Developer** | Self-hosted Docker | Privacy-focused |
+| **3. Vercel-style** | Container on PaaS | Startup on budget |
+| **4. Community Sync** | CrabNebula shared | Indie developer |
+| **5. Cloud** | CrabNebula dedicated | Funded startup |
+| **6. Enterprise** | Customer infrastructure | Regulated industry |
+
+**Developer Experience (All Tiers):**
+
+```rust
+// One line to add sync
+tauri::Builder::default()
+    .plugin(tauri_plugin_sync::init())
+    .run(tauri::generate_context!())
+```
+
+Changing tiers = changing one config value. No code changes.
+
+---
+
+## 6. Implementation Approach
+
+### Crate Structure
+
+```
+sync-types     → Wire format (Envelope, Messages)
+    ↓
+sync-core      → Pure logic (state machine, no I/O)
+    ↓
+sync-client    → Library (crypto, transport)
+    ↓
+├── sync-cli       → Testing tool (headless E2E)
+└── tauri-plugin   → Tauri integration
+    ↓
+sync-relay     → Custom relay (future, Tiers 2-6)
+```
 
 ### Test-Driven Development
 
-Every phase starts with tests:
+| Crate | Test Strategy |
+|-------|---------------|
+| sync-types | Serialization round-trip |
+| sync-core | Pure logic, instant tests (no I/O) |
+| sync-client | Crypto verification, mock transport |
+| sync-cli | E2E headless scripts |
+| tauri-plugin | Tauri mock runtime |
 
-| Phase | Crate | Test Strategy |
-|-------|-------|---------------|
-| 1 | sync-types | Serialization round-trip |
-| 2 | sync-core | Pure logic, no I/O (instant tests) |
-| 3 | sync-client | Two nodes syncing locally |
-| 4 | sync-cli | Headless integration tests |
-| 5 | tauri-plugin-sync | Import into test app |
-| 6 | sync-relay | Custom relay (future) |
+### Critical Implementation Requirements
 
-### MVP Timeline
+From research validation:
 
-**Tier 1 (iroh-based) MVP:** Weeks, not months. iroh handles the hard networking.
+1. **Thundering Herd Mitigation** — Client-side exponential backoff with jitter on reconnect
+2. **Device-Adaptive Argon2** — 12 MiB (low-end) to 64 MiB (desktop) based on available RAM
+3. **XChaCha20 Nonces** — 192-bit random nonces, never 96-bit
+4. **snow v0.9.7+** — RUSTSEC-2024-0011 and RUSTSEC-2024-0347 fixed
+5. **iroh v0.35.x** — Pin until 1.0 RC; v0.90+ is unstable canary
 
-**Full product (Tiers 1-5):** Incremental delivery. Each tier builds on the previous.
+---
+
+## 7. Risk Summary
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| snow unaudited | High | HACL* swap or limited scope audit before GA |
+| FIPS compliance gap | Critical (for Gov/Finance) | Feature flag for AES-GCM/PBKDF2 build |
+| iroh API instability | Medium | Pin v0.35.x; plan 1.0 migration sprint |
+| Mobile battery impact | Medium | Wake-on-Push architecture; quantify in beta |
+| Thundering herd | Medium | Client-side jitter required |
 
 ---
 
@@ -244,8 +236,8 @@ Every phase starts with tests:
 | Who is it for? | Tauri developers (hobbyist to enterprise) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |
-| What's the moat? | Deep Tauri integration, open source trust |
-| How does CrabNebula profit? | Tiers 4-6: hosted infrastructure + enterprise |
+| What's validated? | iroh, XChaCha20, Argon2id, Noise XX |
+| What's blocked? | Security audit, FIPS compliance |
 
 **CrabNebula Sync completes the Tauri platform: Build → Distribute → Sync.**
 
@@ -253,11 +245,12 @@ Every phase starts with tests:
 
 ## References
 
-- [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking library
+- [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking (v0.35.x)
+- [snow crate](https://github.com/mcginty/snow) — Noise Protocol (v0.9.7+)
 - [Noise Protocol](https://noiseprotocol.org/noise.html) — Encryption framework
-- [Tauri 2.0 Plugins](https://v2.tauri.app/develop/plugins/) — Plugin development guide
-- [CrabNebula Cloud](https://crabnebula.dev/) — Existing distribution platform
+- [Tauri 2.0 Plugins](https://v2.tauri.app/develop/plugins/) — Plugin development
+- [04-RESEARCH-VALIDATION.md](./04-RESEARCH-VALIDATION.md) — Full technology validation
 
 ---
 
-*Document: 01-EXECUTIVE-SUMMARY.md | Version: 1.0.0 | Date: 2026-01-16*
+*Document: 01-EXECUTIVE-SUMMARY.md | Version: 2.0.0 | Date: 2026-01-16*

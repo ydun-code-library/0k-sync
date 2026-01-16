@@ -1,6 +1,6 @@
 # CrabNebula Sync - Test-Driven Implementation Plan
 
-**Version:** 1.0.0
+**Version:** 2.0.0
 **Date:** 2026-01-16
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementing Developers
@@ -166,14 +166,33 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/crabnebula-dev/crabnebula-sync"
 
 [workspace.dependencies]
+# Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rmp-serde = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
+
+# Error handling
 thiserror = "1"
+
+# Async runtime
 tokio = { version = "1", features = ["full"] }
+
+# Logging
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+# Cryptography (PINNED VERSIONS - security critical)
+snow = "0.9.7"                    # Noise Protocol - MUST be 0.9.7+ (RUSTSEC-2024-0011, RUSTSEC-2024-0347)
+chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
+argon2 = "0.5"                   # Key derivation with device-adaptive parameters
+
+# P2P networking (PINNED VERSION)
+iroh = "0.35"                    # Pin v0.35.x until 1.0 RC; v0.90+ is unstable canary
+
+# Random number generation
+rand = "0.8"
+getrandom = "0.2"
 ```
 
 ---
@@ -532,14 +551,55 @@ mod tests {
     }
 
     #[test]
-    fn reconnect_backoff_increases() {
+    fn reconnect_backoff_increases_with_jitter() {
+        // Thundering herd mitigation: exponential backoff + random jitter
         let state = ConnectionState::Reconnecting { attempt: 1 };
         let (_, actions) = state.on_event(Event::ConnectFailed {
             error: "timeout".into()
         });
 
         if let Some(Action::StartReconnectTimer { delay }) = actions.first() {
-            assert!(*delay >= Duration::from_secs(2)); // Exponential backoff
+            assert!(*delay >= Duration::from_secs(2)); // Base exponential backoff
+        } else {
+            panic!("Expected reconnect timer");
+        }
+    }
+
+    #[test]
+    fn reconnect_jitter_prevents_thundering_herd() {
+        // Multiple clients reconnecting should have different delays
+        let mut delays = Vec::new();
+
+        for _ in 0..100 {
+            let state = ConnectionState::Reconnecting { attempt: 3 };
+            let (_, actions) = state.on_event(Event::ReconnectTimer);
+
+            if let Some(Action::StartReconnectTimer { delay }) = actions.first() {
+                delays.push(*delay);
+            }
+        }
+
+        // With 0-5000ms jitter, delays should vary
+        let min = delays.iter().min().unwrap();
+        let max = delays.iter().max().unwrap();
+
+        // At least 2 seconds variance due to jitter
+        assert!(*max - *min >= Duration::from_secs(2),
+            "Jitter should create at least 2s variance in delays");
+    }
+
+    #[test]
+    fn reconnect_delay_capped_at_30_seconds() {
+        // Even after many attempts, delay should be capped
+        let state = ConnectionState::Reconnecting { attempt: 10 };
+        let (_, actions) = state.on_event(Event::ConnectFailed {
+            error: "timeout".into()
+        });
+
+        if let Some(Action::StartReconnectTimer { delay }) = actions.first() {
+            // Cap: base (30s) + jitter (up to 5s) = max 35s
+            assert!(*delay <= Duration::from_secs(35),
+                "Reconnect delay must be capped at ~30s + jitter");
         } else {
             panic!("Expected reconnect timer");
         }
@@ -783,6 +843,11 @@ pub struct WebSocketTransport { /* ... */ }
 
 #### Step 1: Crypto Module
 
+> ⚠️ **Critical Version Pins:**
+> - `snow = "0.9.7"` — RUSTSEC-2024-0011 and RUSTSEC-2024-0347 fixed
+> - XChaCha20-Poly1305 — 192-bit nonces (not 96-bit ChaCha20)
+> - Device-adaptive Argon2id — 12 MiB to 64 MiB based on RAM
+
 ```rust
 // sync-client/src/crypto.rs
 
@@ -790,41 +855,89 @@ pub struct WebSocketTransport { /* ... */ }
 mod tests {
     use super::*;
 
+    // ===========================================
+    // XChaCha20-Poly1305 Tests (192-bit nonces)
+    // ===========================================
+
     #[test]
-    fn group_key_derivation() {
+    fn group_key_derivation_uses_device_adaptive_argon2() {
+        // Detect available RAM and use appropriate parameters
+        let ram_mb = detect_available_ram_mb();
         let secret = GroupSecret::from_passphrase("my-secure-passphrase");
-        let key = GroupKey::derive(&secret);
+
+        let start = std::time::Instant::now();
+        let key = GroupKey::derive(&secret, ram_mb);
+        let elapsed = start.elapsed();
 
         assert_eq!(key.encryption_key().len(), 32);
         assert_eq!(key.auth_key().len(), 32);
+
+        // Device-adaptive: should take 200-500ms
+        assert!(elapsed >= Duration::from_millis(150));
+        assert!(elapsed <= Duration::from_secs(1));
     }
 
     #[test]
-    fn encrypt_decrypt_roundtrip() {
-        let key = GroupKey::derive(&GroupSecret::random());
+    fn argon2_parameters_scale_with_ram() {
+        // Low-end mobile: 12 MiB
+        let params_low = Argon2Params::for_ram_mb(1500);
+        assert_eq!(params_low.memory_mib(), 12);
+        assert_eq!(params_low.iterations(), 3);
+
+        // Mid-range mobile: 19 MiB
+        let params_mid = Argon2Params::for_ram_mb(3000);
+        assert_eq!(params_mid.memory_mib(), 19);
+        assert_eq!(params_mid.iterations(), 2);
+
+        // High-end mobile: 46 MiB
+        let params_high = Argon2Params::for_ram_mb(6000);
+        assert_eq!(params_high.memory_mib(), 46);
+        assert_eq!(params_high.iterations(), 1);
+
+        // Desktop: 64 MiB
+        let params_desktop = Argon2Params::for_ram_mb(16000);
+        assert_eq!(params_desktop.memory_mib(), 64);
+        assert_eq!(params_desktop.iterations(), 3);
+    }
+
+    #[test]
+    fn xchacha20_uses_192_bit_nonces() {
+        let key = GroupKey::derive(&GroupSecret::random(), 16000);
         let plaintext = b"Hello, sync world!";
 
         let (ciphertext, nonce) = key.encrypt(plaintext).unwrap();
-        let decrypted = key.decrypt(&ciphertext, &nonce).unwrap();
 
+        // XChaCha20 uses 24-byte (192-bit) nonces, not 12-byte (96-bit)
+        assert_eq!(nonce.len(), 24, "Must use 192-bit nonces for XChaCha20");
+
+        let decrypted = key.decrypt(&ciphertext, &nonce).unwrap();
         assert_eq!(plaintext.as_slice(), decrypted.as_slice());
     }
 
     #[test]
-    fn different_nonces_produce_different_ciphertext() {
-        let key = GroupKey::derive(&GroupSecret::random());
+    fn random_192_bit_nonces_are_safe() {
+        // 192-bit nonces have 2^80 birthday bound (vs 2^32 for 96-bit)
+        // Safe to generate randomly without coordination
+        let key = GroupKey::derive(&GroupSecret::random(), 16000);
         let plaintext = b"Same message";
 
-        let (ct1, _) = key.encrypt(plaintext).unwrap();
-        let (ct2, _) = key.encrypt(plaintext).unwrap();
+        let (ct1, nonce1) = key.encrypt(plaintext).unwrap();
+        let (ct2, nonce2) = key.encrypt(plaintext).unwrap();
 
-        assert_ne!(ct1, ct2); // Random nonces
+        // Different random nonces
+        assert_ne!(nonce1, nonce2);
+        // Different ciphertext
+        assert_ne!(ct1, ct2);
+
+        // Both decrypt correctly
+        assert_eq!(key.decrypt(&ct1, &nonce1).unwrap(), plaintext.as_slice());
+        assert_eq!(key.decrypt(&ct2, &nonce2).unwrap(), plaintext.as_slice());
     }
 
     #[test]
     fn wrong_key_fails_decryption() {
-        let key1 = GroupKey::derive(&GroupSecret::random());
-        let key2 = GroupKey::derive(&GroupSecret::random());
+        let key1 = GroupKey::derive(&GroupSecret::random(), 16000);
+        let key2 = GroupKey::derive(&GroupSecret::random(), 16000);
         let plaintext = b"Secret message";
 
         let (ciphertext, nonce) = key1.encrypt(plaintext).unwrap();
@@ -833,12 +946,17 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // ===========================================
+    // Noise Protocol Tests (snow v0.9.7+)
+    // ===========================================
+
     #[test]
-    fn noise_handshake_succeeds() {
+    fn noise_xx_handshake_succeeds() {
+        // Using snow v0.9.7+ (security advisories fixed)
         let initiator = NoiseSession::new_initiator();
         let responder = NoiseSession::new_responder();
 
-        // Simulate XX handshake
+        // Noise XX pattern: -> e, <- e, ee, s, es, -> s, se
         let msg1 = initiator.write_message(&[]).unwrap();
         let msg2 = responder.read_message(&msg1).unwrap();
         let msg2_out = responder.write_message(&msg2).unwrap();
@@ -848,6 +966,29 @@ mod tests {
 
         assert!(initiator.is_transport_ready());
         assert!(responder.is_transport_ready());
+    }
+
+    #[test]
+    fn noise_provides_forward_secrecy() {
+        let initiator = NoiseSession::new_initiator();
+        let responder = NoiseSession::new_responder();
+
+        // Complete handshake
+        complete_handshake(&mut initiator, &mut responder);
+
+        // Get transport keys
+        let transport_key_1 = initiator.get_transport_key();
+
+        // New session with same static keys
+        let initiator2 = NoiseSession::new_initiator();
+        let responder2 = NoiseSession::new_responder();
+        complete_handshake(&mut initiator2, &mut responder2);
+
+        let transport_key_2 = initiator2.get_transport_key();
+
+        // Different ephemeral keys = different transport keys
+        // This is forward secrecy
+        assert_ne!(transport_key_1, transport_key_2);
     }
 }
 ```
@@ -915,12 +1056,18 @@ mod tests {
 
 #### Step 3: Integration Test (Two Clients)
 
+> **iroh Version Strategy:**
+> - Pin to **v0.35.x** for production stability
+> - v0.90+ is canary series with breaking changes
+> - Plan migration sprint when 1.0 RC ships
+
 ```rust
 // sync-client/tests/integration.rs
 
 #[tokio::test]
 async fn two_clients_sync_via_iroh() {
-    // This test actually uses iroh - requires network
+    // This test uses iroh v0.35.x - requires network
+    // DO NOT upgrade to v0.90+ (canary series, breaking changes)
     if std::env::var("RUN_NETWORK_TESTS").is_err() {
         return; // Skip in CI without network
     }
@@ -975,9 +1122,11 @@ git add sync-client/
 git commit -m "Add sync-client library
 
 - SyncClient with push/pull/subscribe API
-- GroupKey E2E encryption (ChaCha20-Poly1305)
-- Noise Protocol session management
-- Transport abstraction (iroh, WebSocket)
+- GroupKey E2E encryption (XChaCha20-Poly1305, 192-bit nonces)
+- Device-adaptive Argon2id key derivation (12-64 MiB)
+- Noise Protocol XX session management (snow v0.9.7+)
+- Transport abstraction (iroh v0.35.x, WebSocket)
+- Thundering herd mitigation with jitter
 - Integration test: two clients syncing"
 
 git tag v0.1.0-phase3
@@ -1693,4 +1842,4 @@ If a breaking change reaches users:
 
 ---
 
-*Document: 03-IMPLEMENTATION-PLAN.md | Version: 1.0.0 | Date: 2026-01-16*
+*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.0.0 | Date: 2026-01-16*

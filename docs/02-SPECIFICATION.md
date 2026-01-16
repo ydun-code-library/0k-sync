@@ -1,6 +1,6 @@
 # CrabNebula Sync - Technical Specification
 
-**Version:** 1.0.0
+**Version:** 2.0.0
 **Date:** 2026-01-16
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementers, Developers
@@ -135,7 +135,7 @@ Relay ──► WebSocket ──► Transport Decrypt (Noise) ──► Envelope
 │  • MessagePack serialization                                │
 ├─────────────────────────────────────────────────────────────┤
 │  Layer 2: E2E Encryption                                    │
-│  • Group Key encryption (ChaCha20-Poly1305)                 │
+│  • Group Key encryption (XChaCha20-Poly1305, 192-bit nonce) │
 │  • Derived from user passphrase via Argon2id                │
 ├─────────────────────────────────────────────────────────────┤
 │  Layer 1: Transport Encryption                              │
@@ -171,7 +171,7 @@ Relay ──► WebSocket ──► Transport Decrypt (Noise) ──► Envelope
 │                                                             │
 │  User Passphrase (or random 256-bit secret)                │
 │           │                                                 │
-│           ▼  Argon2id (m=19456, t=2, p=1)                  │
+│           ▼  Argon2id (device-adaptive, see below)         │
 │                                                             │
 │  Sync Group Key (256-bit)                                  │
 │           │                                                 │
@@ -184,6 +184,19 @@ Relay ──► WebSocket ──► Transport Decrypt (Noise) ──► Envelope
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Device-Adaptive Argon2id Parameters:**
+
+OWASP minimum (19 MiB, 2 iterations) performs well on modern devices but hits 800ms+ on low-end mobile. Use device-adaptive parameters:
+
+| Device Class | Detection Signal | Memory | Iterations | Target Time |
+|--------------|------------------|--------|------------|-------------|
+| Low-end mobile | RAM < 2GB | 12 MiB | 3 | 300-500ms |
+| Mid-range mobile | RAM 2-4GB | 19 MiB | 2 | 200-400ms |
+| High-end mobile | RAM > 4GB | 46 MiB | 1 | 200-400ms |
+| Desktop | Always | 64 MiB | 3 | 200-500ms |
+
+**iOS Constraint:** AutoFill extension processes have ~55 MiB usable memory. Configurations above 46 MiB fail intermittently.
 
 ### 4.2 Noise Protocol Configuration
 
@@ -205,9 +218,11 @@ XX:
 
 | Function | Algorithm | Crate |
 |----------|-----------|-------|
-| DH | Curve25519 | snow |
-| Cipher | ChaChaPoly | snow |
-| Hash | BLAKE2s | snow |
+| DH | Curve25519 | snow **v0.9.7+** |
+| Cipher | ChaChaPoly | snow **v0.9.7+** |
+| Hash | BLAKE2s | snow **v0.9.7+** |
+
+> ⚠️ **snow version requirement:** Use v0.9.7 or later. Earlier versions have security advisories (RUSTSEC-2024-0011, RUSTSEC-2024-0347).
 
 ### 4.3 Device Identity
 
@@ -496,7 +511,7 @@ pub enum ConnectionStatus {
 ```
 plaintext
     → serialize (MessagePack)
-    → encrypt (ChaCha20-Poly1305 with Group Key + random nonce)
+    → encrypt (XChaCha20-Poly1305 with Group Key + random 192-bit nonce)
     → wrap in Envelope
     → encrypt (Noise session key)
     → send
@@ -507,10 +522,12 @@ plaintext
 receive
     → decrypt (Noise session key)
     → unwrap Envelope
-    → decrypt (ChaCha20-Poly1305 with Group Key + nonce from envelope)
+    → decrypt (XChaCha20-Poly1305 with Group Key + nonce from envelope)
     → deserialize (MessagePack)
     → plaintext
 ```
+
+> **Why XChaCha20 (not standard ChaCha20)?** Standard ChaCha20-Poly1305 uses 96-bit nonces with a safe threshold of ~4.3 billion messages. XChaCha20 uses 192-bit nonces, making random nonce generation safe without cross-device coordination (safe threshold: 2^80).
 
 ---
 
@@ -1002,7 +1019,7 @@ fn main() {
 
 ## 11. Tier-Specific Configuration
 
-### 10.1 Tier 1: Vibe Coder (iroh)
+### 11.1 Tier 1: Vibe Coder (iroh)
 
 ```rust
 SyncConfig {
@@ -1012,6 +1029,11 @@ SyncConfig {
 ```
 
 Uses iroh public network. No relay infrastructure needed.
+
+> **iroh Version Strategy:**
+> - **Pin v0.35.x** for production stability
+> - v0.90+ is "canary series" with frequent breaking changes
+> - Plan migration sprint when 1.0 RC ships (expected mid-2026)
 
 ### 10.2 Tier 2: Home Developer
 
@@ -1088,16 +1110,28 @@ Customer-deployed with enterprise auth integration.
 
 ### 12.2 Reconnection Strategy
 
-```
-Attempt 1: Wait 1s
-Attempt 2: Wait 2s
-Attempt 3: Wait 4s
-Attempt 4: Wait 8s
-Attempt 5: Wait 16s
-Attempt 6+: Wait 30s (max)
+> ⚠️ **Thundering Herd Mitigation Required:** After relay restart, all clients reconnect simultaneously, potentially crashing the database or exhausting connection limits. Clients MUST implement jittered backoff.
 
-Jitter: ±20% randomization
+```
+Attempt 1: Wait 1s + jitter
+Attempt 2: Wait 2s + jitter
+Attempt 3: Wait 4s + jitter
+Attempt 4: Wait 8s + jitter
+Attempt 5: Wait 16s + jitter
+Attempt 6+: Wait 30s (max) + jitter
+
+Jitter: 0-5000ms random (not ±20%)
 Reset: On successful connection
+```
+
+**Implementation:**
+```rust
+async fn reconnect_with_backoff(attempt: u32) {
+    let base_delay = Duration::from_millis(1000 * 2u64.pow(attempt.min(5)));
+    let jitter = Duration::from_millis(rand::thread_rng().gen_range(0..5000));
+    let delay = (base_delay + jitter).min(Duration::from_secs(30));
+    tokio::time::sleep(delay).await;
+}
 ```
 
 ---
@@ -1171,9 +1205,9 @@ sync-types = { path = "../sync-types" }
 sync-core = { path = "../sync-core" }
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
-snow = "0.9"
+snow = "0.9.7"                    # v0.9.7+ required (security fixes)
 argon2 = "0.5"
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.10"        # Supports XChaCha20
 rand = "0.8"
 thiserror = "1"
 tracing = "0.1"
@@ -1185,7 +1219,7 @@ tracing = "0.1"
 sync-types = { path = "../sync-types" }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
-snow = "0.9"
+snow = "0.9.7"                    # v0.9.7+ required (security fixes)
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
 axum = "0.7"
 tower = "0.4"
@@ -1206,4 +1240,4 @@ serde_json = "1"
 
 ---
 
-*Document: 02-SPECIFICATION.md | Version: 1.0.0 | Date: 2026-01-16*
+*Document: 02-SPECIFICATION.md | Version: 2.0.0 | Date: 2026-01-16*
