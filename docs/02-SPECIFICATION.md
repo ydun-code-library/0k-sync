@@ -1,6 +1,6 @@
 # CrabNebula Sync - Technical Specification
 
-**Version:** 2.0.0
+**Version:** 2.1.0
 **Date:** 2026-01-16
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementers, Developers
@@ -22,6 +22,9 @@
 11. [Tier-Specific Configuration](#11-tier-specific-configuration)
 12. [Error Handling](#12-error-handling)
 13. [Configuration Reference](#13-configuration-reference)
+14. [Best Practices](#14-best-practices)
+15. [Device Revocation](#15-device-revocation)
+16. [Push Notification Integration](#16-push-notification-integration)
 
 ---
 
@@ -296,6 +299,10 @@ pub struct Envelope {
 | `PRESENCE` | 0x30 | Client → Relay | Heartbeat, online status |
 | `NOTIFY` | 0x31 | Relay → Client | New blob available |
 | `DELETE` | 0x40 | Client → Relay | Remove blob (after all ACK) |
+| `REVOKE_DEVICE` | 0x50 | Client → Relay | Remove device from sync group |
+| `DEVICE_REVOKED` | 0x51 | Relay → Client | Notify of device revocation |
+| `REGISTER_PUSH` | 0x60 | Client → Relay | Register push notification token |
+| `UNREGISTER_PUSH` | 0x61 | Client → Relay | Unregister push token |
 | `ERROR` | 0xFF | Either | Error with code and message |
 
 ### 5.3 Message Structures
@@ -1102,9 +1109,12 @@ Customer-deployed with enterprise auth integration.
 | 1000 | `INVALID_MESSAGE` | Malformed message |
 | 1001 | `UNKNOWN_GROUP` | Group ID not found |
 | 1002 | `UNAUTHORIZED` | Auth failed |
+| 1003 | `DEVICE_REVOKED` | Device has been revoked from group |
+| 1004 | `NOT_BLOB_OWNER` | Only blob creator can force delete |
 | 2000 | `RATE_LIMITED` | Too many requests |
 | 2001 | `BLOB_TOO_LARGE` | Exceeds 1 MB limit |
 | 2002 | `GROUP_QUOTA_EXCEEDED` | Group storage full |
+| 2003 | `INVALID_PUSH_TOKEN` | Push token format invalid |
 | 3000 | `RELAY_OVERLOADED` | Server at capacity |
 | 3001 | `RELAY_SHUTTING_DOWN` | Graceful shutdown |
 
@@ -1182,6 +1192,437 @@ max_reconnect_delay_ms = 30000
 
 ---
 
+## 14. Best Practices
+
+### 14.1 Blob Size Strategy
+
+> ⚠️ **The 1MB Blob Trap:** While sync-relay limits blobs to 1MB (appropriate for state deltas), developers will inevitably try to sync images, videos, and large files. This section provides guidance.
+
+**What Belongs in Sync Blobs:**
+
+| ✅ Sync via Relay | ❌ Store Elsewhere |
+|-------------------|-------------------|
+| Transaction records | Images/photos |
+| User preferences | Videos |
+| App state deltas | PDF documents |
+| Small JSON (<100KB) | Large binary files |
+| CRDT operations | User-generated media |
+
+**Large Asset Strategy:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Recommended Pattern: Metadata via Sync, Assets via Object Store│
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. User adds image to app                                      │
+│  2. App uploads image to S3/R2/Supabase Storage                │
+│  3. App creates metadata record:                                │
+│     {                                                           │
+│       "id": "uuid",                                             │
+│       "type": "image",                                          │
+│       "storage_url": "https://r2.example.com/images/abc.jpg",  │
+│       "mime_type": "image/jpeg",                                │
+│       "size_bytes": 2457600,                                    │
+│       "created_at": 1705000000                                  │
+│     }                                                           │
+│  4. App syncs metadata via relay (< 1KB)                       │
+│  5. Other devices pull metadata, fetch image from storage URL  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation Example:**
+
+```rust
+// ❌ WRONG: Syncing large files directly
+async fn save_photo_wrong(photo_bytes: &[u8], sync: &SyncClient) {
+    // This will fail if photo > 1MB
+    sync.push(photo_bytes).await?; // ERROR: BLOB_TOO_LARGE
+}
+
+// ✅ CORRECT: Sync metadata, store asset externally
+async fn save_photo_correct(
+    photo_bytes: &[u8],
+    storage: &ObjectStorage,
+    sync: &SyncClient,
+) -> Result<PhotoRecord> {
+    // 1. Upload to object storage
+    let storage_url = storage.upload("photos", photo_bytes).await?;
+
+    // 2. Create metadata record
+    let record = PhotoRecord {
+        id: Uuid::new_v4(),
+        storage_url,
+        mime_type: "image/jpeg".into(),
+        size_bytes: photo_bytes.len(),
+        created_at: now(),
+    };
+
+    // 3. Sync only the metadata (< 1KB)
+    let metadata_blob = serde_json::to_vec(&record)?;
+    sync.push(&metadata_blob).await?;
+
+    Ok(record)
+}
+```
+
+**Recommended Object Storage Options:**
+
+| Provider | Best For | Pricing Model |
+|----------|----------|---------------|
+| Cloudflare R2 | Cost-effective, no egress | Pay per storage |
+| Supabase Storage | Integrated with Supabase | Generous free tier |
+| AWS S3 | Enterprise, existing AWS | Pay per everything |
+| Self-hosted MinIO | Full control | Infrastructure cost |
+
+---
+
+## 15. Device Revocation
+
+### 15.1 The Lost Device Problem
+
+**Scenario:** A user loses their phone. The phone never comes back online to ACK pending blobs. Under normal operation, those blobs remain on the relay until the 7-day TTL expires.
+
+**Problems:**
+1. Storage waste on relay
+2. Blobs stuck in "pending delivery" state
+3. No way to remove the lost device from the sync group
+
+### 15.2 Device Revocation Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Device Revocation Flow                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. User realizes device is lost                                │
+│  2. User opens Settings → Sync → Devices                        │
+│  3. User selects lost device → "Remove Device"                  │
+│  4. App sends REVOKE_DEVICE message to relay                    │
+│  5. Relay:                                                       │
+│     a. Marks device as revoked                                  │
+│     b. Clears pending ACKs for that device                      │
+│     c. Deletes blobs that were only pending for that device     │
+│     d. Notifies other devices of revocation                     │
+│  6. (Optional) Rotate Group Key for paranoid security           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 15.3 Message Specification
+
+#### REVOKE_DEVICE
+```rust
+pub struct RevokeDevice {
+    /// Device to revoke (public key)
+    pub device_id: [u8; 32],
+
+    /// Reason (for audit log)
+    pub reason: RevokeReason,
+
+    /// Also clear pending blobs for this device
+    pub clear_pending: bool,
+}
+
+pub enum RevokeReason {
+    Lost,           // Device lost/stolen
+    Decommissioned, // User retired device
+    Compromised,    // Security concern
+}
+```
+
+#### DEVICE_REVOKED (notification to other devices)
+```rust
+pub struct DeviceRevoked {
+    /// Revoked device
+    pub device_id: [u8; 32],
+
+    /// Who revoked it
+    pub revoked_by: [u8; 32],
+
+    /// When
+    pub timestamp: u64,
+
+    /// Reason
+    pub reason: RevokeReason,
+}
+```
+
+### 15.4 Force Delete
+
+For blobs that are stuck due to offline devices (not just revoked), provide a force delete option:
+
+```rust
+pub struct Delete {
+    pub blob_id: [u8; 16],
+
+    /// Normal delete: wait for all ACKs
+    /// Force delete: delete immediately, clear pending ACKs
+    pub force: bool,
+}
+```
+
+**Force Delete Rules:**
+- Only the blob creator can force delete
+- Force delete is audited (logged)
+- Other devices receive DELETE_NOTIFICATION so they can remove local copies
+
+### 15.5 Relay Behavior Changes
+
+**On REVOKE_DEVICE:**
+```sql
+-- 1. Mark device as revoked
+INSERT INTO revoked_devices (device_id, group_id, revoked_at, reason)
+VALUES (?, ?, ?, ?);
+
+-- 2. Clear pending deliveries for revoked device
+DELETE FROM deliveries
+WHERE device_id = ? AND delivered_at IS NULL;
+
+-- 3. Delete blobs that only had this device pending
+DELETE FROM blobs
+WHERE blob_id IN (
+    SELECT b.blob_id FROM blobs b
+    LEFT JOIN deliveries d ON b.blob_id = d.blob_id
+    WHERE d.blob_id IS NULL  -- No remaining pending deliveries
+);
+```
+
+**On Connection (HELLO):**
+```rust
+// Reject connections from revoked devices
+if is_device_revoked(&hello.device_id, &hello.group_id) {
+    return Err(Error::DeviceRevoked);
+}
+```
+
+### 15.6 Client API Additions
+
+```rust
+impl SyncClient {
+    /// List all devices in the sync group
+    pub async fn list_devices(&self) -> Result<Vec<DeviceInfo>>;
+
+    /// Revoke a device (remove from sync group)
+    pub async fn revoke_device(
+        &self,
+        device_id: DeviceId,
+        reason: RevokeReason
+    ) -> Result<()>;
+
+    /// Force delete a blob (skip waiting for ACKs)
+    pub async fn force_delete(&self, blob_id: BlobId) -> Result<()>;
+}
+
+pub struct DeviceInfo {
+    pub device_id: DeviceId,
+    pub device_name: String,
+    pub last_seen: u64,
+    pub pending_blobs: u32,
+    pub is_online: bool,
+}
+```
+
+### 15.7 Security Considerations
+
+| Concern | Mitigation |
+|---------|------------|
+| Unauthorized revocation | Only devices in group can revoke |
+| Revocation race condition | Atomic operation, idempotent |
+| Revoked device reconnects | Checked on every HELLO |
+| Key rotation after compromise | Optional but recommended |
+
+**Optional Key Rotation:**
+
+If a device is revoked due to compromise, the group key should be rotated:
+
+1. Generate new group_secret
+2. Distribute to remaining devices via existing E2E channel
+3. Old group key becomes invalid
+4. Compromised device cannot decrypt new blobs
+
+---
+
+## 16. Push Notification Integration
+
+> ⚠️ **Critical for Mobile:** Push notifications are not optional for production mobile apps. Without them, users must manually open the app to receive synced data.
+
+### 16.1 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 Push Notification Flow                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Device A (sender)           Relay              Device B (mobile)│
+│       │                        │                      │          │
+│       │── PUSH (blob) ────────►│                      │          │
+│       │                        │                      │          │
+│       │                        │── NOTIFY ───────────►│ (if online)
+│       │                        │                      │          │
+│       │                        │── Push Notification ─►│ (if offline)
+│       │                        │   via APNS/FCM       │          │
+│       │                        │                      │          │
+│       │                        │◄───── App Wakes ─────│          │
+│       │                        │◄───── PULL ──────────│          │
+│       │                        │                      │          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 16.2 Plugin API (Day 1 Requirements)
+
+The Tauri plugin MUST expose push token hooks from Day 1, even if backend integration comes later:
+
+```rust
+// tauri-plugin-sync/src/lib.rs
+
+#[tauri::command]
+async fn sync_register_push_token(
+    state: State<'_, SyncState>,
+    token: String,
+    platform: PushPlatform,
+) -> Result<(), String>;
+
+#[tauri::command]
+async fn sync_unregister_push_token(
+    state: State<'_, SyncState>,
+) -> Result<(), String>;
+
+pub enum PushPlatform {
+    Apns,      // Apple Push Notification Service
+    Fcm,       // Firebase Cloud Messaging
+    Web,       // Web Push (future)
+}
+```
+
+```typescript
+// JavaScript API
+export interface SyncPlugin {
+    // ... existing methods ...
+
+    // Push notification integration (Day 1)
+    registerPushToken(token: string, platform: 'apns' | 'fcm'): Promise<void>;
+    unregisterPushToken(): Promise<void>;
+
+    // Event for handling push-triggered wake
+    on(event: 'push-wake', handler: () => void): void;
+}
+```
+
+### 16.3 Message Specification
+
+#### REGISTER_PUSH
+```rust
+pub struct RegisterPush {
+    /// Platform-specific push token
+    pub token: String,
+
+    /// Platform identifier
+    pub platform: PushPlatform,
+
+    /// App bundle ID (for APNS)
+    pub app_id: Option<String>,
+}
+```
+
+#### UNREGISTER_PUSH
+```rust
+pub struct UnregisterPush {
+    /// Reason for unregistering
+    pub reason: UnregisterReason,
+}
+
+pub enum UnregisterReason {
+    UserDisabled,
+    TokenExpired,
+    AppUninstalled,
+}
+```
+
+### 16.4 Relay Push Behavior
+
+**On PUSH (when recipient offline):**
+```rust
+async fn handle_push_for_offline_device(
+    device: &Device,
+    blob: &Blob,
+    push_service: &PushService,
+) {
+    if let Some(push_token) = device.push_token {
+        // Send silent push notification
+        let notification = PushNotification {
+            token: push_token,
+            platform: device.push_platform,
+            payload: PushPayload::SilentSync {
+                group_id: blob.group_id,
+                cursor: blob.cursor,
+            },
+            // Silent push - no user-visible notification
+            content_available: true,
+            alert: None,
+        };
+
+        push_service.send(notification).await?;
+    }
+}
+```
+
+### 16.5 iOS/Android Integration
+
+**iOS (APNS):**
+```swift
+// In your iOS app delegate
+func application(_ application: UIApplication,
+                 didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    let token = deviceToken.hexString
+    // Pass to Tauri via invoke
+    TauriInvoke.call("plugin:sync|register_push_token",
+                     args: ["token": token, "platform": "apns"])
+}
+
+func application(_ application: UIApplication,
+                 didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                 fetchCompletionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+    // Silent push received - trigger sync
+    TauriInvoke.call("plugin:sync|handle_push_wake")
+    fetchCompletionHandler(.newData)
+}
+```
+
+**Android (FCM):**
+```kotlin
+// In your Firebase messaging service
+class SyncFirebaseService : FirebaseMessagingService() {
+    override fun onNewToken(token: String) {
+        // Pass to Tauri
+        TauriInvoke.call("plugin:sync|register_push_token",
+                        mapOf("token" to token, "platform" to "fcm"))
+    }
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        if (message.data["type"] == "sync") {
+            // Trigger sync in background
+            TauriInvoke.call("plugin:sync|handle_push_wake")
+        }
+    }
+}
+```
+
+### 16.6 Implementation Phases
+
+| Phase | Scope | Dependency |
+|-------|-------|------------|
+| **Day 1** | Plugin API hooks (register/unregister) | None |
+| **Day 1** | Message types (REGISTER_PUSH, etc.) | sync-types |
+| **Phase 5** | Relay stores push tokens | sync-relay |
+| **Phase 5** | Relay sends to APNS/FCM | Push service integration |
+| **Future** | Web Push support | Service workers |
+
+**Key Point:** The client-side hooks MUST exist from Day 1 so apps can register tokens. The relay-side push sending can come later, but the API contract must be stable.
+
+---
+
 ## Appendix A: Crate Dependencies
 
 ### sync-types
@@ -1240,4 +1681,4 @@ serde_json = "1"
 
 ---
 
-*Document: 02-SPECIFICATION.md | Version: 2.0.0 | Date: 2026-01-16*
+*Document: 02-SPECIFICATION.md | Version: 2.1.0 | Date: 2026-01-16*
