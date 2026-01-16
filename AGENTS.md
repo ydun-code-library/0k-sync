@@ -1,15 +1,15 @@
 # Sync Relay - E2E encrypted local-first sync for Tauri apps
 
 <!--
-TEMPLATE_VERSION: 1.5.1
+TEMPLATE_VERSION: 1.6.0
 TEMPLATE_SOURCE: /home/jimmyb/templates/AGENTS.md.template
-LAST_SYNC: 2026-01-12
+LAST_SYNC: 2026-01-16
 SYNC_CHECK: Run ~/templates/tools/check-version.sh to verify you have the latest template version
 AUTO_SYNC: Run ~/templates/tools/sync-templates.sh to update (preserves your customizations)
 CHANGELOG: See ~/templates/CHANGELOG.md for version history
 -->
 
-**STATUS: IN DEVELOPMENT** - Last Updated: 2026-01-12
+**STATUS: IN DEVELOPMENT** - Last Updated: 2026-01-16
 
 ## Repository Information
 - **GitHub Repository**: https://github.com/Jimmyh-world/sync-relay
@@ -33,7 +33,11 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 - Regime Tracker (health tracking)
 - Future Tauri applications
 
-**Specification:** See `sync-relay-spec.md` for complete technical specification (1,570 lines).
+**Documentation:**
+- [Executive Summary](docs/01-EXECUTIVE-SUMMARY.md) - Technical overview
+- [Specification](docs/02-SPECIFICATION.md) - Detailed protocol spec
+- [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) - TDD approach
+- [Research Validation](docs/04-RESEARCH-VALIDATION.md) - Technology justification
 <!-- PROJECT_SPECIFIC END: IMPORTANT_CONTEXT -->
 
 ## Core Development Principles (MANDATORY)
@@ -95,6 +99,27 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 - Fix warnings immediately (don't suppress or accumulate)
 - Fix failing tests immediately
 - Don't use suppressions without documented justification
+
+### 9. Measure Twice, Cut Once
+- Always verify your understanding before executing
+- Double-check file paths, command syntax, and target locations
+- Review the plan before implementation begins
+- Confirm assumptions with explicit checks (read the file, run the test)
+- When in doubt, investigate first - don't guess
+
+### 10. No Shortcuts (Do It Right)
+- Complete the job properly - no half-arsed work
+- Don't skip steps to save time
+- Implement the full solution, not a "good enough" hack
+- If something needs 5 steps, do all 5 steps
+- Quality over speed - cutting corners creates debt
+
+### 11. Rules Persist (Context Compression Immunity)
+- **ALL rules remain in effect after auto-compact/context summarization**
+- Core principles are NEVER optional, regardless of context length
+- If you can't remember a rule, re-read AGENTS.md
+- Summarization does not equal permission to skip validation
+- Jimmy's Workflow gates apply to EVERY task, not just "important" ones
 
 ## GitHub Workflow
 
@@ -231,38 +256,39 @@ cargo run -p sync-cli -- pull --after-cursor 0
 ## Repository Structure
 
 ```
-tauri-secure-sync/
+crabnebula-sync/
 ├── Cargo.toml                 # Workspace definition
-├── sync-types/                # Shared types
+├── README.md                  # Project overview
+├── docs/                      # Documentation
+│   ├── 00-PLAN.md             # Documentation planning
+│   ├── 01-EXECUTIVE-SUMMARY.md
+│   ├── 02-SPECIFICATION.md
+│   ├── 03-IMPLEMENTATION-PLAN.md
+│   ├── 04-RESEARCH-VALIDATION.md
+│   └── reference/             # Original specifications (archive)
+├── sync-types/                # Shared types (Phase 1)
 │   ├── Cargo.toml
 │   └── src/lib.rs             # Envelope, Message, DeviceId, Cursor
-├── sync-relay/                # Server binary
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── main.rs            # Entry point
-│   │   ├── server.rs          # WebSocket + Noise
-│   │   ├── storage.rs         # SQLite operations
-│   │   └── config.rs          # Configuration
-│   └── Dockerfile
-├── sync-client/               # Client library
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs             # Public API
-│       ├── connection.rs      # WebSocket + reconnect
-│       ├── crypto.rs          # Noise session, encryption
-│       └── storage.rs         # Local cursor persistence
-├── sync-cli/                  # Testing tool
-│   ├── Cargo.toml
-│   └── src/main.rs
-├── tauri-plugin-sync/         # Tauri plugin wrapper
+├── sync-core/                 # Pure logic, no I/O (Phase 2)
 │   ├── Cargo.toml
 │   └── src/lib.rs
+├── sync-client/               # Client library (Phase 3)
+│   ├── Cargo.toml
+│   └── src/lib.rs
+├── sync-cli/                  # Testing tool (Phase 4)
+│   ├── Cargo.toml
+│   └── src/main.rs
+├── tauri-plugin-sync/         # Tauri plugin (Phase 5)
+│   ├── Cargo.toml
+│   └── src/lib.rs
+├── sync-relay/                # Custom relay (Phase 6, future)
+│   ├── Cargo.toml
+│   └── Dockerfile
 ├── AGENTS.md                  # This file
 ├── CLAUDE.md                  # AI assistant quick reference
 ├── STATUS.md                  # Project status
 ├── NEXT-SESSION-START-HERE.md # Session continuity
-├── JIMMYS-WORKFLOW.md         # Workflow reference
-└── sync-relay-spec.md         # Full specification
+└── JIMMYS-WORKFLOW.md         # Workflow reference
 ```
 
 ## Development Workflow
@@ -405,5 +431,5 @@ SYNC_GROUP_PASSPHRASE=user-provided
 
 **This document follows the [agents.md](https://agents.md/) standard for AI coding assistants.**
 
-**Template Version**: 1.5.1
-**Last Updated**: 2026-01-12
+**Template Version**: 1.6.0
+**Last Updated**: 2026-01-16
