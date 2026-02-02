@@ -1,4 +1,4 @@
-# CrabNebula Sync - Technical Specification
+# 0k-Sync - Technical Specification
 
 **Version:** 2.1.0
 **Date:** 2026-01-16
@@ -32,7 +32,7 @@
 
 ### 1.1 Purpose
 
-CrabNebula Sync provides secure, zero-knowledge synchronization between multiple instances of a Tauri application across devices (desktop, mobile, web).
+0k-Sync provides secure, zero-knowledge synchronization between multiple instances of a Tauri application across devices (desktop, mobile, web).
 
 ### 1.2 Design Principles
 

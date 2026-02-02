@@ -1,4 +1,4 @@
-# CrabNebula Sync - Research & Validation
+# 0k-Sync - Research & Validation
 
 **Version:** 2.0.0
 **Date:** 2026-01-16
@@ -20,7 +20,7 @@ This document provides justification for technology choices, validates assumptio
 
 ## Executive Summary
 
-CrabNebula Sync is **technically viable** for production. The stack (iroh + Noise Protocol) offers superior connectivity and throughput compared to alternatives. Three gates require attention before GA:
+0k-Sync is **technically viable** for production. The stack (iroh + Noise Protocol) offers superior connectivity and throughput compared to alternatives. Three gates require attention before GA:
 
 | Gate | Status | Action Required |
 |------|--------|-----------------|

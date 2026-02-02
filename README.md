@@ -1,6 +1,8 @@
-# CrabNebula Sync
+# 0k-Sync
 
 **Zero-knowledge sync relay for Tauri applications**
+
+> **0k** = Zero Knowledge — the relay never sees your data
 
 [![Status](https://img.shields.io/badge/status-design%20phase-yellow)]()
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)]()
@@ -9,7 +11,7 @@
 
 ## Overview
 
-CrabNebula Sync is a secure, E2E encrypted synchronization system for local-first Tauri applications. The relay never sees plaintext data - it's a zero-knowledge pass-through that routes encrypted blobs between devices.
+0k-Sync is a secure, E2E encrypted synchronization system for local-first Tauri applications. The relay never sees plaintext data - it's a zero-knowledge pass-through that routes encrypted blobs between devices.
 
 ```
 Device A                     RELAY                      Device B
@@ -70,7 +72,7 @@ const blobs = await sync.pull();
 ## Project Structure
 
 ```
-crabnebula-sync/
+0k-sync/
 ├── docs/                     # Documentation
 │   ├── 01-EXECUTIVE-SUMMARY.md
 │   ├── 02-SPECIFICATION.md
@@ -140,4 +142,4 @@ Dual-licensed under MIT and Apache-2.0. See [LICENSE-MIT](LICENSE-MIT) and [LICE
 
 ---
 
-**CrabNebula Sync: Build. Distribute. Sync.**
+**0k-Sync: Build. Distribute. Sync.**

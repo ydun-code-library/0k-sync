@@ -1,4 +1,4 @@
-# CrabNebula Sync - Documentation Plan
+# 0k-Sync - Documentation Plan
 
 **Created:** 2026-01-16
 **Status:** Planning Phase
@@ -8,7 +8,7 @@
 
 ## Objective
 
-Create 4 comprehensive documents for CrabNebula Sync:
+Create 4 comprehensive documents for 0k-Sync:
 
 | Doc | Purpose | Status | Quality |
 |-----|---------|--------|---------|

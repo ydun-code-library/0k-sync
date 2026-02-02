@@ -1,4 +1,4 @@
-# CrabNebula Sync - MVP Roadmap
+# 0k-Sync - MVP Roadmap
 
 **Version:** 1.0.0  
 **Date:** 2026-01-18  
@@ -147,7 +147,7 @@ Only if observability shows users need background sync.
 
 ### Phase 6: Enterprise Features (Future)
 
-For future CrabNebula Sync adopters requiring enterprise compliance. Not CashTable scope.
+For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope.
 
 | Feature | Priority | Depends On |
 |---------|----------|------------|

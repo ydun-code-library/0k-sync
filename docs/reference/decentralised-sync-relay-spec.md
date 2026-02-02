@@ -1127,7 +1127,7 @@ keyring = "2"                         # OS keychain for private keys
 
 ### 12.2 CrabNebula Product Opportunity
 
-This could become **"CrabNebula Sync"**:
+This could become **"0k-Sync"**:
 - Managed relay infrastructure
 - Tauri plugin for easy integration
 - Dashboard for monitoring
@@ -1446,7 +1446,7 @@ Users can choose where their sync relay runs. All options maintain E2E encryptio
 | **Self-hosted** | ~$5/mo VPS or free (home server) | Maximum | You control it | Medium |
 | **iroh Public Relays** | Free | Good (E2E) | Excellent | Easy |
 | **Nostr Network** | Free | Good (E2E) | Variable | Easy |
-| **CrabNebula Sync** | TBD (potential product) | Enterprise-grade | Managed SLA | Easy |
+| **0k-Sync** | TBD (potential product) | Enterprise-grade | Managed SLA | Easy |
 
 ### 14.2 Self-Hosted (Our Reference Implementation)
 
@@ -1612,7 +1612,7 @@ Build on [libp2p](https://libp2p.io/), the networking stack behind IPFS.
 
 **Best for:** Integration with IPFS/Filecoin ecosystem
 
-### 14.6 CrabNebula Sync (Future / Potential Product)
+### 14.6 0k-Sync (Future / Potential Product)
 
 **Currently:** CrabNebula Cloud offers app distribution (CDN, updates)  
 **Potential:** Add managed sync relay as a service
@@ -1676,7 +1676,7 @@ This gives users the best of all worlds: works immediately, but can be customize
 | Just want it to work | iroh public relays |
 | Privacy maximalist | Self-hosted |
 | Already use Nostr | Nostr relays |
-| Enterprise/team | CrabNebula Sync (when available) |
+| Enterprise/team | 0k-Sync (when available) |
 | Offline-first + occasional sync | iroh (direct P2P preferred) |
 | Building for IPFS ecosystem | libp2p |
 

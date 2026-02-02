@@ -2,13 +2,13 @@
 
 **Version:** 1.1.0  
 **Date:** 2026-01-18  
-**Parent Document:** CrabNebula Sync Specification v2.1.0
+**Parent Document:** 0k-Sync Specification v2.1.0
 
 ---
 
 ## B.1 Scope
 
-This appendix addresses post-quantum readiness for CrabNebula Sync, combining classical algorithms with NIST post-quantum standards so security holds if either is broken.
+This appendix addresses post-quantum readiness for 0k-Sync, combining classical algorithms with NIST post-quantum standards so security holds if either is broken.
 
 ---
 

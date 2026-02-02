@@ -1,4 +1,4 @@
-# CrabNebula Sync - Executive Summary
+# 0k-Sync - Executive Summary
 
 **Version:** 2.0.0
 **Date:** 2026-01-16
@@ -29,7 +29,7 @@ However, **sync is hard**. Developers face a painful choice:
 
 ---
 
-## 2. Solution: CrabNebula Sync
+## 2. Solution: 0k-Sync
 
 ### Core Architecture
 
@@ -239,7 +239,7 @@ From research validation:
 | What's validated? | iroh, XChaCha20, Argon2id, Noise XX |
 | What's blocked? | Security audit, FIPS compliance |
 
-**CrabNebula Sync completes the Tauri platform: Build → Distribute → Sync.**
+**0k-Sync completes the Tauri platform: Build → Distribute → Sync.**
 
 ---
 

@@ -282,7 +282,7 @@ cargo run -p sync-cli -- pull --after-cursor 0
 ## Repository Structure
 
 ```
-crabnebula-sync/
+0k-sync/
 ├── Cargo.toml                 # Workspace definition
 ├── README.md                  # Project overview
 ├── docs/                      # Documentation

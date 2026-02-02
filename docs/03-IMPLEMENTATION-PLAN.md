@@ -1,4 +1,4 @@
-# CrabNebula Sync - Test-Driven Implementation Plan
+# 0k-Sync - Test-Driven Implementation Plan
 
 **Version:** 2.0.0
 **Date:** 2026-01-16
@@ -80,7 +80,7 @@ Each phase follows:
 ### 2.1 Cargo Workspace
 
 ```
-crabnebula-sync/
+0k-sync/
 ├── Cargo.toml                    # Workspace root
 ├── README.md
 ├── docs/
@@ -163,7 +163,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/crabnebula-dev/crabnebula-sync"
+repository = "https://github.com/crabnebula-dev/0k-sync"
 
 [workspace.dependencies]
 # Serialization
