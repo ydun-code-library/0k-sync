@@ -17,7 +17,7 @@
 6. [Client Library](#6-client-library)
 7. [Relay Server](#7-relay-server)
 8. [Pairing Flow](#8-pairing-flow)
-9. [Tauri Plugin](#9-tauri-plugin)
+9. [Framework Integration](#9-framework-integration-tauri-example)
 10. [Mobile Lifecycle Considerations](#10-mobile-lifecycle-considerations)
 11. [Tier-Specific Configuration](#11-tier-specific-configuration)
 12. [Error Handling](#12-error-handling)
@@ -32,7 +32,7 @@
 
 ### 1.1 Purpose
 
-0k-Sync provides secure, zero-knowledge synchronization between multiple instances of a Tauri application across devices (desktop, mobile, web).
+0k-Sync provides secure, zero-knowledge synchronization between multiple instances of any local-first application across devices (desktop, mobile, web).
 
 ### 1.2 Design Principles
 
@@ -60,15 +60,15 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                            Tauri Application                             │
+│                        Local-First Application                           │
 │  ┌────────────────────────────────────────────────────────────────────┐ │
 │  │                         Application Code                            │ │
 │  │  • Business logic, UI, local database                              │ │
 │  └───────────────────────────────┬────────────────────────────────────┘ │
 │                                  │ push(blob) / pull()                  │
 │  ┌───────────────────────────────▼────────────────────────────────────┐ │
-│  │                      tauri-plugin-sync                              │ │
-│  │  • Tauri commands (sync_push, sync_pull, sync_status)              │ │
+│  │               Framework Integration (optional)                      │ │
+│  │  • Platform-specific bindings (Tauri, Electron, React Native...)   │ │
 │  │  • Event emission to frontend                                       │ │
 │  └───────────────────────────────┬────────────────────────────────────┘ │
 │                                  │                                      │
@@ -95,7 +95,7 @@
 | Component | Responsibility |
 |-----------|----------------|
 | **Application** | Business logic, CRDT merge, conflict resolution, UI |
-| **tauri-plugin-sync** | Tauri command bridge, state management, events |
+| **Framework Integration** | Platform bindings (optional), state management, events |
 | **sync-client** | E2E encryption, connection, cursor tracking, pairing |
 | **sync-types** | Wire format, message definitions, shared types |
 | **sync-core** | Pure logic (state machine, buffer), no I/O |
@@ -217,21 +217,21 @@ XX:
 - Neither needs pre-shared keys
 - Forward secrecy from message 2
 
-**Cryptographic Primitives:**
+**Cryptographic Primitives (Hybrid Post-Quantum):**
 
 | Function | Algorithm | Crate |
 |----------|-----------|-------|
-| DH | Curve25519 | snow **v0.9.7+** |
-| Cipher | ChaChaPoly | snow **v0.9.7+** |
-| Hash | BLAKE2s | snow **v0.9.7+** |
+| Key Exchange | X25519 + ML-KEM-768 | clatter **v2.1+** |
+| Cipher | ChaChaPoly | clatter **v2.1+** |
+| Hash | BLAKE2s | clatter **v2.1+** |
 
-> ⚠️ **snow version requirement:** Use v0.9.7 or later. Earlier versions have security advisories (RUSTSEC-2024-0011, RUSTSEC-2024-0347).
+> ⚠️ **Hybrid Handshake:** Uses `noise_hybrid_XX` pattern with ML-KEM-768 (NIST Level 3) for quantum resistance. The clatter crate provides verified hybrid Noise protocol implementation.
 
 ### 4.3 Device Identity
 
 - Each device generates Curve25519 keypair on first launch
 - Public key = Device ID (32 bytes, base64 for display)
-- Private key stored in OS keychain (via tauri-plugin-keyring or keyring crate)
+- Private key stored in OS keychain (via platform-specific secure storage)
 
 ### 4.4 Threat Model
 
@@ -473,8 +473,8 @@ pub enum RelayBackend {
     /// Tiers 2-3: Self-hosted or PaaS
     Relay { url: String },
 
-    /// Tiers 4-5: CrabNebula managed
-    CrabNebula { api_key: String },
+    /// Tiers 4-5: Managed Cloud managed
+    Managed Cloud { api_key: String },
 
     /// Tier 6: Enterprise
     Enterprise { url: String, auth: EnterpriseAuth },
@@ -707,7 +707,7 @@ sync_relay_bytes_transferred 157286400
 ### 8.4 QR Code Format
 
 ```
-URL: cashtable://sync?invite=BASE64_PAYLOAD
+URL: your-app://sync?invite=BASE64_PAYLOAD
 
 Payload (before base64):
 {
@@ -719,6 +719,8 @@ Payload (before base64):
   "e": 1705000000
 }
 ```
+
+Note: Replace `your-app://` with your application's custom URL scheme.
 
 ### 8.5 Short Code Format (Alternative)
 
@@ -748,7 +750,7 @@ Flow:
 
 ---
 
-## 9. Tauri Plugin
+## 9. Framework Integration (Tauri Example)
 
 ### 9.1 Rust Side
 
@@ -933,7 +935,7 @@ The UI **must** show sync state to avoid user confusion:
 The UI should **never wait** for sync to complete before showing changes:
 
 ```rust
-// In your Tauri app
+// In your local-first app
 async fn save_transaction(tx: Transaction, sync: &SyncClient, db: &LocalDb) {
     // 1. Save locally FIRST (instant, always succeeds)
     db.insert(&tx).await?;
@@ -961,45 +963,34 @@ async fn save_transaction(tx: Transaction, sync: &SyncClient, db: &LocalDb) {
 
 ### 10.5 Sync Trigger Points
 
-Sync should be triggered on these Tauri lifecycle events:
+Sync should be triggered on these application lifecycle events:
 
 ```rust
-fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_sync::init())
-        .setup(|app| {
-            // Initial sync on app start
-            let sync_client = app.state::<SyncState>();
-            tauri::async_runtime::spawn(async move {
-                sync_client.connect_and_pull().await;
-            });
-            Ok(())
-        })
-        .on_window_event(|window, event| match event {
-            WindowEvent::Focused(true) => {
-                // App came to foreground - pull new data, push pending
-                let sync_client = window.state::<SyncState>();
-                tauri::async_runtime::spawn(async move {
-                    sync_client.sync_pending_then_pull().await;
-                });
-            }
-            WindowEvent::CloseRequested { .. } => {
-                // App closing - DO NOT block waiting for sync!
-                // Just mark pending items; they'll sync next launch
-                let sync_client = window.state::<SyncState>();
-                sync_client.mark_pending_for_next_launch();
-                // Fire-and-forget attempt (may not complete)
-                tauri::async_runtime::spawn(async move {
-                    let _ = tokio::time::timeout(
-                        std::time::Duration::from_millis(500),
-                        sync_client.quick_flush()
-                    ).await;
-                });
-            }
-            _ => {}
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+// Pseudocode - adapt to your framework (Tauri, Electron, React Native, etc.)
+
+// On app startup
+async fn on_app_start(sync_client: &SyncClient) {
+    // Initial sync on app start
+    sync_client.connect_and_pull().await;
+}
+
+// On app resumed (came to foreground)
+async fn on_app_resume(sync_client: &SyncClient) {
+    // App came to foreground - pull new data, push pending
+    sync_client.sync_pending_then_pull().await;
+}
+
+// On app closing
+async fn on_app_close(sync_client: &SyncClient) {
+    // App closing - DO NOT block waiting for sync!
+    // Just mark pending items; they'll sync next launch
+    sync_client.mark_pending_for_next_launch();
+
+    // Fire-and-forget attempt (may not complete)
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        sync_client.quick_flush()
+    ).await;
 }
 ```
 
@@ -1068,11 +1059,11 @@ SyncConfig {
 
 Container deployed to Vercel/Railway/Fly.io.
 
-### 10.4 Tier 4-5: CrabNebula
+### 10.4 Tier 4-5: Managed Cloud
 
 ```rust
 SyncConfig {
-    backend: RelayBackend::CrabNebula {
+    backend: RelayBackend::Managed Cloud {
         api_key: "cn_live_xxxx".into(),
     },
     ..Default::default()
@@ -1186,7 +1177,7 @@ max_reconnect_delay_ms = 30000
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `SYNC_RELAY_URL` | Override relay URL | Config file |
-| `SYNC_API_KEY` | CrabNebula API key | None |
+| `SYNC_API_KEY` | Managed Cloud API key | None |
 | `SYNC_LOG_LEVEL` | Logging verbosity | `info` |
 | `SYNC_DEVICE_NAME` | Human-readable name | Hostname |
 
@@ -1470,24 +1461,22 @@ If a device is revoked due to compromise, the group key should be rotated:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 16.2 Plugin API (Day 1 Requirements)
+### 16.2 Client API (Day 1 Requirements)
 
-The Tauri plugin MUST expose push token hooks from Day 1, even if backend integration comes later:
+The sync-client MUST expose push token hooks from Day 1, even if backend integration comes later:
 
 ```rust
-// tauri-plugin-sync/src/lib.rs
+// sync-client API
 
-#[tauri::command]
-async fn sync_register_push_token(
-    state: State<'_, SyncState>,
-    token: String,
-    platform: PushPlatform,
-) -> Result<(), String>;
+impl SyncClient {
+    pub async fn register_push_token(
+        &self,
+        token: String,
+        platform: PushPlatform,
+    ) -> Result<()>;
 
-#[tauri::command]
-async fn sync_unregister_push_token(
-    state: State<'_, SyncState>,
-) -> Result<(), String>;
+    pub async fn unregister_push_token(&self) -> Result<()>;
+}
 
 pub enum PushPlatform {
     Apns,      // Apple Push Notification Service
@@ -1497,8 +1486,8 @@ pub enum PushPlatform {
 ```
 
 ```typescript
-// JavaScript API
-export interface SyncPlugin {
+// JavaScript/TypeScript bindings (for JS-based frameworks)
+export interface SyncClient {
     // ... existing methods ...
 
     // Push notification integration (Day 1)
@@ -1576,16 +1565,15 @@ async fn handle_push_for_offline_device(
 func application(_ application: UIApplication,
                  didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     let token = deviceToken.hexString
-    // Pass to Tauri via invoke
-    TauriInvoke.call("plugin:sync|register_push_token",
-                     args: ["token": token, "platform": "apns"])
+    // Pass to your sync client (adapt to your framework's native bridge)
+    SyncClient.shared.registerPushToken(token: token, platform: .apns)
 }
 
 func application(_ application: UIApplication,
                  didReceiveRemoteNotification userInfo: [AnyHashable: Any],
                  fetchCompletionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
     // Silent push received - trigger sync
-    TauriInvoke.call("plugin:sync|handle_push_wake")
+    SyncClient.shared.handlePushWake()
     fetchCompletionHandler(.newData)
 }
 ```
@@ -1595,15 +1583,14 @@ func application(_ application: UIApplication,
 // In your Firebase messaging service
 class SyncFirebaseService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
-        // Pass to Tauri
-        TauriInvoke.call("plugin:sync|register_push_token",
-                        mapOf("token" to token, "platform" to "fcm"))
+        // Pass to your sync client (adapt to your framework's native bridge)
+        SyncClient.getInstance().registerPushToken(token, PushPlatform.FCM)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         if (message.data["type"] == "sync") {
             // Trigger sync in background
-            TauriInvoke.call("plugin:sync|handle_push_wake")
+            SyncClient.getInstance().handlePushWake()
         }
     }
 }
@@ -1613,7 +1600,7 @@ class SyncFirebaseService : FirebaseMessagingService() {
 
 | Phase | Scope | Dependency |
 |-------|-------|------------|
-| **Day 1** | Plugin API hooks (register/unregister) | None |
+| **Day 1** | Client API hooks (register/unregister) | None |
 | **Day 1** | Message types (REGISTER_PUSH, etc.) | sync-types |
 | **Phase 5** | Relay stores push tokens | sync-relay |
 | **Phase 5** | Relay sends to APNS/FCM | Push service integration |
@@ -1646,7 +1633,7 @@ sync-types = { path = "../sync-types" }
 sync-core = { path = "../sync-core" }
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
-snow = "0.9.7"                    # v0.9.7+ required (security fixes)
+clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
 argon2 = "0.5"
 chacha20poly1305 = "0.10"        # Supports XChaCha20
 rand = "0.8"
@@ -1660,7 +1647,7 @@ tracing = "0.1"
 sync-types = { path = "../sync-types" }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
-snow = "0.9.7"                    # v0.9.7+ required (security fixes)
+clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
 axum = "0.7"
 tower = "0.4"
@@ -1669,8 +1656,9 @@ tracing-subscriber = "0.3"
 config = "0.14"
 ```
 
-### tauri-plugin-sync
+### Framework Integration Example: Tauri Plugin
 ```toml
+# tauri-plugin-sync (optional - example integration)
 [dependencies]
 sync-client = { path = "../sync-client" }
 tauri = "2"

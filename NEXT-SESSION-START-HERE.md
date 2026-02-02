@@ -19,12 +19,12 @@ PURPOSE: Provide quick context and continuity between development sessions
 
 ### What This Project Is
 
-**Sync Relay** (tauri-secure-sync) is a self-hosted relay server and Rust client library that enables E2E encrypted synchronization between Tauri app instances.
+**0k-Sync** (zero-knowledge sync) is a self-hosted relay server and Rust client library that enables E2E encrypted synchronization between local-first app instances.
 
 **Your Role:** Developer / Implementer
 - Implement Rust crates (sync-types, sync-relay, sync-client, sync-cli)
 - Deploy relay server to Beast
-- Create Tauri plugin wrapper
+- Create framework integrations as needed (e.g., Tauri plugin)
 - Write tests and documentation
 
 **Current Status:** 20% complete
@@ -105,7 +105,7 @@ PURPOSE: Provide quick context and continuity between development sessions
 - [ ] Create sync-core crate with skeleton
 - [ ] Create sync-client crate with skeleton
 - [ ] Create sync-cli crate with skeleton
-- [ ] Create tauri-plugin-sync crate with skeleton
+- [ ] Create sync-relay crate with skeleton
 - [ ] Verify `cargo build --workspace`
 
 **Why First:** Need workspace structure before any implementation
@@ -205,7 +205,7 @@ docker-compose up -d
 ### Why Standalone Workspace?
 - **Problem:** Embedding in app couples sync to app-specific types
 - **Solution:** Sync only sees `Blob`, guarantees zero knowledge
-- **Benefit:** `cargo add sync-client` works for any Tauri app
+- **Benefit:** `cargo add sync-client` works for any local-first app
 
 ---
 
@@ -213,7 +213,7 @@ docker-compose up -d
 
 ### 1. Implementation Order Matters
 ```
-sync-types → sync-relay → sync-cli → sync-client → tauri-plugin-sync
+sync-types → sync-core → sync-client → sync-cli → sync-relay → framework-integrations
 ```
 Each crate depends on previous ones being stable.
 

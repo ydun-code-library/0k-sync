@@ -1,4 +1,4 @@
-# Sync Relay - E2E encrypted local-first sync for Tauri apps
+# 0k-Sync - E2E encrypted sync protocol for local-first apps
 
 <!--
 TEMPLATE_VERSION: 1.7.0
@@ -14,12 +14,12 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 ## Repository Information
 - **GitHub Repository**: https://github.com/Jimmyh-world/sync-relay
 - **Local Directory**: `/home/jimmyb/crabnebula/sync-relay`
-- **Primary Purpose**: Provide E2E encrypted synchronization between Tauri app instances
+- **Primary Purpose**: Provide E2E encrypted synchronization between local-first app instances
 
 ## Important Context
 
 <!-- PROJECT_SPECIFIC START: IMPORTANT_CONTEXT -->
-**Sync Relay** (also known as **tauri-secure-sync**) is a self-hosted relay server and client library that enables secure synchronization between multiple instances of a Tauri application without the relay ever seeing plaintext data.
+**0k-Sync** is a zero-knowledge sync protocol and relay server that enables secure synchronization between multiple instances of any local-first application without the relay ever seeing plaintext data.
 
 **Key Design Principles:**
 - **Zero Knowledge** — Relay cannot decrypt user data
@@ -31,7 +31,7 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 **Target Apps:**
 - CashTable (accounting app)
 - Regime Tracker (health tracking)
-- Future Tauri applications
+- Future local-first applications
 
 **Documentation:**
 - [DOCS-MAP](docs/DOCS-MAP.md) - Navigation index (start here)
@@ -169,10 +169,10 @@ gh issue list
 ## Service Overview
 
 <!-- PROJECT_SPECIFIC START: SERVICE_OVERVIEW -->
-**Sync Relay** is a lightweight, self-hosted relay server and Rust client library that enables secure synchronization between multiple instances of a Tauri application.
+**Sync Relay** is a lightweight, self-hosted relay server and Rust client library that enables secure synchronization between multiple instances of a local-first application.
 
 **Key Responsibilities:**
-- Accept WebSocket connections from Tauri apps
+- Accept WebSocket connections from local-first apps
 - Perform Noise Protocol XX handshake for E2E encryption
 - Route encrypted blobs between devices in same sync group
 - Store blobs temporarily for offline devices
@@ -204,7 +204,7 @@ gh issue list
 - ⚪ sync-relay server implementation
 - ⚪ sync-client library implementation
 - ⚪ sync-cli testing tool
-- ⚪ tauri-plugin-sync wrapper
+- ⚪ framework integrations (optional)
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 
 ## Technology Stack
@@ -213,7 +213,7 @@ gh issue list
 
 **sync-types/** (shared types):
 - Wire format, message structs, crypto primitives
-- Dependencies: serde, snow, uuid
+- Dependencies: serde, clatter, uuid
 
 **sync-relay/** (server binary):
 - WebSocket server, SQLite storage
@@ -221,15 +221,15 @@ gh issue list
 
 **sync-client/** (library for apps):
 - Connection management, encryption layer
-- Dependencies: tokio, snow, argon2
+- Dependencies: tokio, clatter (hybrid Noise), argon2
 
 **sync-cli/** (testing tool):
 - Command-line push/pull/pair commands
 - Dependencies: clap, dialoguer
 
-**tauri-plugin-sync/** (optional Tauri wrapper):
-- Exposes sync-client as Tauri commands
-- Dependencies: tauri, sync-client
+**Framework Integrations** (optional, built on sync-client):
+- Tauri plugin, Electron bindings, mobile FFI, etc.
+- Each integration wraps sync-client for specific frameworks
 
 ### Protocol Stack
 
@@ -308,7 +308,7 @@ cargo run -p sync-cli -- pull --after-cursor 0
 ├── sync-cli/                  # Testing tool (Phase 4)
 │   ├── Cargo.toml
 │   └── src/main.rs
-├── tauri-plugin-sync/         # Tauri plugin (Phase 5)
+├── integrations/              # Framework integrations (optional)
 │   ├── Cargo.toml
 │   └── src/lib.rs
 ├── sync-relay/                # Custom relay (Phase 6, future)
@@ -393,7 +393,7 @@ None at this time
 # sync-relay
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.21"
-snow = "0.9"  # Noise Protocol
+clatter = "2.1"  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 sqlx = { version = "0.7", features = ["sqlite"] }
 axum = "0.7"  # Health endpoints
 
@@ -438,7 +438,7 @@ SYNC_GROUP_PASSPHRASE=user-provided
 ### Documentation
 - **Full Specification**: `sync-relay-spec.md`
 - **Noise Protocol**: https://noiseprotocol.org/noise.html
-- **snow Rust crate**: https://github.com/mcginty/snow
+- **clatter Rust crate**: https://github.com/jmwample/clatter (hybrid Noise protocol)
 
 ### Related Projects
 - Syncthing BEP: https://docs.syncthing.net/specs/bep-v1.html

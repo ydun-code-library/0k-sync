@@ -1,4 +1,4 @@
-# Sync Relay Status
+# 0k-Sync Status
 
 <!--
 TEMPLATE_VERSION: 1.0.0
@@ -17,7 +17,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Project Overview
 
 **Project Type:** Rust Cargo Workspace (Server + Client Library)
-**Primary Goal:** E2E encrypted sync infrastructure for Tauri applications
+**Primary Goal:** E2E encrypted sync infrastructure for local-first applications
 **Target Deployment:** Beast (home server) via Docker + Cloudflare Tunnel
 **Status:** Architecture defined, awaiting implementation
 
@@ -107,15 +107,15 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ---
 
-### Phase 5: tauri-plugin-sync ⚪ NOT STARTED
-- **Duration:** Estimated 2 hours
-- **Output:** Tauri plugin wrapper
+### Phase 5: Framework Integration (Optional) ⚪ NOT STARTED
+- **Duration:** Estimated 2 hours per framework
+- **Output:** Framework-specific wrappers (e.g., Tauri plugin)
 - **Status:** Not started
 
 **Tasks:**
-- [ ] Wrap sync-client as Tauri commands
-- [ ] Integrate with Tauri state management
-- [ ] Test in real Tauri app
+- [ ] Wrap sync-client for target framework
+- [ ] Integrate with framework state management
+- [ ] Test in real application
 
 ---
 
@@ -166,7 +166,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ### Dependencies (Planned)
 - tokio: 1.x
 - tokio-tungstenite: 0.21
-- snow: 0.9 (Noise Protocol)
+- clatter: 2.1 (Hybrid Noise Protocol)
 - sqlx: 0.7
 - axum: 0.7
 

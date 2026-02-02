@@ -87,21 +87,21 @@ cargo run -p sync-cli -- pair --create
 
 ### Project-Specific Notes
 
-**This is a Rust Cargo workspace** with 6 crates:
+**This is a Rust Cargo workspace** with 5 core crates:
 1. `sync-types` - Shared types (Envelope, Message, etc.)
 2. `sync-core` - Pure logic, no I/O (instant tests)
-3. `sync-client` - Library for Tauri apps
+3. `sync-client` - Library for local-first apps
 4. `sync-cli` - Testing/verification tool
-5. `tauri-plugin-sync` - Tauri plugin wrapper
-6. `sync-relay` - Custom relay (future, Tiers 2-6)
+5. `sync-relay` - Custom relay (future, Tiers 2-6)
+6. Framework integrations - Optional wrappers (e.g., tauri-plugin-sync)
 
 **Implementation Order:**
 1. sync-types first (everything depends on wire format)
 2. sync-core second (pure logic, no I/O)
 3. sync-client third (iroh integration)
 4. sync-cli fourth (fastest way to test protocol)
-5. tauri-plugin-sync fifth (thin wrapper)
-6. sync-relay sixth (custom relay, future)
+5. sync-relay fifth (custom relay, future)
+6. Framework integrations last (thin wrappers around sync-client)
 
 **Key Files:**
 - `docs/DOCS-MAP.md` - Navigation index (start here)
@@ -113,9 +113,9 @@ cargo run -p sync-cli -- pair --create
 
 **Architecture:**
 ```
-Tauri App → sync-client → WebSocket → sync-relay → SQLite
-                ↓
-         Noise Protocol (E2E encryption)
+Local-First App → sync-client → WebSocket → sync-relay → SQLite
+                      ↓
+               Noise Protocol (E2E encryption)
 ```
 
 **Protocol Stack:**

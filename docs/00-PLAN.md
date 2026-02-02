@@ -38,7 +38,7 @@ Create 4 comprehensive documents for 0k-Sync:
         ┌─────────────────────────┼─────────────────────────┐
         ▼                         ▼                         ▼
    Tier 1: iroh            Tier 2-3: Self-hosted      Tier 4-6: Managed
-   (Vibe coder)            (Home dev / Vercel)        (CrabNebula)
+   (Vibe coder)            (Home dev / Vercel)        (Managed Cloud)
 ```
 
 ### Five Product Tiers
@@ -48,8 +48,8 @@ Create 4 comprehensive documents for 0k-Sync:
 | 1 | Vibe Coder | iroh public network | Nothing |
 | 2 | Home Developer | Self-hosted container | Electricity |
 | 3 | Vercel-style | PaaS container | Platform fees |
-| 4 | Community Sync | CrabNebula shared pool | Free/cheap |
-| 5 | Cloud | CrabNebula dedicated | Usage-based |
+| 4 | Community Sync | Managed Cloud shared pool | Free/cheap |
+| 5 | Cloud | Managed Cloud dedicated | Usage-based |
 | 6 | Enterprise | Customer deploys | License |
 
 ### What We're NOT Building
@@ -83,7 +83,7 @@ Create 4 comprehensive documents for 0k-Sync:
 3. **Product Tiers** - 6 tiers from hobbyist to enterprise
 4. **Architecture Summary** - Client constant, relay variable
 5. **Technology Choices** - Open source stack, no lock-in
-6. **Business Model** - How CrabNebula monetizes (Tiers 4-6)
+6. **Business Model** - How Managed Cloud monetizes (Tiers 4-6)
 7. **Competitive Position** - vs Firebase, Supabase, custom solutions
 
 ### 02-SPECIFICATION.md (Detailed)

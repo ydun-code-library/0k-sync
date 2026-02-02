@@ -287,7 +287,7 @@ PRAGMA cache_size = -65536;
 | Mobile support | Android and iOS in Tauri 2.0 |
 | Plugin ecosystem | First-class plugin support |
 | Swift/Kotlin bindings | Native mobile code when needed |
-| CrabNebula alignment | Official Tauri partner |
+| Managed Cloud alignment | Official Tauri partner |
 
 **📚 References:**
 - [Tauri 2.0 Plugin Development](https://v2.tauri.app/develop/plugins/)

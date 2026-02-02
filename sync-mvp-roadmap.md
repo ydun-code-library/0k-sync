@@ -21,7 +21,7 @@ This document defines the minimum viable implementation for CashTable launch and
 | sync-types crate | Required | Message definitions, wire format |
 | sync-client crate | Required | E2E encryption, connection management |
 | sync-relay server | Required | WebSocket, message routing, temp buffer |
-| tauri-plugin-sync | Required | Tauri command bridge, JS API |
+| Framework integration | Required | App-specific bridge (e.g., Tauri plugin for CashTable) |
 
 ### Cryptography
 
@@ -73,7 +73,7 @@ This document defines the minimum viable implementation for CashTable launch and
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Relay URL configuration | Required | Point to CrabNebula or self-hosted |
+| Relay URL configuration | Required | Point to Managed or self-hosted |
 | Auto-reconnect | Required | Default enabled |
 | Console logging (debug builds) | Required | Disabled in production |
 
@@ -83,10 +83,10 @@ This document defines the minimum viable implementation for CashTable launch and
 
 ### In Scope for Launch
 
-- Single relay tier (CrabNebula managed or self-hosted)
-- Desktop + mobile (iOS/Android via Tauri)
+- Single relay tier (Managed or self-hosted)
+- Desktop + mobile platforms
 - Two-device sync minimum
-- CashTable-specific blob format (app handles serialization)
+- App-specific blob format (CashTable handles serialization)
 
 ### Explicitly Out of Scope for Launch
 
@@ -190,7 +190,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 |------|------------|
 | Hybrid handshake issues | Test against clatter test vectors early |
 | Mobile lifecycle edge cases | Spec assumes worst case; ship and observe |
-| Relay scaling | Single CrabNebula instance handles early load |
+| Relay scaling | Single Managed instance handles early load |
 
 ### Post-Launch Risks
 
@@ -236,15 +236,15 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 | clatter | 2.1+ | Low - stable release |
 | tokio-tungstenite | 0.21+ | Low - mature |
 | sqlx (relay) | 0.7+ | Low - mature |
-| tauri | 2.0+ | Low - CrabNebula expertise |
+| tauri | 2.0+ | Low - Managed expertise |
 
 ### Internal
 
 | Dependency | Owner | Risk |
 |------------|-------|------|
 | CashTable blob format | CashTable team | Define early |
-| CrabNebula Cloud hosting | CrabNebula | Coordinate deployment |
-| Mobile build pipeline | CrabNebula | Verify Tauri mobile works |
+| Managed Cloud hosting | Managed | Coordinate deployment |
+| Mobile build pipeline | Managed | Verify Tauri mobile works |
 
 ---
 
@@ -252,9 +252,9 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 
 | Decision | Options | Deadline |
 |----------|---------|----------|
-| Relay hosting | CrabNebula Cloud vs self-hosted for launch | Week 1 |
+| Relay hosting | Managed Cloud vs self-hosted for launch | Week 1 |
 | Blob format | JSON vs MessagePack for CashTable | Week 1 |
-| Tier configuration | Hardcode CrabNebula tier vs configurable | Week 2 |
+| Tier configuration | Hardcode Managed tier vs configurable | Week 2 |
 
 ---
 

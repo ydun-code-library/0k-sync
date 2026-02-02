@@ -17,7 +17,7 @@
 5. [Phase 2: sync-core](#5-phase-2-sync-core)
 6. [Phase 3: sync-client](#6-phase-3-sync-client)
 7. [Phase 4: sync-cli](#7-phase-4-sync-cli)
-8. [Phase 5: tauri-plugin-sync](#8-phase-5-tauri-plugin-sync)
+8. [Phase 5: Framework Integration (Tauri Example)](#8-phase-5-framework-integration-tauri-example)
 9. [Phase 6: sync-relay (Future)](#9-phase-6-sync-relay-future)
 10. [Testing Strategy](#10-testing-strategy)
 11. [Validation Gates](#11-validation-gates)
@@ -163,7 +163,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/crabnebula-dev/0k-sync"
+repository = "https://github.com/your-org/0k-sync"
 
 [workspace.dependencies]
 # Serialization
@@ -183,7 +183,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # Cryptography (PINNED VERSIONS - security critical)
-snow = "0.9.7"                    # Noise Protocol - MUST be 0.9.7+ (RUSTSEC-2024-0011, RUSTSEC-2024-0347)
+clatter = "2.1"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
@@ -844,7 +844,7 @@ pub struct WebSocketTransport { /* ... */ }
 #### Step 1: Crypto Module
 
 > ⚠️ **Critical Version Pins:**
-> - `snow = "0.9.7"` — RUSTSEC-2024-0011 and RUSTSEC-2024-0347 fixed
+> - `clatter = "2.1"` — Hybrid Noise Protocol with ML-KEM-768 + X25519
 > - XChaCha20-Poly1305 — 192-bit nonces (not 96-bit ChaCha20)
 > - Device-adaptive Argon2id — 12 MiB to 64 MiB based on RAM
 
@@ -947,12 +947,12 @@ mod tests {
     }
 
     // ===========================================
-    // Noise Protocol Tests (snow v0.9.7+)
+    // Hybrid Noise Protocol Tests (clatter v2.1+)
     // ===========================================
 
     #[test]
-    fn noise_xx_handshake_succeeds() {
-        // Using snow v0.9.7+ (security advisories fixed)
+    fn noise_hybrid_xx_handshake_succeeds() {
+        // Using clatter v2.1+ for hybrid ML-KEM-768 + X25519
         let initiator = NoiseSession::new_initiator();
         let responder = NoiseSession::new_responder();
 
@@ -1124,7 +1124,7 @@ git commit -m "Add sync-client library
 - SyncClient with push/pull/subscribe API
 - GroupKey E2E encryption (XChaCha20-Poly1305, 192-bit nonces)
 - Device-adaptive Argon2id key derivation (12-64 MiB)
-- Noise Protocol XX session management (snow v0.9.7+)
+- Hybrid Noise Protocol XX (clatter v2.1+, ML-KEM-768 + X25519)
 - Transport abstraction (iroh v0.35.x, WebSocket)
 - Thundering herd mitigation with jitter
 - Integration test: two clients syncing"
@@ -1260,11 +1260,11 @@ git tag v0.1.0-phase4
 
 ---
 
-## 8. Phase 5: tauri-plugin-sync
+## 8. Phase 5: Framework Integration (Tauri Example)
 
 ### 8.1 Objective
 
-Wrap sync-client as a Tauri plugin with JavaScript bindings.
+Wrap sync-client for your framework of choice. This section uses Tauri as the example, but the pattern applies to Electron, React Native, Flutter, etc.
 
 > ⚠️ **Mobile Lifecycle:** The plugin MUST handle mobile app lifecycle correctly. See Section 10.4 for mobile-specific test requirements. Key rules:
 > - Never block on close
@@ -1399,13 +1399,13 @@ cd examples/test-app && cargo tauri dev
 
 ```bash
 git add tauri-plugin-sync/
-git commit -m "Add tauri-plugin-sync
+git commit -m "Add tauri-plugin-sync (example framework integration)
 
 - Tauri 2.0 plugin structure
 - Commands: enable, disable, create_invite, join_invite, push, pull
 - JavaScript/TypeScript bindings
 - Event emission to frontend
-- Ready for integration into Tauri apps"
+- Pattern can be adapted to other frameworks (Electron, React Native, etc.)"
 
 git tag v0.1.0-phase5
 ```
@@ -1425,7 +1425,7 @@ Build custom relay for self-hosted deployments (Tiers 2-6).
 Implement sync-relay when:
 - iroh-based MVP is stable and validated
 - Users request self-hosted option
-- CrabNebula wants Tiers 4-6 control
+- Managed Cloud wants Tiers 4-6 control
 
 ### 9.3 Implementation Outline
 
@@ -1835,7 +1835,7 @@ If a breaking change reaches users:
 | 2 | sync-core | State machine | Pure logic (no I/O) |
 | 3 | sync-client | Client library | Encryption, transport |
 | 4 | sync-cli | Testing tool | E2E headless |
-| 5 | tauri-plugin | Tauri integration | Commands, events |
+| 5 | framework-integration | Example: Tauri plugin | Commands, events |
 | 6 | sync-relay | Custom relay | Message routing |
 
 **Remember:** Tests first. Every time. No exceptions.

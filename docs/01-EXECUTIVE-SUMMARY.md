@@ -21,11 +21,11 @@ However, **sync is hard**. Developers face a painful choice:
 | **Build custom** | Months of networking, encryption, conflict resolution work |
 | **Skip sync** | Users stuck on single device, competitive disadvantage |
 
-### The Tauri Ecosystem Gap
+### The Local-First Ecosystem Gap
 
-[Tauri](https://tauri.app) has emerged as the leading framework for building lightweight, secure desktop and mobile applications. CrabNebula already provides **distribution** (CDN, updates) via CrabNebula Cloud.
+Local-first frameworks (Tauri, Electron, React Native, Flutter) have matured for building desktop and mobile applications. Developers can build, package, and distribute apps easily.
 
-**Missing piece:** Sync. Tauri developers have no turnkey solution for multi-device synchronization.
+**Missing piece:** Sync. Local-first developers have no turnkey, zero-knowledge solution for multi-device synchronization that doesn't require trusting a third party with their users' data.
 
 ---
 
@@ -51,7 +51,7 @@ Device A                     RELAY                      Device B
 
 | Component | Purpose |
 |-----------|---------|
-| **tauri-plugin-sync** | Drop-in Tauri plugin—one line to add sync |
+| **sync-client** | Drop-in library—simple API to add sync to any app |
 | **sync-client** | Rust library for E2E encryption, pairing, cursor tracking |
 | **sync-relay** | Stateless message router with temporary buffering |
 
@@ -160,17 +160,18 @@ Six tiers serve the full market:
 | **1. Vibe Coder** | iroh public network | Hobbyist, zero setup |
 | **2. Home Developer** | Self-hosted Docker | Privacy-focused |
 | **3. Vercel-style** | Container on PaaS | Startup on budget |
-| **4. Community Sync** | CrabNebula shared | Indie developer |
-| **5. Cloud** | CrabNebula dedicated | Funded startup |
+| **4. Community Sync** | Managed Cloud shared | Indie developer |
+| **5. Cloud** | Managed Cloud dedicated | Funded startup |
 | **6. Enterprise** | Customer infrastructure | Regulated industry |
 
 **Developer Experience (All Tiers):**
 
 ```rust
 // One line to add sync
-tauri::Builder::default()
-    .plugin(tauri_plugin_sync::init())
-    .run(tauri::generate_context!())
+use sync_client::SyncClient;
+
+let client = SyncClient::connect("wss://relay.example.com").await?;
+client.push(encrypted_blob).await?;
 ```
 
 Changing tiers = changing one config value. No code changes.
@@ -189,7 +190,7 @@ sync-core      → Pure logic (state machine, no I/O)
 sync-client    → Library (crypto, transport)
     ↓
 ├── sync-cli       → Testing tool (headless E2E)
-└── tauri-plugin   → Tauri integration
+└── integrations   → Framework bindings (optional)
     ↓
 sync-relay     → Custom relay (future, Tiers 2-6)
 ```
@@ -202,7 +203,7 @@ sync-relay     → Custom relay (future, Tiers 2-6)
 | sync-core | Pure logic, instant tests (no I/O) |
 | sync-client | Crypto verification, mock transport |
 | sync-cli | E2E headless scripts |
-| tauri-plugin | Tauri mock runtime |
+| integrations | Framework-specific tests |
 
 ### Critical Implementation Requirements
 
@@ -232,7 +233,7 @@ From research validation:
 
 | Question | Answer |
 |----------|--------|
-| What is it? | Zero-knowledge sync relay for Tauri apps |
+| What is it? | Zero-knowledge sync protocol for local-first apps |
 | Who is it for? | Tauri developers (hobbyist to enterprise) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |

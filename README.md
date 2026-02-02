@@ -1,6 +1,6 @@
 # 0k-Sync
 
-**Zero-knowledge sync relay for Tauri applications**
+**Zero-knowledge sync protocol for local-first applications**
 
 > **0k** = Zero Knowledge — the relay never sees your data
 
@@ -11,7 +11,7 @@
 
 ## Overview
 
-0k-Sync is a secure, E2E encrypted synchronization system for local-first Tauri applications. The relay never sees plaintext data - it's a zero-knowledge pass-through that routes encrypted blobs between devices.
+0k-Sync is a secure, E2E encrypted synchronization protocol for local-first applications. The relay never sees plaintext data - it's a zero-knowledge pass-through that routes encrypted blobs between devices.
 
 ```
 Device A                     RELAY                      Device B
@@ -30,17 +30,18 @@ Device A                     RELAY                      Device B
 - **E2E Encryption** - XChaCha20-Poly1305 with Noise Protocol XX hybrid handshake
 - **No Accounts** - Devices pair via QR code or short code
 - **Local-First** - Apps work offline; sync is opportunistic
+- **Framework Agnostic** - Works with any Rust application
 - **100% Open Source** - MIT/Apache-2.0 dual licensed
 
-## Product Tiers
+## Deployment Tiers
 
 | Tier | Name | Infrastructure | Cost |
 |------|------|----------------|------|
-| 1 | Vibe Coder | iroh public network | Free |
-| 2 | Home Developer | Self-hosted Docker | Electricity |
-| 3 | Vercel-style | PaaS (Railway, Fly.io) | ~$5-50/mo |
-| 4 | Community Sync | CrabNebula shared | Free-$5/mo |
-| 5 | Cloud | CrabNebula dedicated | Usage-based |
+| 1 | Hobbyist | iroh public network | Free |
+| 2 | Self-Hosted | Docker on your server | Electricity |
+| 3 | PaaS | Railway, Fly.io, etc. | ~$5-50/mo |
+| 4 | Managed | Shared relay cluster | Free-$5/mo |
+| 5 | Dedicated | Dedicated relay instance | Usage-based |
 | 6 | Enterprise | Customer infrastructure | License |
 
 **Key insight:** The client library stays constant. Only the relay tier changes.
@@ -48,17 +49,20 @@ Device A                     RELAY                      Device B
 ## Quick Start
 
 ```rust
-// Add sync to any Tauri app
-tauri::Builder::default()
-    .plugin(tauri_plugin_sync::init())
-    .run(tauri::generate_context!())
-```
+use sync_client::SyncClient;
 
-```typescript
-// Frontend usage
-await sync.enable();
-await sync.push(encryptedBlob);
-const blobs = await sync.pull();
+// Connect to relay
+let client = SyncClient::connect("wss://relay.example.com").await?;
+
+// Pair devices (one-time)
+let invite = client.create_invite().await?;
+// Share invite code with other device...
+
+// Push encrypted data
+client.push(encrypted_blob).await?;
+
+// Pull new data
+let blobs = client.pull().await?;
 ```
 
 ## Documentation
@@ -85,8 +89,7 @@ const blobs = await sync.pull();
 ├── sync-core/                # Pure logic, no I/O (Phase 2)
 ├── sync-client/              # Client library (Phase 3)
 ├── sync-cli/                 # Testing tool (Phase 4)
-├── tauri-plugin-sync/        # Tauri plugin (Phase 5)
-└── sync-relay/               # Custom relay (Phase 6, future)
+└── sync-relay/               # Custom relay server (Phase 5)
 ```
 
 ## Technology Stack
@@ -99,7 +102,6 @@ const blobs = await sync.pull();
 | E2E Encryption | XChaCha20-Poly1305 | Blob encryption (256-bit) |
 | Key Derivation | Argon2id | Passphrase to key |
 | WebSocket | tokio-tungstenite | Transport (Tiers 2-6) |
-| Plugin Framework | Tauri 2.0 | App integration |
 
 **Why hybrid cryptography?** Classical algorithms (X25519) are vulnerable to future quantum computers. 0k-Sync combines classical + post-quantum algorithms so security holds if either is broken. See [Appendix B](appendix-b-hybrid-crypto.md) for details.
 
@@ -114,8 +116,7 @@ const blobs = await sync.pull();
 - [ ] sync-core crate
 - [ ] sync-client crate
 - [ ] sync-cli tool
-- [ ] tauri-plugin-sync
-- [ ] sync-relay (custom, future)
+- [ ] sync-relay server
 
 ## Development
 
@@ -133,10 +134,21 @@ cargo clippy --workspace
 cargo fmt --check
 ```
 
+## Integration Examples
+
+0k-Sync can be integrated with any framework:
+
+- **Tauri** - Use as a plugin or direct library
+- **Electron** - Via native Node.js bindings
+- **Mobile** - iOS/Android via FFI
+- **Web** - WebAssembly (future)
+
+See [docs/03-IMPLEMENTATION-PLAN.md](docs/03-IMPLEMENTATION-PLAN.md) for integration patterns.
+
 ## Contributing
 
 This project follows:
-- **Jimmy's Workflow** (RED/GREEN/CHECKPOINT)
+- **Jimmy's Workflow** (PRE-FLIGHT/RED/GREEN/CHECKPOINT)
 - **TDD** - Tests first, always
 - **KISS** - Keep it simple
 
@@ -148,4 +160,4 @@ Dual-licensed under MIT and Apache-2.0. See [LICENSE-MIT](LICENSE-MIT) and [LICE
 
 ---
 
-**0k-Sync: Build. Distribute. Sync.**
+**0k-Sync: Zero-knowledge sync for local-first apps.**
