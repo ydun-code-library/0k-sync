@@ -102,19 +102,18 @@ research/tactical-mesh-profile-appendix-d.md
 
 ## Amendment Status
 
-**Pending amendments from iroh-deep-dive-report.md:**
+**✅ Amendments from iroh-deep-dive-report.md: APPLIED (2026-02-02)**
 
-These changes should be applied during implementation phase:
+| Change | Target Document | Status |
+|--------|----------------|--------|
+| iroh-blobs for content transfer (Layer 3) | 02-SPECIFICATION.md | ✅ Applied |
+| sync-content crate addition | 03-IMPLEMENTATION-PLAN.md | ✅ Applied |
+| mDNS local discovery | 02-SPECIFICATION.md | ✅ Applied |
+| Self-hosted infra (iroh-relay, iroh-dns-server) | 02-SPECIFICATION.md | ✅ Applied |
+| iroh 1.0 RC target version | All docs | ✅ Applied |
+| snow → clatter migration | All docs | ✅ Applied |
 
-| Change | Target Document | Priority |
-|--------|----------------|----------|
-| iroh-blobs for content transfer (Layer 3) | 02-SPECIFICATION.md | HIGH |
-| sync-content crate addition | 03-IMPLEMENTATION-PLAN.md | HIGH |
-| mDNS local discovery | 02-SPECIFICATION.md | MEDIUM |
-| Self-hosted infra (iroh-relay, iroh-dns-server) | 02-SPECIFICATION.md | MEDIUM |
-| iroh 1.0 RC target version | 03-IMPLEMENTATION-PLAN.md | LOW |
-
-**Note**: Amendments flagged for Q's implementation phase. Research docs available in `docs/research/` for reference.
+**Reference:** See `IROH-AMENDMENTS-PLAN.md` for detailed amendment tracking.
 
 ---
 

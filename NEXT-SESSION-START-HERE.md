@@ -136,17 +136,17 @@ mkdir -p sync-types/src sync-core/src sync-client/src sync-cli/src tauri-plugin-
 
 ---
 
-### Option 3: Research iroh Integration (1 hour)
+### Option 3: ✅ iroh Integration Research COMPLETE
 
-**Goal:** Decide on relay strategy
+**Status:** Done (2026-02-02)
 
-**Tasks:**
-- [ ] Review iroh 0.35 API
-- [ ] Evaluate public relay vs self-hosted
-- [ ] Compare to custom relay approach
-- [ ] Document decision
+**Decisions Made:**
+- [x] Using iroh 1.0 RC (stable API)
+- [x] iroh-blobs for large content transfer
+- [x] Self-hosted iroh-relay and iroh-dns-server option
+- [x] mDNS for LAN discovery
 
-**Why:** Spec mentions iroh as recommended option for MVP
+**Reference:** See `docs/research/iroh-deep-dive-report.md` and amendments in spec
 
 ---
 

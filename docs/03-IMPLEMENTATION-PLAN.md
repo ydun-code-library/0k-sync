@@ -1078,17 +1078,17 @@ mod tests {
 #### Step 3: Integration Test (Two Clients)
 
 > **iroh Version Strategy:**
-> - Pin to **v0.35.x** for production stability
-> - v0.90+ is canary series with breaking changes
-> - Plan migration sprint when 1.0 RC ships
+> - Using **iroh 1.0 RC** for production stability
+> - Stable API, ready for production use
+> - Self-hosted infrastructure option via iroh-relay and iroh-dns-server
 
 ```rust
 // sync-client/tests/integration.rs
 
 #[tokio::test]
 async fn two_clients_sync_via_iroh() {
-    // This test uses iroh v0.35.x - requires network
-    // DO NOT upgrade to v0.90+ (canary series, breaking changes)
+    // This test uses iroh 1.0 RC - requires network
+    // Uses mDNS for local discovery when on same LAN
     if std::env::var("RUN_NETWORK_TESTS").is_err() {
         return; // Skip in CI without network
     }
@@ -1146,7 +1146,7 @@ git commit -m "Add sync-client library
 - GroupKey E2E encryption (XChaCha20-Poly1305, 192-bit nonces)
 - Device-adaptive Argon2id key derivation (12-64 MiB)
 - Hybrid Noise Protocol XX (clatter v2.1+, ML-KEM-768 + X25519)
-- Transport abstraction (iroh v0.35.x, WebSocket)
+- Transport abstraction (iroh 1.0 RC, WebSocket)
 - Thundering herd mitigation with jitter
 - Integration test: two clients syncing"
 

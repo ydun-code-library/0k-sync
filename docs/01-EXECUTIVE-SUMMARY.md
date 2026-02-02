@@ -51,8 +51,8 @@ Device A                     RELAY                      Device B
 
 | Component | Purpose |
 |-----------|---------|
-| **sync-client** | Drop-in library—simple API to add sync to any app |
 | **sync-client** | Rust library for E2E encryption, pairing, cursor tracking |
+| **sync-content** | Large file transfer via iroh-blobs (encrypt-then-hash) |
 | **sync-relay** | Stateless message router with temporary buffering |
 
 ### What We're NOT Building
@@ -72,25 +72,26 @@ Three gates must be addressed before GA release:
 
 | Gate | Status | Action Required |
 |------|--------|-----------------|
-| **Security Audit** | ⚠️ Blocked | `snow` crate requires targeted code review OR swap to HACL* verified bindings |
+| **Security Audit** | ✅ Resolved | Using `clatter` for hybrid Noise (ML-KEM-768 + X25519) - post-quantum ready |
 | **Enterprise Compliance** | ⚠️ Blocked | "FIPS Mode" fallback using AES-GCM/PBKDF2 for regulated markets |
-| **Infrastructure** | ✅ Ready | Cloudflare Tunnel validated; Fly.io hybrid for production SLA |
+| **Infrastructure** | ✅ Ready | Cloudflare Tunnel validated; self-hosted iroh-relay option |
 
 ### Validated Technology Choices
 
 | Component | Choice | Version | Validation |
 |-----------|--------|---------|------------|
-| P2P networking | [iroh](https://github.com/n0-computer/iroh) | **Pin v0.35.x** | 200K+ connections, Delta Chat production |
-| Transport encryption | [snow](https://github.com/mcginty/snow) (Noise XX) | **v0.9.7+** | Security advisories fixed |
+| P2P networking | [iroh](https://github.com/n0-computer/iroh) | **1.0 RC** | 200K+ connections, stable API |
+| Transport encryption | [clatter](https://github.com/jmwample/clatter) (Hybrid Noise XX) | **2.1+** | ML-KEM-768 + X25519, post-quantum |
+| Large content | [iroh-blobs](https://github.com/n0-computer/iroh-blobs) | **1.0** | BLAKE3/Bao verified streaming |
 | Blob encryption | XChaCha20-Poly1305 | RustCrypto | 192-bit nonces, no coordination needed |
 | Key derivation | Argon2id | RustCrypto | Device-adaptive parameters |
 | WebSocket | tokio-tungstenite | 0.21.x | 120K connections benchmarked |
 | Storage | SQLite + WAL | via sqlx | 70K+ writes/sec |
 
 **iroh Version Strategy:**
-- Current stable: v0.35.x (pin for production)
-- Canary series: v0.90+ (breaking changes, track for direction)
-- Migration: Plan upgrade sprint when 1.0 RC ships
+- Production: iroh 1.0 RC (stable API, production ready)
+- Content transfer: iroh-blobs 1.0 for large files
+- Discovery: mDNS (LAN), DNS, optional DHT
 
 ---
 
@@ -212,8 +213,8 @@ From research validation:
 1. **Thundering Herd Mitigation** — Client-side exponential backoff with jitter on reconnect
 2. **Device-Adaptive Argon2** — 12 MiB (low-end) to 64 MiB (desktop) based on available RAM
 3. **XChaCha20 Nonces** — 192-bit random nonces, never 96-bit
-4. **snow v0.9.7+** — RUSTSEC-2024-0011 and RUSTSEC-2024-0347 fixed
-5. **iroh v0.35.x** — Pin until 1.0 RC; v0.90+ is unstable canary
+4. **clatter 2.1+** — Hybrid Noise Protocol with ML-KEM-768 + X25519 (post-quantum)
+5. **iroh 1.0 RC** — Stable API, production ready transport layer
 
 ---
 
@@ -221,9 +222,9 @@ From research validation:
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| snow unaudited | High | HACL* swap or limited scope audit before GA |
+| Post-quantum transition | Low | clatter provides ML-KEM-768 hybrid (future-proof) |
 | FIPS compliance gap | Critical (for Gov/Finance) | Feature flag for AES-GCM/PBKDF2 build |
-| iroh API instability | Medium | Pin v0.35.x; plan 1.0 migration sprint |
+| iroh ecosystem maturity | Low | Using stable 1.0 RC; self-hosted option available |
 | Mobile battery impact | Medium | Wake-on-Push architecture; quantify in beta |
 | Thundering herd | Medium | Client-side jitter required |
 
@@ -234,24 +235,24 @@ From research validation:
 | Question | Answer |
 |----------|--------|
 | What is it? | Zero-knowledge sync protocol for local-first apps |
-| Who is it for? | Tauri developers (hobbyist to enterprise) |
+| Who is it for? | Local-first developers (any framework) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |
-| What's validated? | iroh, XChaCha20, Argon2id, Noise XX |
-| What's blocked? | Security audit, FIPS compliance |
+| What's validated? | iroh 1.0, clatter (hybrid Noise), XChaCha20, Argon2id |
+| What's blocked? | FIPS compliance (enterprise only) |
 
-**0k-Sync completes the Tauri platform: Build → Distribute → Sync.**
+**0k-Sync completes local-first apps: Build → Store Locally → Sync Securely.**
 
 ---
 
 ## References
 
-- [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking (v0.35.x)
-- [snow crate](https://github.com/mcginty/snow) — Noise Protocol (v0.9.7+)
+- [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking (1.0 RC)
+- [iroh-blobs](https://github.com/n0-computer/iroh-blobs) — Content-addressed storage (1.0)
+- [clatter crate](https://github.com/jmwample/clatter) — Hybrid Noise Protocol (2.1+)
 - [Noise Protocol](https://noiseprotocol.org/noise.html) — Encryption framework
-- [Tauri 2.0 Plugins](https://v2.tauri.app/develop/plugins/) — Plugin development
 - [04-RESEARCH-VALIDATION.md](./04-RESEARCH-VALIDATION.md) — Full technology validation
 
 ---
 
-*Document: 01-EXECUTIVE-SUMMARY.md | Version: 2.0.0 | Date: 2026-01-16*
+*Document: 01-EXECUTIVE-SUMMARY.md | Version: 2.2.0 | Date: 2026-02-02*

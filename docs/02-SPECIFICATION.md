@@ -1110,9 +1110,9 @@ SyncConfig {
 Uses iroh public network. No relay infrastructure needed.
 
 > **iroh Version Strategy:**
-> - **Pin v0.35.x** for production stability
-> - v0.90+ is "canary series" with frequent breaking changes
-> - Plan migration sprint when 1.0 RC ships (expected mid-2026)
+> - Using **iroh 1.0 RC** (stable API)
+> - iroh-blobs 1.0 for large content transfer
+> - Self-hosted infrastructure available via iroh-relay and iroh-dns-server
 
 ### 10.2 Tier 2: Home Developer
 
