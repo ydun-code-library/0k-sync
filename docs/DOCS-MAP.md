@@ -124,7 +124,6 @@ research/tactical-mesh-profile-appendix-d.md
 - `appendix-b-hybrid-crypto.md` — Cryptographic design
 
 ### Planning Documents
-- `00-PLAN.md` — Documentation planning
 - `03-IMPLEMENTATION-PLAN.md` — Implementation approach
 - `sync-mvp-roadmap.md` — Product tier strategy
 
@@ -143,9 +142,14 @@ research/tactical-mesh-profile-appendix-d.md
 - `STATUS.md` — Progress tracking
 - `NEXT-SESSION-START-HERE.md` — Session continuity
 
-### Archive/Historical
-- `reference/decentralised-sync-relay-spec.md`
-- `reference/hosted-sync-relay-spec.md`
+### Archive (Completed Plans)
+- `archive/00-PLAN.md` — Documentation plan (executed)
+- `archive/IROH-AMENDMENTS-PLAN.md` — Amendment plan (executed 2026-02-02)
+- `archive/SYNC-RELAY-ORGANIZATION-PLAN.md` — Organization plan (executed)
+
+### Reference (Superseded Specs)
+- `reference/decentralised-sync-relay-spec.md` — Superseded by 02-SPEC v2.2.0
+- `reference/hosted-sync-relay-spec.md` — Superseded by 02-SPEC v2.2.0
 
 ---
 
@@ -156,7 +160,7 @@ research/tactical-mesh-profile-appendix-d.md
 - Working on non-protocol tasks (config, deployment)
 
 **Skip research/ documents if:**
-- Implementing per existing spec (amendments not yet applied)
+- Implementing per existing spec (amendments already applied)
 - Not making architectural decisions
 
 **Skip reference/ documents if:**
@@ -165,6 +169,6 @@ research/tactical-mesh-profile-appendix-d.md
 
 ---
 
-**Navigation Index Version**: 1.0
-**Document Count**: 14+ files mapped
+**Navigation Index Version**: 1.1
+**Active Documents**: 15 (excludes archive/ and reference/)
 **Last Audit**: 2026-02-02
