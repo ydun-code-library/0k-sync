@@ -26,7 +26,8 @@ Device A                     RELAY                      Device B
 ## Key Features
 
 - **Zero-Knowledge** - Relay sees only ciphertext, never plaintext
-- **E2E Encryption** - ChaCha20-Poly1305 with Noise Protocol XX handshake
+- **Post-Quantum Ready** - Hybrid cryptography combining classical + ML-KEM-768 (NIST Level 3)
+- **E2E Encryption** - XChaCha20-Poly1305 with Noise Protocol XX hybrid handshake
 - **No Accounts** - Devices pair via QR code or short code
 - **Local-First** - Apps work offline; sync is opportunistic
 - **100% Open Source** - MIT/Apache-2.0 dual licensed
@@ -68,6 +69,8 @@ const blobs = await sync.pull();
 | [Specification](docs/02-SPECIFICATION.md) | Detailed protocol and API specification |
 | [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) | TDD implementation approach |
 | [Research Validation](docs/04-RESEARCH-VALIDATION.md) | Technology choices and justification |
+| [Hybrid Crypto (Appendix B)](appendix-b-hybrid-crypto.md) | Post-quantum cryptography design |
+| [iroh Deep Dive](docs/research/iroh-deep-dive-report.md) | iroh ecosystem audit |
 
 ## Project Structure
 
@@ -91,11 +94,14 @@ const blobs = await sync.pull();
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | P2P (Tier 1) | [iroh](https://github.com/n0-computer/iroh) | Public network relay |
-| Transport Encryption | [snow](https://github.com/mcginty/snow) (Noise Protocol) | E2E encrypted channel |
-| E2E Encryption | ChaCha20-Poly1305 | Blob encryption |
+| Transport Encryption | [clatter](https://github.com/jmlepisto/clatter) (Noise Protocol) | Hybrid E2E channel |
+| Post-Quantum KEM | ML-KEM-768 | Quantum-resistant key exchange |
+| E2E Encryption | XChaCha20-Poly1305 | Blob encryption (256-bit) |
 | Key Derivation | Argon2id | Passphrase to key |
 | WebSocket | tokio-tungstenite | Transport (Tiers 2-6) |
 | Plugin Framework | Tauri 2.0 | App integration |
+
+**Why hybrid cryptography?** Classical algorithms (X25519) are vulnerable to future quantum computers. 0k-Sync combines classical + post-quantum algorithms so security holds if either is broken. See [Appendix B](appendix-b-hybrid-crypto.md) for details.
 
 ## Current Status
 
