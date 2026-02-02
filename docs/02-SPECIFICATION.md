@@ -1,7 +1,7 @@
 # 0k-Sync - Technical Specification
 
-**Version:** 2.1.0
-**Date:** 2026-01-16
+**Version:** 2.2.0
+**Date:** 2026-02-02
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementers, Developers
 
@@ -25,6 +25,8 @@
 14. [Best Practices](#14-best-practices)
 15. [Device Revocation](#15-device-revocation)
 16. [Push Notification Integration](#16-push-notification-integration)
+17. [Large Content Transfer Protocol](#17-large-content-transfer-protocol)
+- [Appendix A: Crate Dependencies](#appendix-a-crate-dependencies)
 
 ---
 
@@ -124,32 +126,41 @@ Relay ──► WebSocket ──► Transport Decrypt (Noise) ──► Envelope
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Layer 5: Application                                       │
-│  • App-specific serialization (JSON, MessagePack, etc.)     │
-│  • CRDT operations, business logic                          │
+│  Layer 4: Application Sync Logic                            │
+│  • App-specific merge strategies (CRDTs, LWW, etc.)         │
+│  • Schema definitions                                       │
+│  • UI sync status                                           │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 4: Sync Messages                                     │
-│  • PUSH, PULL, ACK, PRESENCE, NOTIFY                        │
-│  • Cursor-based ordering                                    │
+│  Layer 3: Content Transfer (via iroh-blobs)                 │
+│  • ContentReference metadata via sync protocol              │
+│  • Encrypt-then-hash for large blobs (photos, docs, audio)  │
+│  • iroh-blobs for verified streaming transfer               │
+│  • Thumbnail generation & progressive loading               │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 3: Envelope                                          │
-│  • Routing (group_id, sender_id)                            │
-│  • Metadata (cursor, timestamp, nonce)                      │
-│  • MessagePack serialization                                │
+│  Layer 2: Sync Protocol (0k-Sync)                           │
+│  • Cursor-ordered encrypted blobs (PUSH, PULL, NOTIFY)      │
+│  • Device pairing / revocation                              │
+│  • Sync groups with HELLO/WELCOME handshake                 │
+│  • TTL-based relay buffering                                │
+│  • E2E: XChaCha20-Poly1305 + Argon2id                       │
+│  • Envelope routing (group_id, sender_id, cursor)           │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 2: E2E Encryption                                    │
-│  • Group Key encryption (XChaCha20-Poly1305, 192-bit nonce) │
-│  • Derived from user passphrase via Argon2id                │
-├─────────────────────────────────────────────────────────────┤
-│  Layer 1: Transport Encryption                              │
-│  • Noise Protocol XX handshake                              │
+│  Layer 1: Hybrid Transport Security                         │
+│  • Noise XX handshake via clatter                           │
+│  • Curve25519 + ML-KEM-768 hybrid KEM                       │
+│  • Post-quantum compliance from day one                     │
 │  • Per-session keys, forward secrecy                        │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 0: Transport                                         │
-│  • WebSocket (Tiers 2-6) or QUIC (Tier 1 via iroh)         │
-│  • TLS 1.3 (via Cloudflare or native)                       │
+│  Layer 0: iroh Transport                                    │
+│  • QUIC via Quinn (authenticated, encrypted)                │
+│  • Hole punching + relay fallback                           │
+│  • Discovery: DNS + mDNS + optional DHT                     │
+│  • Connection migration (WiFi ↔ cellular)                   │
+│  • ALPN routing: /private-sync/1, /iroh-bytes/4             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+> **Amendment (2026-02-02):** Layer structure updated per iroh-deep-dive-report.md recommendations. Added Layer 3 (Content Transfer) for large file handling via iroh-blobs. Layer 0 now explicitly includes mDNS local discovery and ALPN routing.
 
 ### 3.2 Serialization
 
@@ -176,17 +187,35 @@ Relay ──► WebSocket ──► Transport Decrypt (Noise) ──► Envelope
 │           │                                                 │
 │           ▼  Argon2id (device-adaptive, see below)         │
 │                                                             │
-│  Sync Group Key (256-bit)                                  │
+│  Group Secret (256-bit)                                    │
 │           │                                                 │
 │           ▼  HKDF-SHA256                                   │
-│     ┌─────┴─────┐                                          │
-│     │           │                                          │
-│     ▼           ▼                                          │
-│  Encryption   Authentication                               │
-│  Key (256b)   Key (256b)                                   │
+│     ┌─────┼─────────────┐                                  │
+│     │     │             │                                  │
+│     ▼     ▼             ▼                                  │
+│  Sync   Auth      Content Key                              │
+│  Key    Key       (for large files)                        │
+│  (256b) (256b)    (256b per blob)                          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Content Key Derivation (for large file transfer via iroh-blobs):**
+
+Large content (photos, documents, audio) uses a separate key derived per-blob to allow independent lifecycle management:
+
+```
+content_key = HKDF-SHA256(
+    ikm = GroupSecret,
+    salt = "0k-sync-content-v1",
+    info = blob_id || "content-encryption"
+) → 32 bytes for XChaCha20-Poly1305
+```
+
+This allows:
+- Same key for all devices in the group (they share GroupSecret)
+- Independent rotation from sync blob encryption key
+- Per-blob key isolation (compromise of one content key doesn't affect others)
 
 **Device-Adaptive Argon2id Parameters:**
 
@@ -303,6 +332,8 @@ pub struct Envelope {
 | `DEVICE_REVOKED` | 0x51 | Relay → Client | Notify of device revocation |
 | `REGISTER_PUSH` | 0x60 | Client → Relay | Register push notification token |
 | `UNREGISTER_PUSH` | 0x61 | Client → Relay | Unregister push token |
+| `CONTENT_REF` | 0x70 | Client → Relay | Large content reference (iroh-blobs) |
+| `CONTENT_ACK` | 0x71 | Client → Relay | Acknowledge content transfer complete |
 | `ERROR` | 0xFF | Either | Error with code and message |
 
 ### 5.3 Message Structures
@@ -388,6 +419,56 @@ pub struct Error {
     pub message: String,
 }
 ```
+
+#### CONTENT_REF (Large Content Transfer)
+```rust
+/// Reference to large content stored via iroh-blobs
+/// The actual encrypted content is transferred P2P via iroh-blobs,
+/// only this small metadata blob goes through the sync relay.
+pub struct ContentRef {
+    /// Client-generated UUID (our protocol's ID)
+    pub blob_id: [u8; 16],
+
+    /// BLAKE3 hash of CIPHERTEXT (iroh-blobs content address)
+    /// This is the hash of encrypted bytes, not plaintext
+    pub content_hash: [u8; 32],
+
+    /// XChaCha20-Poly1305 nonce used for encryption
+    pub encryption_nonce: [u8; 24],
+
+    /// Original plaintext size in bytes
+    pub content_size: u64,
+
+    /// Ciphertext size in bytes
+    pub encrypted_size: u64,
+
+    /// MIME type ("image/jpeg", "audio/opus", "application/pdf")
+    pub mime_type: String,
+
+    /// Optional thumbnail hash (also encrypted, for preview)
+    pub thumbnail_hash: Option<[u8; 32]>,
+
+    /// Thumbnail nonce (if thumbnail present)
+    pub thumbnail_nonce: Option<[u8; 24]>,
+}
+```
+
+#### CONTENT_ACK
+```rust
+/// Acknowledge successful content transfer
+pub struct ContentAck {
+    /// Reference to the content that was transferred
+    pub blob_id: [u8; 16],
+
+    /// Hash that was successfully received and verified
+    pub content_hash: [u8; 32],
+
+    /// Timestamp of successful transfer
+    pub timestamp: u64,
+}
+```
+
+> **Note:** Content transfers bypass the sync relay entirely. The relay only sees the small ContentRef metadata blob. Actual encrypted content is transferred device-to-device via iroh-blobs (QUIC/P2P). See Section 17: Large Content Transfer Protocol.
 
 ### 5.4 Cursor vs Timestamp
 
@@ -1610,6 +1691,154 @@ class SyncFirebaseService : FirebaseMessagingService() {
 
 ---
 
+## 17. Large Content Transfer Protocol
+
+> **Amendment (2026-02-02):** Added per iroh-deep-dive-report.md recommendations.
+
+### 17.1 The Problem
+
+The sync protocol is optimized for small encrypted blobs (app state, JSON entries, ~100 KB sweet spot). When apps need to sync photos (2-10 MB), voice memos (1-5 MB), document scans (0.5-3 MB), or PDFs, pushing megabytes through a relay designed for kilobytes is inefficient.
+
+**Affected use cases by app type:**
+
+| App Type | Content | Size Range | Frequency |
+|----------|---------|------------|-----------|
+| Journal apps | Photos, voice memos | 1-15 MB | High (daily) |
+| Health apps | Meal photos, progress pics, scans | 1-10 MB | High |
+| Finance apps | Receipt scans, invoice PDFs | 0.5-5 MB | Medium |
+| Note apps | Article images, PDF attachments | 0.5-20 MB | Medium |
+| Contact apps | Contact photos | 50-500 KB | Low (small enough for sync relay) |
+| Password managers | None | — | None |
+
+### 17.2 Architecture: Encrypt-Then-Hash with iroh-blobs
+
+Large content bypasses the sync relay entirely. The relay handles only small metadata; actual content transfers device-to-device via iroh-blobs.
+
+**Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Content Transfer Flow                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  SENDER DEVICE:                                                  │
+│  1. App creates content (photo, document, etc.)                  │
+│  2. Derive content_key from GroupSecret via HKDF                │
+│  3. Encrypt content with XChaCha20-Poly1305 → ciphertext        │
+│  4. Hash ciphertext with BLAKE3 → content_hash                  │
+│  5. Store ciphertext in local iroh-blobs FsStore                │
+│  6. Create ContentRef message with content_hash                 │
+│  7. Send ContentRef through normal sync protocol (small blob)   │
+│                                                                  │
+│  RELAY:                                                          │
+│  - Sees only the small ContentRef (< 1 KB)                      │
+│  - Never handles the actual large content                        │
+│  - Assigns cursor, notifies other devices                        │
+│                                                                  │
+│  RECEIVER DEVICE:                                                │
+│  1. Receives ContentRef through normal sync pull                │
+│  2. Requests blob from sender via iroh-blobs (P2P or relay)     │
+│  3. iroh-blobs verifies chunks during streaming (Bao)           │
+│  4. Derive content_key from GroupSecret                         │
+│  5. Decrypt ciphertext → plaintext                               │
+│  6. Store in app's content store                                 │
+│  7. Send CONTENT_ACK to confirm transfer                         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key properties:**
+- **iroh-blobs sees only ciphertext** — BLAKE3 hash is of encrypted bytes
+- **Resumable** — iroh-blobs resumes from last verified chunk if interrupted
+- **Verified** — every 16 KiB chunk integrity-checked during streaming
+- **No relay load** — large files travel P2P, relay handles only metadata
+
+### 17.3 ContentReference Message
+
+See Section 5.3 for the full struct definition. Key fields:
+
+| Field | Purpose |
+|-------|---------|
+| `content_hash` | BLAKE3 hash of ciphertext (iroh-blobs address) |
+| `encryption_nonce` | XChaCha20-Poly1305 nonce for decryption |
+| `content_size` | Original size (for UI progress) |
+| `mime_type` | Content type for app handling |
+| `thumbnail_hash` | Optional preview (encrypted, much smaller) |
+
+### 17.4 Content Key Derivation
+
+See Section 4.1 for the HKDF derivation. Same key for all devices in the group.
+
+### 17.5 Garbage Collection
+
+| Device | GC Strategy |
+|--------|-------------|
+| **Sender** | Keeps blob tagged until all devices ACK |
+| **Receiver** | Drops tag after successful download + local storage |
+| **Orphan protection** | Sender keeps tag for grace period (30 days) if ContentRef deleted before all fetches |
+
+### 17.6 Mobile Considerations
+
+**Thumbnail-first strategy:**
+1. Show "Photo attached" immediately (from ContentRef)
+2. Show thumbnail if `thumbnail_hash` present (tiny iroh-blobs fetch)
+3. Download full resolution on demand or WiFi
+
+**Background transfer:**
+- Queue large downloads for WiFi / charging
+- iroh-blobs handles resumption natively
+- iOS/Android background fetch can trigger thumbnail downloads
+
+**Storage quota:**
+- Each app manages its own content storage budget
+- Old content can be evicted and re-fetched (ContentRef persists in sync log)
+
+### 17.7 Offline / Asynchronous Transfer
+
+| Scenario | Solution |
+|----------|----------|
+| Same LAN | mDNS direct discovery → LAN-speed transfer |
+| Different networks, both online | iroh relay forwards encrypted blobs |
+| Asynchronous (rarely online together) | Pending downloads queue, resume on next app foreground |
+| Future enhancement | Relay-hosted blob cache with TTL (deployment optimization) |
+
+### 17.8 Discovery Configuration
+
+```rust
+// Enable mDNS for same-LAN direct transfer (recommended)
+let discovery = ConcurrentDiscovery::new()
+    .add(MdnsDiscovery::new())        // LAN discovery
+    .add(DnsDiscovery::new(dns_url))  // Our DNS server
+    .add(DhtDiscovery::new());        // Fallback (optional)
+
+let endpoint = Endpoint::builder()
+    .discovery(discovery)
+    .relay_mode(RelayMode::Custom(our_relay_map))  // Our infrastructure only
+    .build()
+    .await?;
+```
+
+### 17.9 Self-Hosted Infrastructure
+
+For production deployments, run your own iroh infrastructure:
+
+| Component | Purpose | Deployment |
+|-----------|---------|------------|
+| `iroh-relay` | Encrypted datagram relay when P2P fails | Docker, any VPS |
+| `iroh-dns-server` | Endpoint discovery by ID | Docker, your domain |
+| mDNS | LAN discovery | Zero infrastructure |
+| DHT | Decentralized fallback | Zero infrastructure |
+
+**Configuration:**
+```rust
+// Disable n0 default relays, use only our infrastructure
+let relay_map = RelayMap::from_url("https://relay.yourdomain.com".parse()?);
+```
+
+This ensures zero runtime dependency on any third party.
+
+---
+
 ## Appendix A: Crate Dependencies
 
 ### sync-types
@@ -1631,12 +1860,29 @@ sync-types = { path = "../sync-types" }
 [dependencies]
 sync-types = { path = "../sync-types" }
 sync-core = { path = "../sync-core" }
+sync-content = { path = "../sync-content" }  # Large content transfer
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
+iroh = "1.0"                     # Endpoint, connections, discovery
 argon2 = "0.5"
 chacha20poly1305 = "0.10"        # Supports XChaCha20
 rand = "0.8"
+thiserror = "1"
+tracing = "0.1"
+```
+
+### sync-content
+```toml
+[dependencies]
+sync-types = { path = "../sync-types" }
+iroh-blobs = "1.0"              # Content-addressed storage with BLAKE3/Bao
+iroh = "1.0"                    # Endpoint for transfers
+chacha20poly1305 = "0.10"       # XChaCha20-Poly1305 for content encryption
+blake3 = "1"                    # Hashing ciphertext for content address
+hkdf = "0.12"                   # Content key derivation from GroupSecret
+sha2 = "0.10"                   # HKDF-SHA256
+tokio = { version = "1", features = ["rt", "sync", "fs"] }
 thiserror = "1"
 tracing = "0.1"
 ```
@@ -1669,4 +1915,4 @@ serde_json = "1"
 
 ---
 
-*Document: 02-SPECIFICATION.md | Version: 2.1.0 | Date: 2026-01-16*
+*Document: 02-SPECIFICATION.md | Version: 2.2.0 | Date: 2026-02-02*

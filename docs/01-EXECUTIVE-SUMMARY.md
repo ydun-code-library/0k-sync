@@ -1,7 +1,7 @@
 # 0k-Sync - Executive Summary
 
-**Version:** 2.0.0
-**Date:** 2026-01-16
+**Version:** 2.1.0
+**Date:** 2026-02-02
 **Author:** James (LTIS Investments AB)
 **Audience:** Technical Executives, Architects, Decision Makers
 
@@ -100,15 +100,15 @@ Three gates must be addressed before GA release:
 
 ```
 ┌─────────────────────────────────────────┐
-│  Layer 4: Application Messages          │  Push, Pull, Ack, Presence
+│  Layer 4: Application Sync Logic        │  Push, Pull, Ack, Presence
 ├─────────────────────────────────────────┤
-│  Layer 3: Envelope                      │  Routing, cursor, timestamp
+│  Layer 3: Content Transfer              │  iroh-blobs (large files), encrypt-then-hash
 ├─────────────────────────────────────────┤
-│  Layer 2: E2E Encryption                │  XChaCha20-Poly1305 (Group Key)
+│  Layer 2: Sync Protocol (0k-Sync)       │  Envelope, routing, cursor
 ├─────────────────────────────────────────┤
-│  Layer 1: Transport Encryption          │  Noise Protocol XX (snow v0.9.7+)
+│  Layer 1: Transport Security            │  Hybrid Noise XX (clatter: ML-KEM-768 + X25519)
 ├─────────────────────────────────────────┤
-│  Layer 0: Transport                     │  WebSocket / QUIC (iroh)
+│  Layer 0: Transport                     │  iroh (QUIC), mDNS, DHT discovery
 └─────────────────────────────────────────┘
 ```
 

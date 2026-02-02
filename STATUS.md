@@ -122,15 +122,18 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Current Sprint/Session Status
 
 ### Active Tasks (Current Session)
-- ✅ Standards compliance update
+- ✅ iroh amendments applied
 
-### Completed This Session (2026-01-16)
-- [x] Created comprehensive documentation (4 docs in docs/)
-- [x] Added mobile lifecycle considerations
-- [x] Created README.md
-- [x] Updated AGENTS.md to template v1.6.0 (added principles 9-11)
-- [x] Updated CLAUDE.md for new structure
-- [x] Updated STATUS.md (this file)
+### Completed This Session (2026-02-02)
+- [x] Applied iroh deep dive amendments to specification
+- [x] Added Section 17: Large Content Transfer Protocol
+- [x] Added ContentRef/ContentAck message types (0x70, 0x71)
+- [x] Added content key derivation (HKDF-SHA256)
+- [x] Updated protocol stack (Layer 3: Content Transfer)
+- [x] Added sync-content crate to implementation plan
+- [x] Updated workspace dependencies (iroh 1.0 RC, iroh-blobs)
+- [x] Added Phase 3.5 for sync-content implementation
+- [x] Updated all document versions to 2.x
 
 ### Blockers
 - None at this time
@@ -196,14 +199,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 None
 
 ### 🟡 Important Issues
-1. **iroh deep dive amendments pending** — `docs/research/iroh-deep-dive-report.md` contains spec changes:
-   - iroh-blobs for content transfer (Layer 3)
-   - sync-content crate addition
-   - mDNS local discovery
-   - Self-hosted infrastructure (iroh-relay, iroh-dns-server)
-   - **Impact:** Medium-High
-   - **Decision needed:** During Q's implementation phase
-   - **Reference:** See DOCS-MAP.md for amendment status
+None - iroh deep dive amendments applied (2026-02-02)
 
 ### 📝 Technical Debt
 None (fresh project)

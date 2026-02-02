@@ -1,7 +1,7 @@
 # 0k-Sync - Test-Driven Implementation Plan
 
-**Version:** 2.0.0
-**Date:** 2026-01-16
+**Version:** 2.1.0
+**Date:** 2026-02-02
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementing Developers
 **Methodology:** Test-Driven Development (TDD) + Jimmy's Workflow
@@ -16,6 +16,7 @@
 4. [Phase 1: sync-types](#4-phase-1-sync-types)
 5. [Phase 2: sync-core](#5-phase-2-sync-core)
 6. [Phase 3: sync-client](#6-phase-3-sync-client)
+6.5. [Phase 3.5: sync-content](#65-phase-35-sync-content)
 7. [Phase 4: sync-cli](#7-phase-4-sync-cli)
 8. [Phase 5: Framework Integration (Tauri Example)](#8-phase-5-framework-integration-tauri-example)
 9. [Phase 6: sync-relay (Future)](#9-phase-6-sync-relay-future)
@@ -120,6 +121,15 @@ Each phase follows:
 │           ├── iroh.rs           # Tier 1
 │           └── websocket.rs      # Tiers 2-6
 │
+├── sync-content/                  # Phase 3.5: Large content transfer
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs
+│       ├── encrypt.rs            # Encrypt-then-hash pipeline
+│       ├── transfer.rs           # iroh-blobs provider/requester wrapper
+│       ├── thumbnail.rs          # Preview generation
+│       └── lifecycle.rs          # GC coordination, quota management
+│
 ├── sync-cli/                      # Phase 4: Testing tool
 │   ├── Cargo.toml
 │   └── src/
@@ -154,6 +164,7 @@ members = [
     "sync-types",
     "sync-core",
     "sync-client",
+    "sync-content",
     "sync-cli",
     "tauri-plugin-sync",
     # "sync-relay",  # Enable when implementing Phase 6
@@ -187,12 +198,18 @@ clatter = "2.1"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
-# P2P networking (PINNED VERSION)
-iroh = "0.35"                    # Pin v0.35.x until 1.0 RC; v0.90+ is unstable canary
+# P2P networking (PINNED VERSION - iroh 1.0 RC)
+iroh = "1.0"                     # iroh 1.0 RC - stable transport layer
+iroh-blobs = "1.0"               # Content-addressed storage with BLAKE3/Bao
 
 # Random number generation
 rand = "0.8"
 getrandom = "0.2"
+
+# Content key derivation
+hkdf = "0.12"
+sha2 = "0.10"
+blake3 = "1"                     # Hash ciphertext for iroh-blobs content address
 ```
 
 ---
@@ -212,6 +229,9 @@ getrandom = "0.2"
 │                                                        ▼                 │
 │  Phase 3: sync-client       ◄──────────────────────────┘                │
 │  (library)                                             │                 │
+│                                                        ▼                 │
+│  Phase 3.5: sync-content    ◄──────────────────────────┘                │
+│  (large content transfer)                              │                 │
 │                                                        │                 │
 │                              ┌─────────────────────────┼────────┐       │
 │                              ▼                         ▼        │       │
@@ -232,9 +252,10 @@ getrandom = "0.2"
 |-------|------------|--------|
 | 1. sync-types | None | All others |
 | 2. sync-core | sync-types | sync-client |
-| 3. sync-client | sync-types, sync-core | sync-cli, tauri-plugin |
+| 3. sync-client | sync-types, sync-core | sync-content, sync-cli |
+| 3.5. sync-content | sync-types, sync-client | tauri-plugin |
 | 4. sync-cli | sync-client | None (testing tool) |
-| 5. tauri-plugin | sync-client | None (end product) |
+| 5. tauri-plugin | sync-client, sync-content | None (end product) |
 | 6. sync-relay | sync-types | None (future) |
 
 ---
@@ -1130,6 +1151,152 @@ git commit -m "Add sync-client library
 - Integration test: two clients syncing"
 
 git tag v0.1.0-phase3
+```
+
+---
+
+## 6.5 Phase 3.5: sync-content
+
+### 6.5.1 Objective
+
+Provide large content transfer capabilities using iroh-blobs. Small sync messages (<64KB) go through the relay; large content (photos, documents, audio) transfers directly between devices via iroh-blobs with encrypt-then-hash.
+
+### 6.5.2 Deliverables
+
+| File | Contents |
+|------|----------|
+| `lib.rs` | Public API, ContentTransfer struct |
+| `encrypt.rs` | Encrypt-then-hash pipeline, content key derivation |
+| `transfer.rs` | iroh-blobs provider/requester wrapper |
+| `thumbnail.rs` | Preview generation (optional, platform-specific) |
+| `lifecycle.rs` | GC coordination, quota management |
+
+### 6.5.3 TDD Sequence
+
+```rust
+// sync-content/src/encrypt.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_content_key_derivation() {
+        // HKDF-SHA256 from GroupSecret
+        let group_secret = [0u8; 32];
+        let blob_id = [1u8; 16];
+
+        let content_key = derive_content_key(&group_secret, &blob_id);
+
+        assert_eq!(content_key.len(), 32);
+        // Different blob_id → different key
+        let other_key = derive_content_key(&group_secret, &[2u8; 16]);
+        assert_ne!(content_key, other_key);
+    }
+
+    #[test]
+    fn test_encrypt_then_hash() {
+        let content_key = [0u8; 32];
+        let plaintext = b"Hello, World!";
+
+        let (ciphertext, nonce) = encrypt_content(&content_key, plaintext)?;
+        let content_hash = blake3::hash(&ciphertext);
+
+        // Hash is of CIPHERTEXT, not plaintext
+        assert_ne!(content_hash, blake3::hash(plaintext));
+
+        // Decrypt succeeds
+        let decrypted = decrypt_content(&content_key, &nonce, &ciphertext)?;
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_content_reference_creation() {
+        let content_key = [0u8; 32];
+        let plaintext = b"Large file content...";
+
+        let content_ref = ContentRef::from_plaintext(&content_key, plaintext)?;
+
+        assert!(content_ref.content_size > 0);
+        assert!(content_ref.encrypted_size >= content_ref.content_size);
+        assert_eq!(content_ref.encryption_nonce.len(), 24); // XChaCha20
+    }
+}
+
+// sync-content/src/transfer.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_content_provider() {
+        // Setup iroh-blobs store
+        let store = iroh_blobs::store::mem::Store::new();
+
+        // Add encrypted content
+        let ciphertext = b"encrypted content";
+        let hash = store.import_bytes(ciphertext.into()).await?;
+
+        // Hash matches BLAKE3 of ciphertext
+        assert_eq!(hash, blake3::hash(ciphertext));
+    }
+
+    #[tokio::test]
+    async fn test_content_download() {
+        // Two stores (simulating two devices)
+        let store_a = iroh_blobs::store::mem::Store::new();
+        let store_b = iroh_blobs::store::mem::Store::new();
+
+        // Device A provides content
+        let ciphertext = b"encrypted content";
+        let hash = store_a.import_bytes(ciphertext.into()).await?;
+
+        // Device B downloads (via iroh connection in real scenario)
+        // Test that content verification works
+        let downloaded = store_b.export_bytes(&hash).await?;
+        assert_eq!(downloaded.as_ref(), ciphertext);
+    }
+}
+```
+
+### 6.5.4 Implementation Order
+
+| Step | Test | Implementation |
+|------|------|----------------|
+| 1 | Content key derivation | `derive_content_key()` with HKDF-SHA256 |
+| 2 | Encrypt-then-hash | `encrypt_content()`, `decrypt_content()` |
+| 3 | ContentRef creation | `ContentRef::from_plaintext()` |
+| 4 | iroh-blobs integration | `ContentProvider`, `ContentRequester` |
+| 5 | GC coordination | `ContentLifecycle::cleanup_orphaned()` |
+
+### 6.5.5 Checkpoint Criteria
+
+```bash
+cargo test -p sync-content
+# All tests pass
+
+# Verify:
+# - Content key derivation is deterministic (same inputs → same key)
+# - Encrypt-then-hash produces verifiable ciphertext
+# - iroh-blobs store/retrieve works correctly
+# - ContentRef round-trips through MessagePack
+```
+
+### 6.5.6 Git Checkpoint
+
+```bash
+git add sync-content/
+git commit -m "Add sync-content crate
+
+Phase 3.5 complete:
+- Content key derivation (HKDF-SHA256 from GroupSecret)
+- Encrypt-then-hash pipeline (XChaCha20-Poly1305 → BLAKE3)
+- iroh-blobs integration for content-addressed storage
+- ContentRef struct for sync relay metadata
+- GC coordination for orphaned content cleanup"
+
+git tag v0.1.0-phase3.5
 ```
 
 ---

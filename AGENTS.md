@@ -221,7 +221,11 @@ gh issue list
 
 **sync-client/** (library for apps):
 - Connection management, encryption layer
-- Dependencies: tokio, clatter (hybrid Noise), argon2
+- Dependencies: tokio, clatter (hybrid Noise), argon2, iroh
+
+**sync-content/** (large content transfer):
+- Encrypt-then-hash, iroh-blobs integration, content lifecycle
+- Dependencies: iroh-blobs, blake3, chacha20poly1305, hkdf
 
 **sync-cli/** (testing tool):
 - Command-line push/pull/pair commands
@@ -234,11 +238,11 @@ gh issue list
 ### Protocol Stack
 
 ```
-Layer 4: Application Messages (Push, Pull, Ack)
-Layer 3: Envelope (Device ID, Cursor, Blob)
-Layer 2: Noise Protocol (XX handshake)
-Layer 1: WebSocket (Binary frames)
-Layer 0: TLS 1.3 (Cloudflare Tunnel)
+Layer 4: Application Sync Logic (Push, Pull, Ack)
+Layer 3: Content Transfer (iroh-blobs, encrypt-then-hash)
+Layer 2: Sync Protocol (Envelope, routing, cursor)
+Layer 1: Transport Security (Hybrid Noise XX via clatter)
+Layer 0: Transport (iroh QUIC, mDNS discovery, DHT)
 ```
 
 ### Cryptographic Primitives
@@ -305,6 +309,9 @@ cargo run -p sync-cli -- pull --after-cursor 0
 ├── sync-client/               # Client library (Phase 3)
 │   ├── Cargo.toml
 │   └── src/lib.rs
+├── sync-content/              # Large content transfer (Phase 3.5)
+│   ├── Cargo.toml
+│   └── src/lib.rs             # iroh-blobs, encrypt-then-hash
 ├── sync-cli/                  # Testing tool (Phase 4)
 │   ├── Cargo.toml
 │   └── src/main.rs
