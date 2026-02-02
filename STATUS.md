@@ -7,10 +7,10 @@ LAST_SYNC: 2026-01-12
 PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
-**Last Updated:** 2026-01-16
-**Project Phase:** DESIGN COMPLETE
-**Completion:** 15% (Documentation complete, Implementation pending)
-**Next Phase:** Implementation - sync-types crate first
+**Last Updated:** 2026-02-02
+**Project Phase:** DESIGN COMPLETE + ORGANIZED
+**Completion:** 20% (Documentation complete, templates aligned, research integrated)
+**Next Phase:** Implementation - sync-types crate first (Q's entry point)
 
 ---
 
@@ -196,9 +196,14 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 None
 
 ### 🟡 Important Issues
-1. iroh integration - evaluate if using public relays or self-hosted
-   - **Impact:** Medium
-   - **Decision needed:** Before Phase 2
+1. **iroh deep dive amendments pending** — `docs/research/iroh-deep-dive-report.md` contains spec changes:
+   - iroh-blobs for content transfer (Layer 3)
+   - sync-content crate addition
+   - mDNS local discovery
+   - Self-hosted infrastructure (iroh-relay, iroh-dns-server)
+   - **Impact:** Medium-High
+   - **Decision needed:** During Q's implementation phase
+   - **Reference:** See DOCS-MAP.md for amendment status
 
 ### 📝 Technical Debt
 None (fresh project)
@@ -226,6 +231,17 @@ None (fresh project)
 ---
 
 ## Session History
+
+### Session 3: 2026-02-02 (Organization & Template Alignment)
+- Updated JIMMYS-WORKFLOW.md v1.1 → v2.1 (PRE-FLIGHT phase added)
+- Updated AGENTS.md v1.6.0 → v1.7.0 (AI-Optimized Docs, PRE-FLIGHT)
+- Created docs/research/ subdirectory
+- Added iroh-deep-dive-report.md (690 lines) — iroh ecosystem audit
+- Added tactical-mesh-profile-appendix-d.md (877 lines) — tactical applications
+- Created DOCS-MAP.md — documentation navigation index
+- Updated STATUS.md and NEXT-SESSION-START-HERE.md
+- **Output:** Project organized, template-compliant, ready for Q implementation phase
+- **Note:** Spec amendments from iroh deep dive flagged for Q's phase
 
 ### Session 2: 2026-01-16
 - Created comprehensive documentation (4 docs)
@@ -316,5 +332,6 @@ None (fresh project)
 
 **This is the source of truth for Sync Relay status.**
 
-**Last Updated:** 2026-01-16
-**Next Update:** End of current session
+**Last Updated:** 2026-02-02
+**Next Update:** End of Q's implementation session
+**Next Handler:** Q (implementation phase)

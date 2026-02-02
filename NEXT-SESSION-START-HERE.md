@@ -7,10 +7,11 @@ LAST_SYNC: 2026-01-12
 PURPOSE: Provide quick context and continuity between development sessions
 -->
 
-**Last Updated:** 2026-01-16
-**Last Session:** Documentation complete + standards compliance
-**Current Phase:** DESIGN COMPLETE (Implementation pending)
+**Last Updated:** 2026-02-02
+**Last Session:** Organization + Template Alignment (Moneypenny)
+**Current Phase:** DESIGN COMPLETE + ORGANIZED (Ready for Q implementation)
 **Session Summary:** See STATUS.md for complete details
+**Next Handler:** Q (implementation phase)
 
 ---
 
@@ -26,9 +27,12 @@ PURPOSE: Provide quick context and continuity between development sessions
 - Create Tauri plugin wrapper
 - Write tests and documentation
 
-**Current Status:** 15% complete
+**Current Status:** 20% complete
 - ✅ Documentation complete (~3,900 lines across 4 docs)
-- ✅ AGENTS.md compliant with template v1.6.0
+- ✅ AGENTS.md compliant with template v1.7.0
+- ✅ JIMMYS-WORKFLOW.md updated to v2.1 (PRE-FLIGHT phase)
+- ✅ DOCS-MAP.md navigation index created
+- ✅ Research documents added (iroh deep dive, tactical mesh)
 - ✅ README.md created
 - ✅ GitHub repository created
 - ⚪ Implementation not started
@@ -74,11 +78,13 @@ PURPOSE: Provide quick context and continuity between development sessions
 
 ## 📁 Key Project Files (Quick Access)
 
-### Start Here if You're New
-1. **docs/02-SPECIFICATION.md** - Full technical specification (READ FIRST)
-2. **docs/03-IMPLEMENTATION-PLAN.md** - TDD implementation guide
-3. **AGENTS.md** - Development guidelines and context
-4. **STATUS.md** - Current progress and metrics
+### Start Here if You're New (Q's Entry Point)
+1. **docs/DOCS-MAP.md** - Navigation index (READ FIRST)
+2. **AGENTS.md** - Development guidelines and context
+3. **docs/02-SPECIFICATION.md** - Full technical specification
+4. **docs/03-IMPLEMENTATION-PLAN.md** - TDD implementation guide
+5. **docs/research/iroh-deep-dive-report.md** - Amendment source (spec changes pending)
+6. **STATUS.md** - Current progress and metrics
 
 ### Implementation Files (after setup)
 5. **Cargo.toml** - Workspace root
@@ -222,11 +228,15 @@ Each crate depends on previous ones being stable.
 - Cloudflare Tunnel for public access
 - SQLite for storage (file-based, simple)
 
-### 4. Jimmy's Workflow
-**ALWAYS follow RED/GREEN/CHECKPOINT:**
-- 🔴 **RED:** Implement
-- 🟢 **GREEN:** Validate (run tests, prove it works)
-- 🔵 **CHECKPOINT:** Gate (mark complete, document rollback)
+### 4. Jimmy's Workflow v2.1
+**ALWAYS follow PRE-FLIGHT/RED/GREEN/CHECKPOINT:**
+```
+🔴 PRE-FLIGHT → 🔴 IMPLEMENT → 🟢 VALIDATE → 🔵 CHECKPOINT
+```
+- 🔴 **PRE-FLIGHT:** Verify context, requirements, dependencies FIRST
+- 🔴 **IMPLEMENT:** Write code, build features
+- 🟢 **VALIDATE:** Run tests, prove it works
+- 🔵 **CHECKPOINT:** Mark complete, document rollback
 
 ---
 
@@ -247,5 +257,18 @@ git status
 
 **This file is updated at the end of each session for continuity.**
 
-**Last Updated:** 2026-01-16
+**Last Updated:** 2026-02-02
 **Template Version:** 1.0.0
+**Next Handler:** Q (implementation phase)
+
+---
+
+## Note for Q
+
+**Amendment Status:** The iroh-deep-dive-report.md contains spec changes that should be considered during implementation:
+- iroh-blobs for content transfer (Layer 3)
+- sync-content crate addition
+- mDNS local discovery
+- Self-hosted infrastructure
+
+See `docs/DOCS-MAP.md` → Amendment Status section for full breakdown.

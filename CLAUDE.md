@@ -1,8 +1,9 @@
 # Claude AI Assistant Instructions
 
 <!--
-TEMPLATE_VERSION: 1.5.1
+TEMPLATE_VERSION: 1.7.0
 TEMPLATE_SOURCE: /home/jimmyb/templates/CLAUDE.md.template
+LAST_SYNC: 2026-02-02
 -->
 
 Please refer to **AGENTS.md** for complete development guidelines and project context.
@@ -24,15 +25,19 @@ This project follows the [agents.md](https://agents.md/) standard for AI coding 
 10. **No Shortcuts** - Do it right, complete the job
 11. **Rules Persist** - Principles apply even after context compression
 
-### Jimmy's Workflow
+### Jimmy's Workflow v2.1
 Use for all implementation tasks:
-- 🔴 **RED**: IMPLEMENT (write code, build features)
-- 🟢 **GREEN**: VALIDATE (run tests, prove it works)
-- 🔵 **CHECKPOINT**: GATE (mark complete, document rollback)
+```
+🔴 PRE-FLIGHT → 🔴 IMPLEMENT → 🟢 VALIDATE → 🔵 CHECKPOINT
+```
+- 🔴 **PRE-FLIGHT**: Verify context, requirements, dependencies FIRST
+- 🔴 **IMPLEMENT**: Write code, build features
+- 🟢 **VALIDATE**: Run tests, prove it works
+- 🔵 **CHECKPOINT**: Mark complete, document rollback
 
 **Invoke**: *"Let's use Jimmy's Workflow to execute this plan"*
 
-**Reference**: See **JIMMYS-WORKFLOW.md** for complete system
+**Reference**: See **JIMMYS-WORKFLOW.md** for complete system (v2.1)
 
 ### Critical Rules
 - ✅ Write tests FIRST (TDD)
@@ -99,8 +104,10 @@ cargo run -p sync-cli -- pair --create
 6. sync-relay sixth (custom relay, future)
 
 **Key Files:**
+- `docs/DOCS-MAP.md` - Navigation index (start here)
 - `docs/02-SPECIFICATION.md` - Full technical specification
 - `docs/03-IMPLEMENTATION-PLAN.md` - TDD implementation guide
+- `docs/research/iroh-deep-dive-report.md` - Amendment source (spec changes)
 - `Cargo.toml` (workspace root) - Workspace definition
 - `sync-types/src/lib.rs` - Wire format types
 
@@ -132,5 +139,5 @@ Noise Protocol (encryption)
 
 ---
 
-*Last updated: 2026-01-16*
-*Template Version: 1.6.0*
+*Last updated: 2026-02-02*
+*Template Version: 1.7.0*

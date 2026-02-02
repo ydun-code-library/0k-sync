@@ -1,15 +1,15 @@
 # Sync Relay - E2E encrypted local-first sync for Tauri apps
 
 <!--
-TEMPLATE_VERSION: 1.6.0
+TEMPLATE_VERSION: 1.7.0
 TEMPLATE_SOURCE: /home/jimmyb/templates/AGENTS.md.template
-LAST_SYNC: 2026-01-16
+LAST_SYNC: 2026-02-02
 SYNC_CHECK: Run ~/templates/tools/check-version.sh to verify you have the latest template version
 AUTO_SYNC: Run ~/templates/tools/sync-templates.sh to update (preserves your customizations)
 CHANGELOG: See ~/templates/CHANGELOG.md for version history
 -->
 
-**STATUS: IN DEVELOPMENT** - Last Updated: 2026-01-16
+**STATUS: IN DEVELOPMENT** - Last Updated: 2026-02-02
 
 ## Repository Information
 - **GitHub Repository**: https://github.com/Jimmyh-world/sync-relay
@@ -34,10 +34,15 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 - Future Tauri applications
 
 **Documentation:**
+- [DOCS-MAP](docs/DOCS-MAP.md) - Navigation index (start here)
 - [Executive Summary](docs/01-EXECUTIVE-SUMMARY.md) - Technical overview
 - [Specification](docs/02-SPECIFICATION.md) - Detailed protocol spec
 - [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) - TDD approach
 - [Research Validation](docs/04-RESEARCH-VALIDATION.md) - Technology justification
+
+**Research Documents:**
+- [iroh Deep Dive](docs/research/iroh-deep-dive-report.md) - iroh ecosystem audit
+- [Tactical Mesh Profile](docs/research/tactical-mesh-profile-appendix-d.md) - Defense/tactical applications
 <!-- PROJECT_SPECIFIC END: IMPORTANT_CONTEXT -->
 
 ## Core Development Principles (MANDATORY)
@@ -74,20 +79,41 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 - State current development status clearly
 - Document what IS, not what WILL BE
 
-### 6. Jimmy's Workflow (Red/Green Checkpoints)
+### 5.5. AI-Optimized Documentation
+**CRITICAL**: Documentation is structured data for both humans AND AI consumption
+
+- Use consistent header hierarchy (H1 for title, H2 for sections, H3 for subsections)
+- Include machine-parseable metadata (version, date, status)
+- Use tables for structured data (dependencies, commands, file lists)
+- Mark project-specific sections with HTML comments for template sync
+- Structure documents for searchability (clear section names, bullet points)
+- Include "When to read this" and "Skip if" guidance where helpful
+
+### 6. Jimmy's Workflow v2.1 (PRE-FLIGHT/Red/Green Checkpoints)
 **MANDATORY for all implementation tasks**
 
-- 🔴 **RED (IMPLEMENT)**: Write code, build features, make changes
-- 🟢 **GREEN (VALIDATE)**: Run explicit validation commands, prove it works
+```
+🔴 PRE-FLIGHT → 🔴 IMPLEMENT → 🟢 VALIDATE → 🔵 CHECKPOINT
+```
+
+- 🔴 **PRE-FLIGHT**: Verify context, dependencies, requirements BEFORE starting
+- 🔴 **IMPLEMENT**: Write code, build features, make changes
+- 🟢 **VALIDATE**: Run explicit validation commands, prove it works
 - 🔵 **CHECKPOINT**: Mark completion with machine-readable status, document rollback
 
 **Critical Rules:**
+- NEVER skip PRE-FLIGHT - verify context first
 - NEVER skip validation phases
 - NEVER proceed to next checkpoint without GREEN passing
 - ALWAYS document rollback procedures
 - ALWAYS use explicit validation commands (not assumptions)
 
-**Reference**: See **JIMMYS-WORKFLOW.md** for complete workflow system
+**Confidence Levels:**
+- **HIGH**: Proceed automatically
+- **MEDIUM**: Pause for human spot-check
+- **LOW**: Stop, require human validation
+
+**Reference**: See **JIMMYS-WORKFLOW.md** for complete workflow system (v2.1)
 
 ### 7. YAGNI (You Ain't Gonna Need It)
 - Don't implement features until they're actually needed
@@ -260,12 +286,16 @@ crabnebula-sync/
 ├── Cargo.toml                 # Workspace definition
 ├── README.md                  # Project overview
 ├── docs/                      # Documentation
+│   ├── DOCS-MAP.md            # Navigation index
 │   ├── 00-PLAN.md             # Documentation planning
 │   ├── 01-EXECUTIVE-SUMMARY.md
 │   ├── 02-SPECIFICATION.md
 │   ├── 03-IMPLEMENTATION-PLAN.md
 │   ├── 04-RESEARCH-VALIDATION.md
-│   └── reference/             # Original specifications (archive)
+│   ├── reference/             # Original specifications (archive)
+│   └── research/              # Research documents
+│       ├── iroh-deep-dive-report.md
+│       └── tactical-mesh-profile-appendix-d.md
 ├── sync-types/                # Shared types (Phase 1)
 │   ├── Cargo.toml
 │   └── src/lib.rs             # Envelope, Message, DeviceId, Cursor
@@ -431,5 +461,5 @@ SYNC_GROUP_PASSPHRASE=user-provided
 
 **This document follows the [agents.md](https://agents.md/) standard for AI coding assistants.**
 
-**Template Version**: 1.6.0
-**Last Updated**: 2026-01-16
+**Template Version**: 1.7.0
+**Last Updated**: 2026-02-02
