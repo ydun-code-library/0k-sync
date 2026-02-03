@@ -1,7 +1,7 @@
 # 0k-Sync - Technical Specification
 
-**Version:** 2.2.0
-**Date:** 2026-02-02
+**Version:** 2.3.0
+**Date:** 2026-02-03
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementers, Developers
 
@@ -109,13 +109,13 @@
                     PUSH FLOW
                     ─────────
 App Data ──► Serialize ──► Encrypt (Group Key) ──► Envelope ──►
-         ──► Transport Encrypt (Noise) ──► WebSocket ──► Relay ──►
+         ──► Transport Encrypt (Noise) ──► iroh (QUIC) ──► Peer/Relay ──►
          ──► Forward to online peers ──► Buffer for offline peers
 
                     PULL FLOW
                     ─────────
-Relay ──► WebSocket ──► Transport Decrypt (Noise) ──► Envelope ──►
-      ──► Decrypt (Group Key) ──► Deserialize ──► App Data
+Peer/Relay ──► iroh (QUIC) ──► Transport Decrypt (Noise) ──► Envelope ──►
+           ──► Decrypt (Group Key) ──► Deserialize ──► App Data
 ```
 
 ---
@@ -548,17 +548,29 @@ pub struct SyncConfig {
 }
 
 pub enum RelayBackend {
-    /// Tier 1: iroh public network
+    /// Tier 1: iroh public network (P2P + iroh-relay fallback)
+    /// No custom infrastructure needed.
     Iroh,
 
-    /// Tiers 2-3: Self-hosted or PaaS
-    Relay { url: String },
+    /// Tiers 2-3: Self-hosted sync-relay (iroh Endpoint)
+    /// Connect to a known sync-relay by NodeId.
+    SyncRelay {
+        node_id: iroh::NodeId,
+        relay_url: Option<Url>,  // Optional custom iroh-relay for this deployment
+    },
 
-    /// Tiers 4-5: Managed Cloud managed
-    Managed Cloud { api_key: String },
+    /// Tiers 4-5: Managed Cloud
+    /// API key resolves to a sync-relay NodeId via discovery service.
+    ManagedCloud {
+        api_key: String,
+    },
 
     /// Tier 6: Enterprise
-    Enterprise { url: String, auth: EnterpriseAuth },
+    /// Dedicated sync-relay with enterprise authentication.
+    Enterprise {
+        node_id: iroh::NodeId,
+        auth: EnterpriseAuth,
+    },
 }
 ```
 
@@ -625,7 +637,7 @@ receive
 
 | Do | Don't |
 |----|-------|
-| Accept WebSocket connections | Store data long-term |
+| Accept iroh connections (QUIC) | Store data long-term |
 | Noise handshake | Decrypt payloads |
 | Route messages by group_id | Know what's in blobs |
 | Buffer for offline devices (temp) | Require accounts |
@@ -762,7 +774,7 @@ sync_relay_bytes_transferred 157286400
    - device_keypair (if not exists)
 3. Create invite payload:
    {
-     relay: "wss://sync.example.com",
+     relay_node: "sync-relay-node-id",  // NodeId of sync-relay, or omitted for Tier 1
      group_id: base64(group_id),
      group_secret: base64(group_secret),
      created_by: base64(device_pubkey),
@@ -780,7 +792,7 @@ sync_relay_bytes_transferred 157286400
 4. Store in keychain:
    - group_id
    - group_secret (→ derive Group Key via Argon2id)
-   - relay URL
+   - relay NodeId (if present — Tier 1 uses iroh public network, no relay NodeId needed)
 5. Connect to relay
 6. Sync begins
 ```
@@ -793,12 +805,14 @@ URL: your-app://sync?invite=BASE64_PAYLOAD
 Payload (before base64):
 {
   "v": 1,
-  "r": "wss://sync.example.com",
+  "r": "sync-relay-node-id-or-discovery-url",
   "g": "base64(group_id)",
   "s": "base64(group_secret)",
   "c": "base64(creator_pubkey)",
   "e": 1705000000
 }
+
+Note: For Tier 1 (iroh public network), the `r` field is omitted — peers discover each other via the public iroh relay network. For Tiers 2-6, `r` contains the sync-relay's NodeId or an HTTPS discovery URL (e.g., `https://sync.example.com/.well-known/iroh`) that resolves to a NodeId.
 ```
 
 Note: Replace `your-app://` with your application's custom URL scheme.
@@ -980,10 +994,10 @@ sync.on('blob-available', async (info) => {
 
 ### 10.1 The "Mobile Exit" Problem
 
-> ⚠️ **Critical Reality:** On iOS and modern Android, WebSocket connections are killed within ~30 seconds of the app being backgrounded. You cannot rely on persistent connections for sync.
+> ⚠️ **Critical Reality:** On iOS and modern Android, background network connections (including QUIC/iroh) are killed within ~30 seconds of the app being backgrounded. You cannot rely on persistent connections for sync.
 
 **iOS `applicationWillTerminate`** does NOT guarantee enough execution time to:
-1. Establish a WebSocket connection
+1. Establish an iroh connection
 2. Perform a Noise handshake
 3. Upload a blob
 
@@ -1089,7 +1103,7 @@ async fn on_app_close(sync_client: &SyncClient) {
 
 | Feature | Reason | Future Possibility |
 |---------|--------|-------------------|
-| Background sync | iOS/Android kill background WebSockets | Push notifications |
+| Background sync | iOS/Android kill background connections | Push notifications |
 | Push notifications for new data | Requires APNS/FCM integration | Optional plugin |
 | Always-on sync | Not possible on mobile without OS support | None |
 | Guaranteed sync on exit | OS doesn't allow it | None |
@@ -1118,27 +1132,29 @@ Uses iroh public network. No relay infrastructure needed.
 
 ```rust
 SyncConfig {
-    backend: RelayBackend::Relay {
-        url: "wss://sync.home.local".into(),
+    backend: RelayBackend::SyncRelay {
+        node_id: "your-sync-relay-node-id".parse()?,
+        relay_url: None,  // Uses default iroh-relay, or set custom
     },
     ..Default::default()
 }
 ```
 
-Self-hosted Docker container + Cloudflare Tunnel.
+Self-hosted Docker container. Discovered via mDNS on LAN or DNS for remote. Cloudflare Tunnel can proxy the QUIC connection.
 
 ### 11.3 Tier 3: Vercel-style
 
 ```rust
 SyncConfig {
-    backend: RelayBackend::Relay {
-        url: "wss://my-relay.fly.dev".into(),
+    backend: RelayBackend::SyncRelay {
+        node_id: "fly-relay-node-id".parse()?,
+        relay_url: Some("https://relay.fly.dev".parse()?),
     },
     ..Default::default()
 }
 ```
 
-Container deployed to Vercel/Railway/Fly.io.
+Container deployed to Fly.io. NodeId published via DNS TXT record at a known domain.
 
 ### 11.4 Tier 4-5: Managed Cloud
 
@@ -1151,14 +1167,14 @@ SyncConfig {
 }
 ```
 
-API key determines tier (community vs cloud).
+API key authenticates to CrabNebula managed infrastructure. Discovery service resolves API key to a sync-relay NodeId.
 
 ### 11.5 Tier 6: Enterprise
 
 ```rust
 SyncConfig {
     backend: RelayBackend::Enterprise {
-        url: "wss://sync.corp.internal".into(),
+        node_id: "enterprise-relay-node-id".parse()?,
         auth: EnterpriseAuth::Oidc {
             issuer: "https://auth.corp.com".into(),
             client_id: "sync-client".into(),
@@ -1168,7 +1184,7 @@ SyncConfig {
 }
 ```
 
-Customer-deployed with enterprise auth integration.
+Customer-deployed with enterprise auth integration. Dedicated sync-relay identified by NodeId.
 
 ---
 
@@ -1246,8 +1262,10 @@ connections_per_ip = 10
 
 ```toml
 [sync]
-backend = "relay"
-relay_url = "wss://sync.example.com"
+backend = "sync-relay"
+relay_node_id = "your-sync-relay-node-id"
+# or for DNS-based discovery:
+# relay_discovery = "https://sync.example.com/.well-known/iroh"
 auto_reconnect = true
 reconnect_delay_ms = 1000
 max_reconnect_delay_ms = 30000
@@ -1257,7 +1275,7 @@ max_reconnect_delay_ms = 30000
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `SYNC_RELAY_URL` | Override relay URL | Config file |
+| `SYNC_RELAY_NODE_ID` | Override relay NodeId | Config file |
 | `SYNC_API_KEY` | Managed Cloud API key | None |
 | `SYNC_LOG_LEVEL` | Logging verbosity | `info` |
 | `SYNC_DEVICE_NAME` | Human-readable name | Hostname |
@@ -1862,9 +1880,8 @@ sync-types = { path = "../sync-types" }
 sync-core = { path = "../sync-core" }
 sync-content = { path = "../sync-content" }  # Large content transfer
 tokio = { version = "1", features = ["rt", "sync", "time"] }
-tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
-iroh = "1.0"                     # Endpoint, connections, discovery
+iroh = "1.0"                     # Endpoint, connections, discovery (all tiers)
 argon2 = "0.5"
 chacha20poly1305 = "0.10"        # Supports XChaCha20
 rand = "0.8"
@@ -1892,10 +1909,10 @@ tracing = "0.1"
 [dependencies]
 sync-types = { path = "../sync-types" }
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+iroh = "1.0"                     # Endpoint for accepting client connections (QUIC)
 clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
-axum = "0.7"
+axum = "0.7"                     # Health/metrics HTTP endpoints only
 tower = "0.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -1915,4 +1932,14 @@ serde_json = "1"
 
 ---
 
-*Document: 02-SPECIFICATION.md | Version: 2.2.0 | Date: 2026-02-02*
+---
+
+## Changelog
+
+**v2.3.0 (2026-02-03):** Removed WebSocket transport from all tiers. All connections now use iroh QUIC. sync-relay (Phase 6) redesigned as iroh Endpoint instead of WebSocket server. Removed tokio-tungstenite dependency. Updated RelayBackend enum to use NodeId addressing. Fixed ManagedCloud enum variant (space in name). Updated data flow diagram, tier configs, pairing format, mobile lifecycle section, CLI config, and dependency lists.
+
+**v2.2.0 (2026-02-02):** Layer structure updated per iroh-deep-dive-report.md. Added Layer 3 (Content Transfer) for large file handling via iroh-blobs. Added Section 17 (Large Content Transfer Protocol).
+
+---
+
+*Document: 02-SPECIFICATION.md | Version: 2.3.0 | Date: 2026-02-03*

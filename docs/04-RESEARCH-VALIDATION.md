@@ -1,7 +1,7 @@
 # 0k-Sync - Research & Validation
 
-**Version:** 2.1.0
-**Date:** 2026-02-02
+**Version:** 2.2.0
+**Date:** 2026-02-03
 **Author:** James (LTIS Investments AB)
 **Status:** Decision-Ready Document
 
@@ -215,7 +215,9 @@ fn select_argon2_params() -> Params {
 
 **Choice:** [tokio-tungstenite](https://github.com/snapview/tokio-tungstenite) for WebSocket transport
 
-**Status:** ✅ Validated
+**Status:** ⏸️ Deferred — Not used in current architecture
+
+> **Amendment (2026-02-03):** The transport architecture was simplified to iroh QUIC for all tiers (see 02-SPECIFICATION.md v2.3.0). WebSocket is no longer part of the transport stack. tokio-tungstenite research is retained here for reference if a WebSocket transport adapter is ever needed (e.g., for environments that block QUIC), but it is not a current dependency.
 
 | Factor | Evidence |
 |--------|----------|
@@ -224,11 +226,11 @@ fn select_argon2_params() -> Params {
 | TLS support | native-tls and rustls backends |
 | Memory | 8-10KB per connection with 4KB buffers |
 
-**⚠️ Risk: Thundering Herd**
+**⚠️ Risk: Thundering Herd** (applies to any reconnection scenario)
 
 After relay restart, all clients reconnect simultaneously, potentially crashing database or exhausting limits.
 
-**Required Mitigation: Client-Side Jitter**
+**Required Mitigation: Client-Side Jitter** (implemented for iroh transport)
 
 ```rust
 async fn reconnect_with_backoff(attempt: u32) {
@@ -332,7 +334,7 @@ See [Section 6: Compliance Strategy](#6-compliance-strategy) for FIPS mitigation
 | Noise XX handshake < 100ms | ✅ **ACHIEVED** | <1ms crypto time; network RTT dominates |
 | Argon2id < 500ms mobile | ⚠️ **MARGINAL** | 200-400ms modern devices; 800ms+ low-end |
 | SQLite writes > 1000/s | ✅ **ACHIEVED** | 70,000-100,000+ writes/s with WAL mode |
-| WebSocket < 10KB/conn | ✅ **ACHIEVED** | 8-10KB with 4KB buffers configured |
+| WebSocket < 10KB/conn | ⏸️ **DEFERRED** | Research retained; WebSocket not in current architecture |
 | iroh hole punch | ✅ **ACHIEVED** | ~90% success rate, <2s typical |
 
 ### 3.2 Platform Support Matrix
@@ -464,7 +466,7 @@ See [Section 6: Compliance Strategy](#6-compliance-strategy) for FIPS mitigation
 ```
     User Device              Cloudflare Edge              Fly.io Compute
    ┌───────────┐            ┌───────────────┐            ┌───────────────┐
-   │  Tauri    │──WebSocket─▶│  Cloudflare   │────────────▶│   Relay      │
+   │  Tauri    │──iroh/QUIC──▶│  Cloudflare   │────────────▶│   Relay      │
    │   App     │            │    Proxy      │  Tunnel or  │   Server     │
    │           │◀────────────│  (DDoS prot)  │◀────────────│  (Rust app)  │
    └───────────┘            └───────────────┘             └───────────────┘
@@ -588,7 +590,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 | iroh | https://github.com/n0-computer/iroh | 1.0 RC |
 | iroh-blobs | https://github.com/n0-computer/iroh-blobs | 1.0 |
 | clatter | https://github.com/jmwample/clatter | 2.1+ |
-| tokio-tungstenite | https://github.com/snapview/tokio-tungstenite | 0.21.x |
+| tokio-tungstenite | https://github.com/snapview/tokio-tungstenite | ⏸️ Deferred |
 | argon2 (RustCrypto) | https://github.com/RustCrypto/password-hashes | 0.5.x |
 | chacha20poly1305 | https://github.com/RustCrypto/AEADs | 0.10.x |
 | sqlx | https://github.com/launchbadge/sqlx | 0.7.x |
@@ -647,5 +649,15 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 
 ---
 
-*Document: 04-RESEARCH-VALIDATION.md | Version: 2.0.0 | Date: 2026-01-16*
+---
+
+## Changelog
+
+**v2.2.0 (2026-02-03):** Marked tokio-tungstenite/WebSocket research as deferred per transport architecture simplification to iroh QUIC (all tiers). Updated architecture diagram to show iroh/QUIC.
+
+**v2.1.0 (2026-02-02):** Updated iroh to 1.0 RC stable. Migrated from snow to clatter for hybrid Noise (ML-KEM-768 + X25519).
+
+---
+
+*Document: 04-RESEARCH-VALIDATION.md | Version: 2.2.0 | Date: 2026-02-03*
 *Status: Decision-Ready | Next Review: Before Beta Exit*

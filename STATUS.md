@@ -136,6 +136,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - ✅ Dead Drop processed (3 files total)
 - ✅ Pre-flight audit completed (14 issues fixed)
 - ✅ Chaos integration amendments applied (13 amendments)
+- ✅ WebSocket removal amendments applied (28 amendments across 3 docs)
 
 ### Completed This Session (2026-02-03)
 - [x] Created GitHub repo: ydun-code-library/0k-sync
@@ -154,6 +155,14 @@ PURPOSE: Track project progress, status, and metrics across development sessions
   - Updated summary table with chaos column
   - Implementation plan now v2.2.0 (chaos appears 83 times, was 0)
 - [x] Pushed all changes to ydun-code-library/0k-sync
+- [x] Applied WEBSOCKET-REMOVAL-AMENDMENT.md (28 amendments):
+  - S1-S10: 02-SPECIFICATION.md → v2.3.0
+  - I1-I6: 03-IMPLEMENTATION-PLAN.md → v2.3.0
+  - R1-R6: 04-RESEARCH-VALIDATION.md → v2.2.0
+  - RelayBackend enum now uses NodeId (not URL)
+  - All wss:// URLs replaced with NodeId addressing
+  - tokio-tungstenite marked deferred
+  - Phase 6 sync-relay redesigned as iroh Endpoint
 
 ### Blockers
 - None at this time
@@ -251,6 +260,16 @@ None (fresh project)
 ---
 
 ## Session History
+
+### Session 6: 2026-02-03 (WebSocket Removal - Q)
+- Applied WEBSOCKET-REMOVAL-AMENDMENT.md (28 amendments)
+- Specification v2.2.0 → v2.3.0: RelayBackend uses NodeId, data flow shows iroh/QUIC
+- Implementation plan v2.2.0 → v2.3.0: Removed websocket.rs, Phase 6 uses Endpoint
+- Research validation v2.1.0 → v2.2.0: tokio-tungstenite marked deferred
+- All wss:// URLs replaced with NodeId addressing
+- Fixed ManagedCloud enum variant (removed space)
+- Verification checklist: zero WebSocket/tungstenite/wss:// in active content
+- **Output:** Transport architecture unified to iroh QUIC for all tiers
 
 ### Session 5: 2026-02-03 (Phase 1 Implementation - Q)
 - Implemented Cargo workspace with 7 crates

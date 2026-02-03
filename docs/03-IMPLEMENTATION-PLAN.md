@@ -1,6 +1,6 @@
 # 0k-Sync - Test-Driven Implementation Plan
 
-**Version:** 2.2.0
+**Version:** 2.3.0
 **Date:** 2026-02-03
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementing Developers
@@ -115,13 +115,12 @@ Each phase follows:
 │   └── src/
 │       ├── lib.rs
 │       ├── client.rs             # SyncClient implementation
-│       ├── connection.rs         # WebSocket/iroh transport
+│       ├── connection.rs         # iroh transport management
 │       ├── crypto.rs             # E2E encryption
 │       ├── storage.rs            # Local persistence
 │       └── transport/
 │           ├── mod.rs
-│           ├── iroh.rs           # Tier 1
-│           └── websocket.rs      # Tiers 2-6
+│           └── iroh.rs           # All tiers (QUIC via iroh)
 │
 ├── sync-content/                  # Phase 3.5: Large content transfer
 │   ├── Cargo.toml
@@ -789,7 +788,7 @@ mod tests {
     #[test]
     fn invite_roundtrip() {
         let invite = Invite::create(
-            "wss://relay.example.com",
+            test_relay_node_id(),  // Returns a deterministic NodeId for testing
             GroupId::random(),
             GroupSecret::random(),
         );
@@ -797,14 +796,14 @@ mod tests {
         let encoded = invite.to_qr_payload();
         let decoded = Invite::from_qr_payload(&encoded).unwrap();
 
-        assert_eq!(invite.relay_url, decoded.relay_url);
+        assert_eq!(invite.relay_node_id, decoded.relay_node_id);
         assert_eq!(invite.group_id, decoded.group_id);
     }
 
     #[test]
     fn short_code_format() {
         let invite = Invite::create(
-            "wss://relay.example.com",
+            test_relay_node_id(),  // Returns a deterministic NodeId for testing
             GroupId::random(),
             GroupSecret::random(),
         );
@@ -830,7 +829,7 @@ mod tests {
     #[test]
     fn invite_expires() {
         let invite = Invite::create_with_ttl(
-            "wss://relay.example.com",
+            test_relay_node_id(),  // Returns a deterministic NodeId for testing
             GroupId::random(),
             GroupSecret::random(),
             Duration::from_secs(0), // Already expired
@@ -908,11 +907,12 @@ pub trait Transport: Send + Sync {
     async fn recv(&mut self) -> Result<Vec<u8>>;
 }
 
-// Tier 1: iroh
+// All tiers: iroh (QUIC)
 pub struct IrohTransport { /* ... */ }
 
-// Tiers 2-6: WebSocket
-pub struct WebSocketTransport { /* ... */ }
+// For testing: in-process mock transport
+#[cfg(test)]
+pub struct MockTransport { /* ... */ }
 ```
 
 ### 6.3 TDD Sequence
@@ -1223,7 +1223,7 @@ git commit -m "Add sync-client library
 - GroupKey E2E encryption (XChaCha20-Poly1305, 192-bit nonces)
 - Device-adaptive Argon2id key derivation (12-64 MiB)
 - Hybrid Noise Protocol XX (clatter v2.1+, ML-KEM-768 + X25519)
-- Transport abstraction (iroh 1.0 RC, WebSocket)
+- Transport abstraction (iroh 1.0 RC)
 - Thundering herd mitigation with jitter
 - Integration test: two clients syncing
 - Encryption chaos scenarios (16 mock-based: E-HS, E-ENC, E-PQ)
@@ -1722,17 +1722,25 @@ async fn main() -> Result<()> {
     // SQLite for temporary buffer
     let db = Database::connect(&config.database).await?;
 
-    // WebSocket server
-    let server = RelayServer::new(config, db);
+    // iroh Endpoint — accepts QUIC connections from clients
+    let endpoint = Endpoint::builder()
+        .discovery(config.discovery()?)
+        .relay_mode(config.relay_mode()?)
+        .secret_key(config.secret_key()?)
+        .bind()
+        .await?;
 
-    // Health/metrics endpoints
+    let relay = SyncRelay::new(config, db, endpoint);
+
+    // Health/metrics endpoints (HTTP only — no WebSocket upgrade)
     let api = Router::new()
         .route("/health", get(health))
-        .route("/metrics", get(metrics));
+        .route("/metrics", get(metrics))
+        .route("/.well-known/iroh", get(node_info));  // NodeId discovery
 
     // Run both
     tokio::select! {
-        _ = server.run() => {},
+        _ = relay.accept_connections() => {},
         _ = axum::serve(api_listener, api) => {},
     }
 
@@ -2201,11 +2209,16 @@ If a breaking change reaches users:
 
 ---
 
-*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.2.0 | Date: 2026-02-03*
+*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.3.0 | Date: 2026-02-03*
 
 ---
 
 ## Changelog
+
+**v2.3.0 (2026-02-03):** Removed WebSocket transport. All tiers use iroh QUIC. Removed
+websocket.rs from project structure, WebSocketTransport from Phase 3, replaced with
+MockTransport for testing. Phase 6 sync-relay redesigned as iroh Endpoint. Updated
+invite tests to use NodeId instead of wss:// URLs.
 
 **v2.2.0 (2026-02-03):** Integrated chaos testing deliverables from 06-CHAOS-TESTING-STRATEGY.md.
 Added tests/chaos/ to project structure, chaos harness in Phases 1-2, encryption chaos in
