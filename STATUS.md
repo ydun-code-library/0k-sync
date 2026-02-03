@@ -8,10 +8,10 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Project Phase:** PHASE 1 COMPLETE
-**Completion:** 40% (sync-types crate + chaos harness skeleton complete)
+**Project Phase:** PHASE 4 COMPLETE
+**Completion:** 70% (sync-types, sync-core, sync-client, sync-cli complete)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
-**Next Phase:** Phase 2 - sync-core crate
+**Next Phase:** Phase 5 - iroh transport integration + transport chaos scenarios
 
 ---
 
@@ -76,9 +76,73 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ---
 
-### Phase 2: sync-relay Server ⚪ NOT STARTED
-- **Duration:** Estimated 6-8 hours
-- **Output:** Working relay server
+### Phase 2: sync-core Crate ✅ COMPLETE
+- **Duration:** 1 session
+- **Output:** Pure logic crate with zero I/O
+- **Status:** Complete (2026-02-03)
+- **Tag:** v0.1.0-phase2
+
+**Tasks:**
+- [x] ConnectionState state machine
+- [x] MessageBuffer with pending tracking
+- [x] CursorTracker with gap detection
+- [x] Invite generation/parsing (QR + short codes)
+- [x] GroupSecret from passphrase
+- [x] 60 unit tests (all instant, no I/O)
+
+---
+
+### Phase 3: sync-client Crate ✅ COMPLETE
+- **Duration:** 1 session
+- **Output:** Client library with E2E encryption
+- **Status:** Complete (2026-02-03)
+- **Tag:** v0.1.0-phase3
+
+**Tasks:**
+- [x] GroupKey E2E encryption (XChaCha20-Poly1305)
+- [x] Device-adaptive Argon2id key derivation (12-64 MiB)
+- [x] Transport trait abstraction
+- [x] MockTransport for testing
+- [x] SyncClient API (connect, push, pull)
+- [x] 42 unit tests
+
+---
+
+### Phase 4: sync-cli Tool ✅ COMPLETE
+- **Duration:** 1 session
+- **Output:** CLI for testing and verification
+- **Status:** Complete (2026-02-03)
+- **Tag:** v0.1.0-phase4
+
+**Tasks:**
+- [x] init command (device identity)
+- [x] pair --create (generate invite)
+- [x] pair --join (accept invite via QR/passphrase)
+- [x] push command (encrypted data)
+- [x] pull command (after cursor)
+- [x] status command (device/group/connection)
+- [x] JSON config persistence (device.json, group.json)
+- [x] 15 unit tests
+
+---
+
+### Phase 5: iroh Transport + Transport Chaos ⚪ NEXT
+- **Duration:** Estimated 1-2 sessions
+- **Output:** Real P2P transport, connection lifecycle chaos
+- **Status:** Not started
+
+**Tasks:**
+- [ ] IrohTransport implementing Transport trait
+- [ ] iroh Endpoint connection management
+- [ ] Connection lifecycle (connect, disconnect, reconnect)
+- [ ] Transport chaos scenarios (drops, reconnects, timeouts)
+- [ ] Replace MockTransport in sync-cli with IrohTransport
+
+---
+
+### Phase 6: sync-relay + Full Chaos ⚪ NOT STARTED
+- **Duration:** Estimated 2-3 sessions
+- **Output:** Custom relay server, full topology chaos
 - **Status:** Not started
 
 **Tasks:**
@@ -88,37 +152,12 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - [ ] Message routing logic
 - [ ] Health/metrics endpoints (axum)
 - [ ] Docker containerization
+- [ ] Full topology chaos (multi-node, partitions)
+- [ ] Toxiproxy network injection
 
 ---
 
-### Phase 3: sync-cli Tool ⚪ NOT STARTED
-- **Duration:** Estimated 2-3 hours
-- **Output:** CLI for testing
-- **Status:** Not started
-
-**Tasks:**
-- [ ] init command (create device keypair)
-- [ ] pair --create (generate invite)
-- [ ] pair --join (accept invite)
-- [ ] push command
-- [ ] pull command
-
----
-
-### Phase 4: sync-client Library ⚪ NOT STARTED
-- **Duration:** Estimated 4-5 hours
-- **Output:** Reusable library for apps
-- **Status:** Not started
-
-**Tasks:**
-- [ ] Clean public API based on CLI learnings
-- [ ] Auto-reconnect logic
-- [ ] Local cursor persistence
-- [ ] Event subscription (SyncEvent)
-
----
-
-### Phase 5: Framework Integration (Optional) ⚪ NOT STARTED
+### Phase 7: Framework Integration (Optional) ⚪ NOT STARTED
 - **Duration:** Estimated 2 hours per framework
 - **Output:** Framework-specific wrappers (e.g., Tauri plugin)
 - **Status:** Not started
@@ -133,36 +172,18 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Current Sprint/Session Status
 
 ### Active Tasks (Current Session)
-- ✅ Dead Drop processed (3 files total)
-- ✅ Pre-flight audit completed (14 issues fixed)
-- ✅ Chaos integration amendments applied (13 amendments)
-- ✅ WebSocket removal amendments applied (28 amendments across 3 docs)
+- ✅ Phase 2 (sync-core): 60 tests, pure logic, zero I/O
+- ✅ Phase 3 (sync-client): E2E encryption, transport abstraction, 42 tests
+- ✅ Phase 4 (sync-cli): Full CLI with 5 commands, 15 tests
+- ✅ All phases committed and tagged
 
 ### Completed This Session (2026-02-03)
-- [x] Created GitHub repo: ydun-code-library/0k-sync
-- [x] Added 05-RELEASE-STRATEGY.md from Dead Drop
-- [x] Added 06-CHAOS-TESTING-STRATEGY.md from Dead Drop
-- [x] Fixed 3 blockers (spec refs, repo URL, crate naming)
-- [x] Fixed 6 errors (section numbering, enum syntax, versions, imports)
-- [x] Fixed 5 minor issues (crypto table, repo structure, known issues)
-- [x] Updated DOCS-MAP.md with new documents
-- [x] Applied CHAOS-INTEGRATION-AMENDMENTS.md (13 amendments):
-  - Added tests/chaos/ to project structure
-  - Added chaos-tests to workspace Cargo.toml
-  - Added chaos deliverables to Phases 1-6
-  - Added chaos dimension to test pyramid
-  - Added chaos-smoke CI job
-  - Updated summary table with chaos column
-  - Implementation plan now v2.2.0 (chaos appears 83 times, was 0)
-- [x] Pushed all changes to ydun-code-library/0k-sync
-- [x] Applied WEBSOCKET-REMOVAL-AMENDMENT.md (28 amendments):
-  - S1-S10: 02-SPECIFICATION.md → v2.3.0
-  - I1-I6: 03-IMPLEMENTATION-PLAN.md → v2.3.0
-  - R1-R6: 04-RESEARCH-VALIDATION.md → v2.2.0
-  - RelayBackend enum now uses NodeId (not URL)
-  - All wss:// URLs replaced with NodeId addressing
-  - tokio-tungstenite marked deferred
-  - Phase 6 sync-relay redesigned as iroh Endpoint
+- [x] Phase 2: sync-core crate (ConnectionState, MessageBuffer, CursorTracker, Invite, GroupSecret)
+- [x] Phase 3: sync-client crate (GroupKey encryption, Argon2id KDF, Transport trait, MockTransport, SyncClient)
+- [x] Phase 4: sync-cli crate (init, pair, push, pull, status commands)
+- [x] 169 total tests passing across workspace
+- [x] Clippy clean, fmt clean
+- [x] Git tags: v0.1.0-phase2, v0.1.0-phase3, v0.1.0-phase4
 
 ### Blockers
 - None at this time
@@ -172,10 +193,10 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Project Metrics
 
 ### Code Metrics
-- **Total Lines of Code:** ~1,500 (sync-types + chaos-tests)
-- **Test Count:** 52 tests (28 sync-types + 24 chaos-tests)
-- **Test Coverage:** 100% for sync-types public API
-- **Crates:** 1 of 6 implemented (sync-types complete, others skeleton)
+- **Total Lines of Code:** ~5,500+ (sync-types, sync-core, sync-client, sync-cli, chaos-tests)
+- **Test Count:** 169 tests (28 sync-types + 60 sync-core + 42 sync-client + 15 sync-cli + 24 chaos-tests)
+- **Test Coverage:** 100% for public APIs
+- **Crates:** 4 of 6 implemented (sync-types, sync-core, sync-client, sync-cli complete)
 
 ### Documentation Metrics
 - **Total Documentation:** ~6,300+ lines across 6 core docs
@@ -246,11 +267,35 @@ None (fresh project)
 - [x] Types are ergonomic to use (proper Display, Debug, Clone, PartialEq)
 - [x] Chaos harness skeleton in place (24 tests)
 
-### Phase 2 Success Criteria (sync-relay)
+### Phase 2 Success Criteria (sync-core) ✅ COMPLETE
+- [x] ConnectionState state machine with backoff (60 tests)
+- [x] MessageBuffer tracks pending messages
+- [x] CursorTracker detects gaps
+- [x] Invite generates QR and short codes
+- [x] All tests instant (no I/O)
+
+### Phase 3 Success Criteria (sync-client) ✅ COMPLETE
+- [x] E2E encryption with XChaCha20-Poly1305 (42 tests)
+- [x] Device-adaptive Argon2id key derivation
+- [x] Transport abstraction with MockTransport
+- [x] SyncClient API functional
+
+### Phase 4 Success Criteria (sync-cli) ✅ COMPLETE
+- [x] init, pair, push, pull, status commands (15 tests)
+- [x] Config persistence (device.json, group.json)
+- [x] Integration with sync-client library
+
+### Phase 5 Success Criteria (iroh transport)
+- [ ] IrohTransport implements Transport trait
+- [ ] Real P2P connections work
+- [ ] Transport chaos scenarios pass (drops, reconnects, timeouts)
+
+### Phase 6 Success Criteria (sync-relay)
 - [ ] Server accepts iroh connections (QUIC)
 - [ ] Noise handshake completes successfully
 - [ ] Blobs stored and retrieved correctly
 - [ ] Health endpoint returns status
+- [ ] Full topology chaos passes
 
 ### Overall Project Success
 - [ ] Two devices can sync via relay
@@ -260,6 +305,41 @@ None (fresh project)
 ---
 
 ## Session History
+
+### Session 9: 2026-02-03 (Phase 4 - sync-cli - Q)
+- Implemented sync-cli crate with 5 commands
+- init: Device initialization with unique ID
+- pair: Create/join sync groups via passphrase or QR payload
+- push: Send encrypted data (uses MockTransport)
+- pull: Retrieve data after cursor (uses MockTransport)
+- status: Display device, group, and connection state
+- JSON config persistence (device.json, group.json)
+- 15 unit tests, all passing
+- Committed and tagged v0.1.0-phase4
+- **Output:** Full CLI for testing, ready for Phase 5 (iroh transport)
+
+### Session 8: 2026-02-03 (Phase 3 - sync-client - Q)
+- Implemented sync-client crate with E2E encryption
+- GroupKey: XChaCha20-Poly1305 encryption with 192-bit nonces
+- Device-adaptive Argon2id: 12-64 MiB based on available RAM
+- Transport trait abstraction for pluggable transports
+- MockTransport for testing without network
+- SyncClient API: connect, push, pull operations
+- 42 unit tests, all passing
+- Fixed clippy warning (Argon2Params takes self by value)
+- Committed and tagged v0.1.0-phase3
+- **Output:** Client library ready, CLI can use it
+
+### Session 7: 2026-02-03 (Phase 2 - sync-core - Q)
+- Implemented sync-core crate with pure logic (zero I/O)
+- ConnectionState: State machine with backoff
+- MessageBuffer: Pending message tracking
+- CursorTracker: Gap detection
+- Invite: QR payload and short code generation/parsing
+- GroupSecret: From passphrase with GroupId derivation
+- 60 unit tests, all instant (no I/O)
+- Committed and tagged v0.1.0-phase2
+- **Output:** Pure logic foundation, ready for Phase 3
 
 ### Session 6: 2026-02-03 (WebSocket Removal - Q)
 - Applied WEBSOCKET-REMOVAL-AMENDMENT.md (28 amendments)
@@ -372,25 +452,27 @@ None (fresh project)
 
 ## Next Steps (Priority Order)
 
-### Immediate (Next Session)
-1. ✅ GitHub repository created (ydun-code-library/0k-sync)
-2. Create Cargo workspace structure
-3. Implement sync-types crate skeleton
+### Immediate (Next Session) - Phase 5
+1. Implement IrohTransport (implements Transport trait)
+2. Replace MockTransport with IrohTransport in sync-cli
+3. Test real P2P connections
+4. Implement transport chaos scenarios (drops, reconnects, timeouts)
 
-### Short Term (Next 1-2 Sessions)
-1. Implement sync-types crate
-2. Unit tests for all types
-3. Start sync-relay server
+### Short Term (Next 2-3 Sessions) - Phase 6
+1. Implement sync-relay server (iroh Endpoint)
+2. SQLite storage layer
+3. Full topology chaos testing
+4. Docker containerization
 
 ### Medium Term (Next 1-2 Weeks)
-1. Complete sync-relay
-2. Implement sync-cli
-3. End-to-end testing
+1. End-to-end testing with real relay
+2. tauri-plugin-sync wrapper
+3. Performance optimization
 
 ### Long Term (Next Month)
-1. sync-client library refinement
-2. tauri-plugin-sync
-3. CashTable integration
+1. CashTable integration
+2. Mobile testing (iOS/Android via FFI)
+3. Production deployment to Beast
 
 ---
 

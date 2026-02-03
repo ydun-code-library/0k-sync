@@ -4,7 +4,7 @@
 
 > **0k** = Zero Knowledge — the relay never sees your data
 
-[![Status](https://img.shields.io/badge/status-design%20phase-yellow)]()
+[![Status](https://img.shields.io/badge/status-implementation-green)]()
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)]()
 
 ---
@@ -107,16 +107,17 @@ let blobs = client.pull().await?;
 
 ## Current Status
 
-**Phase: Design Complete, Implementation Pending**
+**Phase: Implementation In Progress (70% Complete)**
 
 - [x] Architecture design
 - [x] Protocol specification
 - [x] Documentation
-- [ ] sync-types crate
-- [ ] sync-core crate
-- [ ] sync-client crate
-- [ ] sync-cli tool
-- [ ] sync-relay server
+- [x] sync-types crate (28 tests) - wire format types
+- [x] sync-core crate (60 tests) - pure logic, zero I/O
+- [x] sync-client crate (42 tests) - E2E encryption, transport abstraction
+- [x] sync-cli tool (15 tests) - CLI with 5 commands
+- [ ] iroh transport integration (Phase 5 - next)
+- [ ] sync-relay server (Phase 6)
 
 ## Development
 
