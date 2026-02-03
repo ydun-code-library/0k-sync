@@ -1124,7 +1124,7 @@ SyncConfig {
 Uses iroh public network. No relay infrastructure needed.
 
 > **iroh Version Strategy:**
-> - Using **iroh 1.0 RC** (stable API)
+> - Using **iroh 0.96** (pre-1.0, requires cargo patch for curve25519-dalek)
 > - iroh-blobs 1.0 for large content transfer
 > - Self-hosted infrastructure available via iroh-relay and iroh-dns-server
 
@@ -1880,8 +1880,8 @@ sync-types = { path = "../sync-types" }
 sync-core = { path = "../sync-core" }
 sync-content = { path = "../sync-content" }  # Large content transfer
 tokio = { version = "1", features = ["rt", "sync", "time"] }
-clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
-iroh = "1.0"                     # Endpoint, connections, discovery (all tiers)
+clatter = "2.2"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
+iroh = "0.96"                    # Endpoint, connections, discovery (all tiers) - requires cargo patch
 argon2 = "0.5"
 chacha20poly1305 = "0.10"        # Supports XChaCha20
 rand = "0.8"
@@ -1893,8 +1893,8 @@ tracing = "0.1"
 ```toml
 [dependencies]
 sync-types = { path = "../sync-types" }
-iroh-blobs = "1.0"              # Content-addressed storage with BLAKE3/Bao
-iroh = "1.0"                    # Endpoint for transfers
+iroh-blobs = "0.98"             # Content-addressed storage with BLAKE3/Bao
+iroh = "0.96"                   # Endpoint for transfers - requires cargo patch
 chacha20poly1305 = "0.10"       # XChaCha20-Poly1305 for content encryption
 blake3 = "1"                    # Hashing ciphertext for content address
 hkdf = "0.12"                   # Content key derivation from GroupSecret
@@ -1909,8 +1909,8 @@ tracing = "0.1"
 [dependencies]
 sync-types = { path = "../sync-types" }
 tokio = { version = "1", features = ["full"] }
-iroh = "1.0"                     # Endpoint for accepting client connections (QUIC)
-clatter = "2.1"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
+iroh = "0.96"                    # Endpoint for accepting client connections (QUIC) - requires cargo patch
+clatter = "2.2"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
 axum = "0.7"                     # Health/metrics HTTP endpoints only
 tower = "0.4"

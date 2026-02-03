@@ -8,10 +8,10 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Last Session:** Phase 4 Implementation (Q)
-**Current Phase:** PHASE 4 COMPLETE (sync-types, sync-core, sync-client, sync-cli)
+**Last Session:** Phase 5 - IrohTransport E2E (Q)
+**Current Phase:** PHASE 5 IN PROGRESS (IrohTransport working, chaos tests pending)
 **Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (Phase 5: iroh transport + transport chaos)
+**Next Handler:** Q (Phase 5 completion: chaos tests → Phase 6: sync-relay)
 
 ---
 
@@ -41,17 +41,24 @@ This handoff from Moneypenny contains:
 - Create framework integrations as needed (e.g., Tauri plugin)
 - Write tests and documentation
 
-**Current Status:** 70% complete
+**Current Status:** 85% complete
 - ✅ Documentation complete (~6,300 lines across 6 core docs)
 - ✅ Phase 1: sync-types (28 tests) - wire format types
 - ✅ Phase 2: sync-core (60 tests) - pure logic, zero I/O
 - ✅ Phase 3: sync-client (42 tests) - E2E encryption, transport abstraction
 - ✅ Phase 4: sync-cli (15 tests) - CLI with 5 commands
 - ✅ Chaos harness skeleton (24 tests) - infrastructure ready
-- ✅ 169 total tests passing
+- ✅ 169+ tests passing
 - ✅ GitHub repository: https://github.com/ydun-code-library/0k-sync
-- ⚪ Phase 5: iroh transport integration (next)
+- 🔄 **Phase 5: IrohTransport (90%)** - E2E working, chaos tests pending
 - ⚪ Phase 6: sync-relay server (future)
+
+**⚠️ Critical Dependency Note:**
+iroh 0.96 requires a cargo patch for curve25519-dalek. This is already configured in workspace Cargo.toml:
+```toml
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
+```
 
 ---
 
@@ -100,17 +107,22 @@ This handoff from Moneypenny contains:
 
 ---
 
-## 🎯 Current Task: Phase 5 - iroh Transport + Transport Chaos (0% Complete)
+## 🎯 Current Task: Phase 5 - Transport Chaos (90% Complete)
 
-### Next Steps
-- [ ] Implement IrohTransport (implements Transport trait from sync-client)
-- [ ] iroh Endpoint connection management
-- [ ] Replace MockTransport with IrohTransport in sync-cli
-- [ ] Test real P2P connections between devices
-- [ ] Implement transport chaos scenarios:
+### Completed ✅
+- [x] IrohTransport implementing Transport trait
+- [x] iroh 0.96 Endpoint connection management
+- [x] Replace MockTransport with IrohTransport (--mock fallback available)
+- [x] `serve` command for E2E testing
+- [x] E2E test: Mac Mini ↔ Beast over iroh QUIC ✓
+- [x] curve25519-dalek dependency resolved (cargo patch)
+
+### Remaining (10%)
+- [ ] Transport chaos scenarios:
   - [ ] Connection drops and reconnects
   - [ ] Timeout handling
   - [ ] Network partition simulation
+- [ ] Fix `pair --join` to save EndpointId correctly
 
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 5 details
 
@@ -243,9 +255,9 @@ docker-compose up -d
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → iroh-transport ⬅️ NEXT → sync-relay → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport 🔄 → chaos-tests ⬅️ NEXT → sync-relay → tauri-plugin
 ```
-Phase 5 adds real transport to sync-client, then Phase 6 builds the relay.
+Phase 5 transport working (E2E verified). Next: chaos tests, then Phase 6 relay.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)

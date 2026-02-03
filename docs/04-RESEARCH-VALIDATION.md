@@ -62,13 +62,20 @@ This document provides justification for technology choices, validates assumptio
 | Production deployment | Delta Chat 1.48 on 100K+ devices | Delta Chat blog (Nov 2024) |
 | Rust native | Pure Rust, same ecosystem as Tauri | — |
 
-**Version Strategy:** Using iroh 1.0 RC (stable)
+**Version Strategy:** Using iroh 0.96 (latest crates.io release as of Feb 2026)
 
-iroh 1.0 RC shipped with stable API. The v0.90+ canary series has been superseded.
+iroh 1.0 has not yet shipped. The current stable release is 0.96.
 
-- **Production:** iroh 1.0 RC (stable transport layer)
-- **Content Transfer:** iroh-blobs 1.0 for large file transfer
+- **Production:** iroh 0.96 (requires cargo patch for curve25519-dalek)
+- **Content Transfer:** iroh-blobs 0.98 for large file transfer
 - **Discovery:** mDNS (LAN), DNS, optional DHT
+
+**⚠️ Dependency Note:** iroh 0.96 pulls curve25519-dalek 5.0.0-pre.1 which has a build issue. Requires cargo patch:
+```toml
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
+```
+See PR #878 for upstream fix.
 
 **Key Features Used:**
 - `iroh::Endpoint` — Connection management
@@ -565,7 +572,8 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 | **Infrastructure** (self-hosted) | Low | Low | iroh-relay and iroh-dns-server available | ✅ Resolved |
 | **Mobile Battery** | Medium | High | Implement Wake-on-Push architecture | MVP |
 | **Mobile Performance** (Argon2id) | Medium | High | Dynamic parameter tuning | MVP |
-| **API Stability** (iroh) | Low | Low | Using iroh 1.0 RC stable API | ✅ Resolved |
+| **API Stability** (iroh) | Low | Medium | Using iroh 0.96 (pre-1.0, minor API changes possible) | ⚠️ Monitoring |
+| **Dependency** (curve25519-dalek) | Low | Low | Cargo patch for build fix (PR #878 upstream) | ✅ Resolved |
 | **Thundering Herd** | Medium | Medium | Client-side exponential backoff with jitter | MVP |
 | **Relay SPOF** | High | Low | Deploy redundant relays | Beta |
 
@@ -587,9 +595,9 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 
 | Name | URL | Version |
 |------|-----|---------|
-| iroh | https://github.com/n0-computer/iroh | 1.0 RC |
-| iroh-blobs | https://github.com/n0-computer/iroh-blobs | 1.0 |
-| clatter | https://github.com/jmwample/clatter | 2.1+ |
+| iroh | https://github.com/n0-computer/iroh | **0.96** (requires cargo patch) |
+| iroh-blobs | https://github.com/n0-computer/iroh-blobs | **0.98** |
+| clatter | https://github.com/jmwample/clatter | 2.2 |
 | tokio-tungstenite | https://github.com/snapview/tokio-tungstenite | ⏸️ Deferred |
 | argon2 (RustCrypto) | https://github.com/RustCrypto/password-hashes | 0.5.x |
 | chacha20poly1305 | https://github.com/RustCrypto/AEADs | 0.10.x |
@@ -601,7 +609,8 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 |------|---------|
 | Hybrid Noise | clatter provides ML-KEM-768 + X25519 (post-quantum + classical) |
 | snow migration | Migrated from snow to clatter (2026-02-02) for PQC support |
-| iroh stability | Using iroh 1.0 RC stable API (no longer pre-1.0 risk) |
+| iroh stability | Using iroh 0.96 (latest crates.io); 1.0 not yet released |
+| curve25519-dalek | Requires cargo patch for digest 0.11 compatibility (PR #878) |
 
 ### 9.4 Related Projects & Inspiration
 

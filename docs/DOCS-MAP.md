@@ -127,8 +127,16 @@ research/tactical-mesh-profile-appendix-d.md
 | sync-content crate addition | 03-IMPLEMENTATION-PLAN.md | ✅ Applied |
 | mDNS local discovery | 02-SPECIFICATION.md | ✅ Applied |
 | Self-hosted infra (iroh-relay, iroh-dns-server) | 02-SPECIFICATION.md | ✅ Applied |
-| iroh 1.0 RC target version | All docs | ✅ Applied |
 | snow → clatter migration | All docs | ✅ Applied |
+
+**⚠️ Version Reality Check (2026-02-03):**
+
+| Documented | Actual | Notes |
+|------------|--------|-------|
+| iroh 1.0 RC | **iroh 0.96** | 1.0 not yet released; 0.96 is latest on crates.io |
+| iroh-blobs 1.0 | **iroh-blobs 0.98** | Same situation |
+
+**Note:** Documentation references "iroh 1.0 RC" throughout but actual implementation uses iroh 0.96 with cargo patch for curve25519-dalek compatibility.
 
 **Reference:** See `IROH-AMENDMENTS-PLAN.md` for detailed amendment tracking.
 
@@ -165,6 +173,10 @@ research/tactical-mesh-profile-appendix-d.md
 
 ### Handoff Documents (docs/handoffs/)
 - `P2-MONEY-Q-0k-sync-implementation-handoff.md` — Q's implementation handoff from Moneypenny
+
+### Amendment Documents (docs/)
+- `WEBSOCKET-REMOVAL-AMENDMENT.md` — Unified transport to iroh QUIC (applied 2026-02-03)
+- `PHASE-RECONCILIATION-AMENDMENT.md` — Phase reconciliation (applied 2026-02-03)
 
 ### Archive (Completed Plans)
 - `archive/00-PLAN.md` — Documentation plan (executed)

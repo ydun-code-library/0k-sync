@@ -8,10 +8,10 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Project Phase:** PHASE 4 COMPLETE
-**Completion:** 70% (sync-types, sync-core, sync-client, sync-cli complete)
+**Project Phase:** PHASE 5 IN PROGRESS
+**Completion:** 85% (sync-types, sync-core, sync-client, sync-cli complete; IrohTransport E2E verified)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
-**Next Phase:** Phase 5 - iroh transport integration + transport chaos scenarios
+**Next Phase:** Phase 5 completion (chaos tests) → Phase 6 (sync-relay)
 
 ---
 
@@ -126,17 +126,22 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ---
 
-### Phase 5: iroh Transport + Transport Chaos ⚪ NEXT
-- **Duration:** Estimated 1-2 sessions
-- **Output:** Real P2P transport, connection lifecycle chaos
-- **Status:** Not started
+### Phase 5: iroh Transport + Transport Chaos 🔄 IN PROGRESS
+- **Duration:** 2 sessions
+- **Output:** Real P2P transport, E2E verified between machines
+- **Status:** 90% complete (E2E working, chaos tests pending)
 
 **Tasks:**
-- [ ] IrohTransport implementing Transport trait
-- [ ] iroh Endpoint connection management
-- [ ] Connection lifecycle (connect, disconnect, reconnect)
+- [x] Restructure transport module (transport/mod.rs, mock.rs, iroh.rs)
+- [x] IrohTransport implementing Transport trait
+- [x] iroh Endpoint connection management (iroh 0.96)
+- [x] Replace MockTransport in sync-cli with IrohTransport (--mock fallback)
+- [x] Add `serve` command for E2E testing
+- [x] E2E test: Mac Mini (Q) ↔ Beast (server) over iroh QUIC ✓
+- [x] curve25519-dalek dependency blocker resolved (cargo patch)
 - [ ] Transport chaos scenarios (drops, reconnects, timeouts)
-- [ ] Replace MockTransport in sync-cli with IrohTransport
+
+**Key Fix:** Stream acknowledgment - added `send.stopped().await` after `finish()` to ensure response delivery before connection cleanup.
 
 ---
 
@@ -188,6 +193,11 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ### Blockers
 - None at this time
 
+### Resolved Blockers (2026-02-03)
+- ✅ **curve25519-dalek 5.0.0-pre.1 build failure** — `digest::crypto_common` renamed to `digest::common` in digest 0.11
+  - **Resolution:** Forked to ydun-code-library/curve25519-dalek, applied fix, submitted PR #878 upstream
+  - **Workaround:** Cargo patch in workspace Cargo.toml
+
 ---
 
 ## Project Metrics
@@ -219,12 +229,20 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - Cloudflare Tunnel: Configured on Beast
 - SQLite: Built into Rust (via sqlx)
 
-### Dependencies (Planned)
+### Dependencies (Actual)
 - tokio: 1.x
-- iroh: 1.0 (QUIC transport)
-- clatter: 2.1 (Hybrid Noise Protocol)
-- sqlx: 0.7
-- axum: 0.7
+- iroh: **0.96** (QUIC transport) — requires cargo patch for curve25519-dalek
+- iroh-blobs: **0.98** (content-addressed storage)
+- clatter: 2.2 (Hybrid Noise Protocol)
+- chacha20poly1305: 0.10 (XChaCha20-Poly1305)
+- argon2: 0.5 (key derivation)
+
+**⚠️ Cargo Patch Required:**
+```toml
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
+```
+See: https://github.com/dalek-cryptography/curve25519-dalek/pull/878
 
 ---
 
@@ -252,10 +270,14 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 None
 
 ### 🟡 Important Issues
-None - iroh deep dive amendments applied (2026-02-02)
+1. **pair --join EndpointId** — `pair --join` command saves placeholder instead of actual EndpointId. Manual fix required for E2E testing. (Phase 5 cleanup item)
+
+### ✅ Resolved Issues (2026-02-03)
+1. **curve25519-dalek build failure** — iroh 0.96 pulls curve25519-dalek 5.0.0-pre.1 which has incompatible digest import. Fixed with cargo patch pointing to fork with PR #878.
+2. **Stream acknowledgment race** — Server response not reaching client due to connection cleanup before QUIC transmission. Fixed by adding `send.stopped().await` after `finish()`.
 
 ### 📝 Technical Debt
-None (fresh project)
+1. iroh version (0.96) is pre-1.0 — minor API changes possible before stable release
 
 ---
 
@@ -286,8 +308,8 @@ None (fresh project)
 - [x] Integration with sync-client library
 
 ### Phase 5 Success Criteria (iroh transport)
-- [ ] IrohTransport implements Transport trait
-- [ ] Real P2P connections work
+- [x] IrohTransport implements Transport trait
+- [x] Real P2P connections work (E2E verified: Mac Mini ↔ Beast)
 - [ ] Transport chaos scenarios pass (drops, reconnects, timeouts)
 
 ### Phase 6 Success Criteria (sync-relay)
@@ -305,6 +327,20 @@ None (fresh project)
 ---
 
 ## Session History
+
+### Session 10: 2026-02-03 (Phase 5 - IrohTransport - Q)
+- Resolved curve25519-dalek dependency blocker (forked, fixed, PR #878)
+- Added cargo patch to workspace Cargo.toml
+- Restructured transport module (mod.rs, mock.rs, iroh.rs)
+- Implemented IrohTransport for iroh 0.96 API (EndpointId, EndpointAddr)
+- Updated sync-cli push/pull to support IrohTransport with --mock fallback
+- Added `serve` command for E2E testing (in-memory blob storage)
+- Fixed stream acknowledgment race (send.stopped().await)
+- **E2E Test Success:** Mac Mini (Q) ↔ Beast over iroh QUIC
+  - Push: Q → Beast ✓
+  - Pull: Q ← Beast ✓
+  - Cross-device sync verified
+- **Output:** Real P2P transport working, ready for chaos testing
 
 ### Session 9: 2026-02-03 (Phase 4 - sync-cli - Q)
 - Implemented sync-cli crate with 5 commands

@@ -193,18 +193,15 @@ gh issue list
 ## Current Status
 
 <!-- PROJECT_SPECIFIC START: CURRENT_STATUS -->
-🔄 **Architecture Defined, Implementation Pending** - 20%
+🔄 **Phase 5 In Progress** - 85%
 
-- ✅ Protocol design complete (Noise XX)
-- ✅ Message specification defined
-- ✅ Storage schema designed (SQLite)
-- ✅ Client API designed
-- ✅ Pairing flow designed (QR/short code)
-- ⚪ sync-types crate implementation
-- ⚪ sync-relay server implementation
-- ⚪ sync-client library implementation
-- ⚪ sync-cli testing tool
-- ⚪ framework integrations (optional)
+- ✅ Phase 1: sync-types (28 tests) - wire format
+- ✅ Phase 2: sync-core (60 tests) - pure logic
+- ✅ Phase 3: sync-client (42 tests) - E2E encryption
+- ✅ Phase 4: sync-cli (15 tests) - CLI tool
+- 🔄 Phase 5: IrohTransport (90%) - E2E working, chaos pending
+- ⚪ Phase 6: sync-relay server
+- ⚪ Phase 7: framework integrations (optional)
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 
 ## Technology Stack
@@ -351,13 +348,18 @@ cargo run -p sync-cli -- pull --after-cursor 0
 
 <!-- PROJECT_SPECIFIC START: KNOWN_ISSUES -->
 ### 🔴 Critical Issues
-None at this time (project not yet started)
+None
 
 ### 🟡 Important Issues
-1. iroh dependency - compatibility verified (see docs/research/iroh-deep-dive-report.md, 2026-02-02)
+1. **iroh 0.96** requires cargo patch for curve25519-dalek (configured in Cargo.toml)
+2. `pair --join` doesn't save EndpointId correctly (Phase 5 cleanup)
+
+### ✅ Resolved Issues
+1. **curve25519-dalek build failure** — Fixed with cargo patch (PR #878 upstream)
+2. **Stream acknowledgment race** — Fixed with `send.stopped().await`
 
 ### 📝 Technical Debt
-None at this time
+1. iroh 0.96 is pre-1.0 — minor API changes possible
 <!-- PROJECT_SPECIFIC END: KNOWN_ISSUES -->
 
 ## Project-Specific Guidelines
@@ -398,18 +400,29 @@ None at this time
 - **health-tracker (Regime Tracker)**: Secondary consumer - health tracking
 - **health-plugin**: Health data that may sync via this relay
 
-### Rust Dependencies (planned)
+### Rust Dependencies (actual)
 ```toml
-# sync-relay
+# P2P networking (requires cargo patch - see workspace Cargo.toml)
+iroh = "0.96"                    # QUIC transport
+iroh-blobs = "0.98"              # Content-addressed storage
+
+# Encryption
+clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+chacha20poly1305 = "0.10"        # XChaCha20-Poly1305
+argon2 = "0.5"                   # Key derivation
+
+# Async runtime
 tokio = { version = "1", features = ["full"] }
-iroh = "1.0"  # QUIC transport (all tiers)
-clatter = "2.1"  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+
+# Future (sync-relay)
 sqlx = { version = "0.7", features = ["sqlite"] }
 axum = "0.7"  # Health endpoints
+```
 
-# sync-client
-argon2 = "0.5"  # Key derivation
-keyring = "2"   # OS keychain
+**⚠️ Cargo Patch Required:**
+```toml
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
 ```
 <!-- PROJECT_SPECIFIC END: DEPENDENCIES -->
 

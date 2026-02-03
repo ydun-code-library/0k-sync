@@ -220,9 +220,13 @@ clatter = "2.1"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
-# P2P networking (PINNED VERSION - iroh 1.0 RC)
-iroh = "1.0"                     # iroh 1.0 RC - stable transport layer
-iroh-blobs = "1.0"               # Content-addressed storage with BLAKE3/Bao
+# P2P networking (PINNED VERSION - requires cargo patch)
+iroh = "0.96"                    # iroh 0.96 - requires cargo patch for curve25519-dalek
+iroh-blobs = "0.98"              # Content-addressed storage with BLAKE3/Bao
+
+# ⚠️ REQUIRED: Add to workspace Cargo.toml
+# [patch.crates-io]
+# curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
 
 # Random number generation
 rand = "0.8"
