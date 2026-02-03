@@ -54,6 +54,11 @@ impl SyncRelay {
         &self.storage
     }
 
+    /// Get a clone of the storage Arc for background tasks.
+    pub fn storage_arc(&self) -> Arc<SqliteStorage> {
+        self.storage.clone()
+    }
+
     /// Register a session (device connected to a group).
     pub async fn register_session(&self, group_id: &GroupId, device_id: &DeviceId) {
         let sessions = self

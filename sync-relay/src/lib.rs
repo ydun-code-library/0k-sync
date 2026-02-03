@@ -34,6 +34,7 @@
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 
+pub mod cleanup;
 pub mod config;
 pub mod error;
 pub mod http;
@@ -43,5 +44,4 @@ pub mod session;
 pub mod storage;
 
 // Modules to be implemented
-// pub mod cleanup;
 // pub mod limits;

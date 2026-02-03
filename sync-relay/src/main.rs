@@ -9,6 +9,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use zerok_sync_relay::cleanup;
 use zerok_sync_relay::config::Config;
 use zerok_sync_relay::http;
 use zerok_sync_relay::protocol::{SyncProtocol, ALPN};
@@ -70,6 +71,12 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("iroh router started, accepting connections on ALPN {:?}",
         std::str::from_utf8(ALPN).unwrap_or("?"));
 
+    // Start cleanup task
+    let cleanup_handle = cleanup::spawn_cleanup_task(
+        relay.storage_arc(),
+        config.cleanup.clone(),
+    );
+
     // Start HTTP server
     let http_addr: SocketAddr = config.http.bind_address.parse()?;
     let http_router = http::build_router(relay.clone());
@@ -104,6 +111,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Graceful shutdown
     tracing::info!("Shutting down...");
+    cleanup_handle.abort();
     router.shutdown().await?;
     tracing::info!("Goodbye!");
 
