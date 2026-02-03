@@ -6,9 +6,9 @@ members = [
     "sync-client",
     "sync-content",
     "sync-cli",
+    "sync-relay",
     "tauri-plugin-sync",
     "tests/chaos",
-    # "sync-relay",  # Enable when implementing Phase 6
 ]
 
 [workspace.package]
@@ -57,6 +57,12 @@ hex = "0.4"                      # Hex encoding for error messages
 
 # Async utilities
 async-trait = "0.1"              # Async trait methods
+
+# Configuration
+toml = "0.8"                     # TOML config file parsing
+
+# Concurrent data structures
+dashmap = "6"                    # Concurrent HashMap for session tracking
 
 # Chaos testing infrastructure
 bollard = "0.16"                 # Docker API client for topology management

@@ -1,0 +1,49 @@
+[package]
+name = "zerok-sync-relay"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Zero-knowledge relay server for 0k-Sync"
+
+[dependencies]
+# Internal crates
+sync-types = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# P2P networking
+iroh = { workspace = true }
+
+# Database
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
+
+# HTTP endpoints
+axum = "0.7"
+tower = "0.4"
+
+# Configuration
+toml = "0.8"
+
+# Concurrent data structures
+dashmap = "6"
+
+# Async utilities
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

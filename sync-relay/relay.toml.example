@@ -1,0 +1,36 @@
+# sync-relay configuration example
+# Copy to relay.toml and customize as needed
+
+[server]
+# Bind address for iroh QUIC endpoint
+bind_address = "0.0.0.0:4433"
+# Optional: path to secret key file (generates if missing)
+# secret_key_path = "/etc/sync-relay/secret.key"
+
+[storage]
+# Path to SQLite database file
+database = "relay.db"
+# Maximum blob size in bytes (default: 1MB)
+max_blob_size = 1048576
+# Maximum total storage per group in bytes (default: 100MB)
+max_group_storage = 104857600
+# Default TTL for blobs in seconds (default: 7 days)
+default_ttl = 604800
+
+[limits]
+# Maximum connections per IP address
+connections_per_ip = 10
+# Maximum messages per device per minute
+messages_per_minute = 100
+
+[http]
+# Bind address for HTTP health/metrics endpoints
+bind_address = "0.0.0.0:8080"
+# Enable Prometheus metrics endpoint
+metrics_enabled = true
+
+[cleanup]
+# Cleanup interval in seconds (default: 1 hour)
+interval_secs = 3600
+# Enable cleanup task
+enabled = true
