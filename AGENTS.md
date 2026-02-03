@@ -193,16 +193,24 @@ gh issue list
 ## Current Status
 
 <!-- PROJECT_SPECIFIC START: CURRENT_STATUS -->
-✅ **Phases 1-5 + 3.5 Complete** - 98%
+✅ **Phases 1-6 MVP Complete** - 99%
 
-- ✅ Phase 1: sync-types (31 tests) - wire format
+- ✅ Phase 1: sync-types (32 tests) - wire format + Welcome message
 - ✅ Phase 2: sync-core (60 tests) - pure logic
-- ✅ Phase 3: sync-client (60 tests) - E2E encryption
+- ✅ Phase 3: sync-client (55 tests) - E2E encryption
 - ✅ Phase 3.5: sync-content (23 tests) - encrypt-then-hash
 - ✅ Phase 4: sync-cli (20 tests) - CLI tool
-- ✅ Phase 5: IrohTransport + chaos scenarios (78 tests)
-- ⬅️ **Phase 6: sync-relay server (NEXT)**
+- ✅ Phase 5: IrohTransport + chaos scenarios (50 passing, 28 stubs)
+- 🟡 **Phase 6: sync-relay server (MVP FUNCTIONAL - 30 tests)**
+  - ✅ SQLite storage with WAL mode
+  - ✅ Protocol handler (ALPN /0k-sync/1)
+  - ✅ Session management (HELLO, PUSH, PULL)
+  - ✅ HTTP endpoints (/health, /metrics)
+  - ✅ Background cleanup task
+  - ⬅️ Rate limiting, Dockerfile, Integration tests
 - ⚪ Phase 7: framework integrations (optional)
+
+**Total: 270 tests passing, 34 ignored**
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 
 ## Technology Stack

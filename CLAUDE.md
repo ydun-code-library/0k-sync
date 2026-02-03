@@ -87,21 +87,16 @@ cargo run -p sync-cli -- pair --create
 
 ### Project-Specific Notes
 
-**This is a Rust Cargo workspace** with 5 core crates:
-1. `sync-types` - Shared types (Envelope, Message, etc.)
-2. `sync-core` - Pure logic, no I/O (instant tests)
-3. `sync-client` - Library for local-first apps
-4. `sync-cli` - Testing/verification tool
-5. `sync-relay` - Custom relay (future, Tiers 2-6)
-6. Framework integrations - Optional wrappers (e.g., tauri-plugin-sync)
+**This is a Rust Cargo workspace** with 6 core crates:
+1. `sync-types` - Shared types (Envelope, Message, Welcome, etc.) - 32 tests
+2. `sync-core` - Pure logic, no I/O (instant tests) - 60 tests
+3. `sync-client` - Library for local-first apps - 55 tests
+4. `sync-content` - Encrypt-then-hash content transfer - 23 tests
+5. `sync-cli` - Testing/verification tool - 20 tests
+6. `sync-relay` - **MVP FUNCTIONAL** (30 tests) - relay server with SQLite, HTTP endpoints
+7. Framework integrations - Optional wrappers (e.g., tauri-plugin-sync)
 
-**Implementation Order:**
-1. sync-types first (everything depends on wire format)
-2. sync-core second (pure logic, no I/O)
-3. sync-client third (iroh integration)
-4. sync-cli fourth (fastest way to test protocol)
-5. sync-relay fifth (custom relay, future)
-6. Framework integrations last (thin wrappers around sync-client)
+**Current Phase:** Phase 6 MVP complete (270 tests passing, 34 ignored)
 
 **Key Files:**
 - `docs/DOCS-MAP.md` - Navigation index (start here)

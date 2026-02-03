@@ -87,12 +87,13 @@ let blobs = client.pull().await?;
 │   ├── 04-RESEARCH-VALIDATION.md
 │   ├── 05-RELEASE-STRATEGY.md
 │   └── 06-CHAOS-TESTING-STRATEGY.md
-├── sync-types/               # Wire format types (Phase 1) ✅
-├── sync-core/                # Pure logic, no I/O (Phase 2) ✅
-├── sync-client/              # Client library (Phase 3) ✅
-├── sync-cli/                 # Testing tool (Phase 4) ✅
-├── sync-relay/               # Custom relay server (Phase 6)
-└── tests/chaos/              # Chaos testing harness (78 tests)
+├── sync-types/               # Wire format types (Phase 1) ✅ 32 tests
+├── sync-core/                # Pure logic, no I/O (Phase 2) ✅ 60 tests
+├── sync-client/              # Client library (Phase 3) ✅ 55 tests
+├── sync-content/             # Encrypt-then-hash (Phase 3.5) ✅ 23 tests
+├── sync-cli/                 # Testing tool (Phase 4) ✅ 20 tests
+├── sync-relay/               # Relay server (Phase 6) 🟡 30 tests (MVP)
+└── tests/chaos/              # Chaos testing harness (50 passing, 28 stubs)
 ```
 
 ## Technology Stack
@@ -110,18 +111,25 @@ let blobs = client.pull().await?;
 
 ## Current Status
 
-**Phase: Implementation In Progress (95% Complete)**
+**Phase: Implementation In Progress (99% Complete)**
 
 - [x] Architecture design
 - [x] Protocol specification
 - [x] Documentation
-- [x] sync-types crate (28 tests) - wire format types
+- [x] sync-types crate (32 tests) - wire format types + Welcome message
 - [x] sync-core crate (60 tests) - pure logic, zero I/O
-- [x] sync-client crate (60 tests) - E2E encryption, transport abstraction
+- [x] sync-client crate (55 tests) - E2E encryption, transport abstraction
+- [x] sync-content crate (23 tests) - encrypt-then-hash content transfer
 - [x] sync-cli tool (20 tests) - CLI with 6 commands
 - [x] IrohTransport (Phase 5) - E2E verified over iroh QUIC
-- [x] Chaos scenarios (78 tests) - 50 passing, 28 stubs for Phase 6
-- [ ] sync-relay server (Phase 6 - next)
+- [x] Chaos scenarios (50 passing, 28 stubs for relay integration)
+- [x] **sync-relay server (Phase 6 MVP - 30 tests)**
+  - SQLite storage with WAL mode
+  - Protocol handler on ALPN /0k-sync/1
+  - Session management (HELLO→WELCOME, PUSH→PUSH_ACK, PULL→PULL_RESPONSE)
+  - HTTP endpoints (/health, /metrics)
+  - Background cleanup task
+- [ ] Rate limiting, Dockerfile, integration tests (Phase 6 completion)
 
 ## Development
 
