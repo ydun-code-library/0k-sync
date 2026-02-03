@@ -41,8 +41,10 @@ clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
-# P2P networking (use latest stable)
-iroh = "0.96"                    # iroh - stable transport layer
+# P2P networking
+# NOTE: iroh 0.96 currently broken due to curve25519-dalek 5.0.0-pre.1 bug
+# See: https://github.com/dalek-cryptography/curve25519-dalek - main branch has fix
+# iroh = "0.96"                  # DISABLED until dependency fix
 iroh-blobs = "0.98"              # Content-addressed storage with BLAKE3/Bao
 
 # Random number generation
@@ -62,3 +64,4 @@ sync-types = { path = "sync-types", package = "zerok-sync-types" }
 sync-core = { path = "sync-core", package = "zerok-sync-core" }
 sync-client = { path = "sync-client", package = "zerok-sync-client" }
 sync-content = { path = "sync-content", package = "zerok-sync-content" }
+
