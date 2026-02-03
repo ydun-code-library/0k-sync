@@ -8,10 +8,10 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Last Session:** Phase 3.5 Complete - sync-content Implementation (Q)
-**Current Phase:** PHASES 1-5 + 3.5 COMPLETE (ready for Phase 6)
+**Last Session:** Phase 6 MVP - sync-relay Implementation (Q)
+**Current Phase:** PHASE 6 IN PROGRESS (MVP functional)
 **Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (Phase 6: sync-relay)
+**Next Handler:** Q (Phase 6: Rate limiting, Docker, Integration tests)
 
 ---
 
@@ -110,23 +110,21 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ## 🎯 Current Task: Phase 6 - sync-relay
 
-### Phase 5 Complete ✅
-- [x] IrohTransport implementing Transport trait
-- [x] iroh 0.96 Endpoint connection management
-- [x] Replace MockTransport with IrohTransport (--mock fallback available)
-- [x] `serve` command for E2E testing
-- [x] E2E test: Mac Mini ↔ Beast over iroh QUIC ✓
-- [x] curve25519-dalek dependency resolved (cargo patch)
-- [x] Chaos scenarios (26 tests: E-HS-*, E-ENC-*, E-PQ-*, S-BLOB-*, C-STOR-*, C-COLL-*)
-- [x] Transport/sync stubs (28 ignored tests for Phase 6)
+### Phase 6 MVP Complete ✅
+- [x] Crate scaffold with dependencies (commit 16da7e4)
+- [x] SQLite storage layer with WAL mode (commit 9a530a8)
+- [x] Protocol handler ALPN /0k-sync/1 (commit caf1d8e)
+- [x] Session state machine (HELLO, PUSH, PULL, BYE)
+- [x] Message handlers with cursor assignment
+- [x] HTTP endpoints: /health, /metrics (commit 724b205)
+- [x] Main entry point with graceful shutdown
+- [x] Background cleanup task (commit d5089ff)
+- [x] 30 tests in sync-relay
 
-### Phase 6 Tasks
-- [ ] iroh Endpoint server (accept connections)
-- [ ] Noise XX handshake implementation
-- [ ] SQLite storage layer
-- [ ] Message routing logic
-- [ ] Health/metrics endpoints (axum)
-- [ ] Docker containerization
+### Phase 6 Remaining Tasks
+- [ ] Rate limiting (connections per IP, messages per minute)
+- [ ] Docker containerization (Dockerfile)
+- [ ] Integration tests (two CLI instances through relay)
 - [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
 
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 6 details
@@ -318,24 +316,33 @@ git status
 
 ## Note for Q
 
-**Phase 5 Complete ✅:**
-- IrohTransport implementation (Transport trait from sync-client)
-- iroh Endpoint connection management (iroh 0.96)
-- E2E verified (Mac Mini ↔ Beast)
-- Chaos scenarios implemented (26 passing + 28 stubs)
+**Phase 6 MVP Complete ✅:**
+- sync-relay crate: 30 tests passing
+- SQLite storage with WAL mode, atomic cursor assignment
+- Protocol handler on ALPN /0k-sync/1
+- Session management: AwaitingHello → Active → Closing
+- Message handlers: HELLO→WELCOME, PUSH→PUSH_ACK, PULL→PULL_RESPONSE
+- HTTP endpoints: /health (JSON), /metrics (Prometheus)
+- Background cleanup task for TTL-based expiration
 
-**Phase 6 Focus (NEXT):**
-- sync-relay server (iroh Endpoint + SQLite)
-- Noise XX handshake implementation (use clatter 2.2)
-- Full topology chaos (multi-node, partitions, Toxiproxy)
-- Implement 28 ignored chaos test stubs
+**Phase 6 Remaining:**
+- Rate limiting (limits.rs)
+- Docker containerization
+- Integration tests (CLI through relay)
+- Activate 28 chaos test stubs
 
-**Chaos Testing Status:**
-- Phase 3/3.5: 26 tests passing (encryption + content scenarios)
-- Phase 4/5/6: 28 stubs ready (transport + sync scenarios)
-- Total chaos-tests: 78 tests (50 passing, 28 ignored)
+**Test Summary:**
+- sync-relay: 30 tests
+- sync-types: 32 tests (includes Welcome)
+- Workspace total: 270 passing, 34 ignored
+
+**Key Commits:**
+- `16da7e4` - Crate scaffold
+- `9a530a8` - Storage layer
+- `caf1d8e` - Protocol + session
+- `724b205` - HTTP + main
+- `d5089ff` - Cleanup task
 
 **MCP Servers:**
 - `mcp__iroh-rag__iroh_ecosystem_search` - iroh server patterns
 - `mcp__rust-rag__rust_dev_search` - Rust patterns (axum, sqlx)
-- `mcp__crypto-rag__crypto_protocols_search` - Noise Protocol XX
