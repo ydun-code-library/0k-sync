@@ -173,6 +173,10 @@ impl ProtocolHandler for SyncProtocol {
         send.write_all(&response_bytes).await.anyerr()?;
         send.finish()?;
 
+        // Wait for the stream to be fully acknowledged before returning
+        // This prevents the connection from being cleaned up before data is transmitted
+        send.stopped().await.ok();
+
         println!("  Response sent");
 
         Ok(())
