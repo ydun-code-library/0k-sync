@@ -63,7 +63,7 @@ pub async fn create(data_dir: &Path, passphrase: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// Join an existing sync group using a QR payload or passphrase.
+/// Join an existing sync group using a QR payload, EndpointId, or passphrase.
 pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Result<()> {
     // Ensure device is initialized
     let _device = DeviceConfig::load(data_dir).await?;
@@ -77,63 +77,86 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
     }
 
     // Try to parse as QR payload first
-    let invite = match Invite::from_qr_payload(code) {
-        Ok(inv) => {
-            // Check if invite is expired
-            if inv.is_expired() {
-                anyhow::bail!("Invite code has expired. Request a new one.");
+    if let Ok(invite) = Invite::from_qr_payload(code) {
+        // Check if invite is expired
+        if invite.is_expired() {
+            anyhow::bail!("Invite code has expired. Request a new one.");
+        }
+
+        // If we got the invite from QR but also have a passphrase, verify it matches
+        if let Some(passphrase) = passphrase {
+            let client_secret = ClientGroupSecret::from_passphrase(passphrase);
+            let derived_group_id = GroupId::from_secret(client_secret.as_bytes());
+
+            if derived_group_id != invite.group_id {
+                anyhow::bail!("Passphrase does not match the group in this invite");
             }
-            inv
         }
-        Err(_) => {
-            // Not a QR payload - treat as short code hint
-            // With short codes, we need the passphrase to reconstruct the group
-            let passphrase = match passphrase {
-                Some(p) => p.to_string(),
-                None => prompt_passphrase("Enter group passphrase: ")?,
-            };
 
-            // Derive group from passphrase
-            let client_secret = ClientGroupSecret::from_passphrase(&passphrase);
-            let group_secret = GroupSecret::from_bytes(*client_secret.as_bytes());
-            let group_id = group_secret.derive_group_id();
+        // Save group configuration
+        let group_config = GroupConfig::new(
+            &invite.group_id.to_string(),
+            &invite.relay_node_id.to_string(),
+        );
+        group_config.save(data_dir).await?;
 
-            // For short code joining, we need relay info from elsewhere
-            // In a real implementation, the short code would be used to look up
-            // the relay info from a bootstrap server
-            let relay_bytes = [0u8; 32]; // Placeholder
-            let relay_node_id = RelayNodeId::from_bytes(relay_bytes);
+        println!("Joined sync group successfully!");
+        println!();
+        println!("  Group ID: {}", &invite.group_id.to_string()[..16]);
+        println!();
+        println!("Next steps:");
+        println!("  1. Push data: sync-cli push \"Hello!\"");
+        println!("  2. Pull data: sync-cli pull");
 
-            Invite::create(relay_node_id, group_id, group_secret)
-        }
-    };
-
-    // If we got the invite from QR but also have a passphrase, verify it matches
-    if let Some(passphrase) = passphrase {
-        let client_secret = ClientGroupSecret::from_passphrase(passphrase);
-        let derived_group_id = GroupId::from_secret(client_secret.as_bytes());
-
-        if derived_group_id != invite.group_id {
-            anyhow::bail!("Passphrase does not match the group in this invite");
-        }
+        return Ok(());
     }
 
-    // Save group configuration
-    let group_config = GroupConfig::new(
-        &invite.group_id.to_string(),
-        &invite.relay_node_id.to_string(),
+    // Check if code looks like an EndpointId (64-char hex string)
+    let is_endpoint_id = code.len() == 64 && code.chars().all(|c| c.is_ascii_hexdigit());
+
+    if is_endpoint_id {
+        // Direct EndpointId join - requires passphrase for group derivation
+        let passphrase = match passphrase {
+            Some(p) => p.to_string(),
+            None => prompt_passphrase("Enter group passphrase: ")?,
+        };
+
+        // Derive group from passphrase
+        let client_secret = ClientGroupSecret::from_passphrase(&passphrase);
+        let group_secret = GroupSecret::from_bytes(*client_secret.as_bytes());
+        let group_id = group_secret.derive_group_id();
+
+        // Use the provided EndpointId as the relay address
+        let group_config = GroupConfig::new(&group_id.to_string(), code);
+        group_config.save(data_dir).await?;
+
+        println!("Joined sync group successfully!");
+        println!();
+        println!("  Group ID:    {}", &group_id.to_string()[..16]);
+        println!("  EndpointId:  {}...{}", &code[..8], &code[56..]);
+        println!();
+        println!("Next steps:");
+        println!("  1. Push data: sync-cli push \"Hello!\"");
+        println!("  2. Pull data: sync-cli pull");
+
+        return Ok(());
+    }
+
+    // Fall back to short code handling
+    // With short codes, we need the passphrase to reconstruct the group
+    let passphrase = match passphrase {
+        Some(p) => p.to_string(),
+        None => prompt_passphrase("Enter group passphrase: ")?,
+    };
+
+    // For short code joining, we would need relay info from a bootstrap server
+    // This is not yet implemented
+    let _ = (&passphrase, code); // Suppress unused warnings
+    anyhow::bail!(
+        "Short code lookup not yet implemented. Use EndpointId directly:\n  \
+         sync-cli pair --join <endpoint-id> --passphrase <passphrase>\n\n\
+         Get the EndpointId from the server running 'sync-cli serve'"
     );
-    group_config.save(data_dir).await?;
-
-    println!("Joined sync group successfully!");
-    println!();
-    println!("  Group ID: {}", &invite.group_id.to_string()[..16]);
-    println!();
-    println!("Next steps:");
-    println!("  1. Push data: sync-cli push \"Hello!\"");
-    println!("  2. Pull data: sync-cli pull");
-
-    Ok(())
 }
 
 /// Prompt for passphrase input.
@@ -212,5 +235,34 @@ mod tests {
         join(dir.path(), &qr, None).await.unwrap();
 
         assert!(dir.path().join("group.json").exists());
+    }
+
+    #[tokio::test]
+    async fn join_with_endpoint_id() {
+        let dir = tempdir().unwrap();
+        init_device(dir.path()).await;
+
+        // Use a 64-char hex string as EndpointId
+        let endpoint_id = "aa8e9a9115685ffab95d24c40714db6fae3e046b9eb197ccc1b04cb46a014444";
+        let passphrase = "test-passphrase";
+
+        // Join with EndpointId
+        join(dir.path(), endpoint_id, Some(passphrase)).await.unwrap();
+
+        // Verify group.json was created with correct relay_address
+        let config = GroupConfig::load(dir.path()).await.unwrap();
+        assert_eq!(config.relay_address, endpoint_id);
+        assert!(!config.group_id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn join_with_short_code_fails() {
+        let dir = tempdir().unwrap();
+        init_device(dir.path()).await;
+
+        // Short codes are not yet implemented
+        let result = join(dir.path(), "ABCD-EFGH", Some("test")).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Short code lookup not yet implemented"));
     }
 }
