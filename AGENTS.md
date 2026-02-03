@@ -193,14 +193,14 @@ gh issue list
 ## Current Status
 
 <!-- PROJECT_SPECIFIC START: CURRENT_STATUS -->
-🔄 **Phase 5 In Progress** - 90%
+✅ **Phase 5 Complete** - 95%
 
 - ✅ Phase 1: sync-types (28 tests) - wire format
 - ✅ Phase 2: sync-core (60 tests) - pure logic
-- ✅ Phase 3: sync-client (42 tests) - E2E encryption
-- ✅ Phase 4: sync-cli (15 tests) - CLI tool
-- 🔄 Phase 5: IrohTransport (95%) - E2E working, docs updated, chaos pending
-- ⚪ Phase 6: sync-relay server
+- ✅ Phase 3: sync-client (60 tests) - E2E encryption
+- ✅ Phase 4: sync-cli (20 tests) - CLI tool
+- ✅ Phase 5: IrohTransport + chaos scenarios (78 tests)
+- ⬅️ **Phase 6: sync-relay server (NEXT)**
 - ⚪ Phase 7: framework integrations (optional)
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 

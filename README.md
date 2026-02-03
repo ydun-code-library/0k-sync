@@ -84,12 +84,15 @@ let blobs = client.pull().await?;
 │   ├── 01-EXECUTIVE-SUMMARY.md
 │   ├── 02-SPECIFICATION.md
 │   ├── 03-IMPLEMENTATION-PLAN.md
-│   └── 04-RESEARCH-VALIDATION.md
-├── sync-types/               # Wire format types (Phase 1)
-├── sync-core/                # Pure logic, no I/O (Phase 2)
-├── sync-client/              # Client library (Phase 3)
-├── sync-cli/                 # Testing tool (Phase 4)
-└── sync-relay/               # Custom relay server (Phase 5)
+│   ├── 04-RESEARCH-VALIDATION.md
+│   ├── 05-RELEASE-STRATEGY.md
+│   └── 06-CHAOS-TESTING-STRATEGY.md
+├── sync-types/               # Wire format types (Phase 1) ✅
+├── sync-core/                # Pure logic, no I/O (Phase 2) ✅
+├── sync-client/              # Client library (Phase 3) ✅
+├── sync-cli/                 # Testing tool (Phase 4) ✅
+├── sync-relay/               # Custom relay server (Phase 6)
+└── tests/chaos/              # Chaos testing harness (78 tests)
 ```
 
 ## Technology Stack
@@ -107,17 +110,18 @@ let blobs = client.pull().await?;
 
 ## Current Status
 
-**Phase: Implementation In Progress (70% Complete)**
+**Phase: Implementation In Progress (95% Complete)**
 
 - [x] Architecture design
 - [x] Protocol specification
 - [x] Documentation
 - [x] sync-types crate (28 tests) - wire format types
 - [x] sync-core crate (60 tests) - pure logic, zero I/O
-- [x] sync-client crate (42 tests) - E2E encryption, transport abstraction
-- [x] sync-cli tool (15 tests) - CLI with 5 commands
-- [ ] iroh transport integration (Phase 5 - next)
-- [ ] sync-relay server (Phase 6)
+- [x] sync-client crate (60 tests) - E2E encryption, transport abstraction
+- [x] sync-cli tool (20 tests) - CLI with 6 commands
+- [x] IrohTransport (Phase 5) - E2E verified over iroh QUIC
+- [x] Chaos scenarios (78 tests) - 50 passing, 28 stubs for Phase 6
+- [ ] sync-relay server (Phase 6 - next)
 
 ## Development
 

@@ -263,13 +263,13 @@ bollard = "0.16"                 # Docker API client for topology management
 │  Phase 4: sync-cli          ◄──────────────────────────┘  ✅ Complete   │
 │  (testing tool)                                        │                 │
 │                                                        ▼                 │
-│  Phase 5: IrohTransport     ◄──────────────────────────┘  ⬅️ NEXT       │
+│  Phase 5: IrohTransport     ◄──────────────────────────┘  ✅ Complete   │
 │  (real P2P transport + transport chaos)                │                 │
 │                                                        ▼                 │
 │  Phase 3.5: sync-content    ◄──────────────────────────┘  (can parallel)│
 │  (iroh-blobs, encrypt-then-hash)                       │                 │
 │                                                        ▼                 │
-│  Phase 6: sync-relay        ◄──────────────────────────┘  ⚪ Not started│
+│  Phase 6: sync-relay        ◄──────────────────────────┘  ⬅️ NEXT       │
 │  (custom relay + full topology chaos)                  │                 │
 │                                                        ▼                 │
 │  Phase 7: tauri-plugin      ◄──────────────────────────┘  ⚪ Optional   │
@@ -286,9 +286,9 @@ bollard = "0.16"                 # Docker API client for topology management
 | 2 | sync-core | sync-types | sync-client | ✅ Complete |
 | 3 | sync-client | sync-types, sync-core | sync-cli, IrohTransport | ✅ Complete |
 | 4 | sync-cli | sync-client | None (testing tool) | ✅ Complete |
-| 5 | sync-client (transport) | sync-client | sync-content, sync-relay | ⬅️ Next |
+| 5 | sync-client (transport) | sync-client | sync-content, sync-relay | ✅ Complete |
 | 3.5 | sync-content | sync-client, IrohTransport | tauri-plugin | ⚪ Skeleton |
-| 6 | sync-relay | sync-types, IrohTransport | None | ⚪ Not started |
+| 6 | sync-relay | sync-types, IrohTransport | None | ⬅️ Next |
 | 7 | tauri-plugin | sync-client, sync-content | None (optional) | ⚪ Not started |
 
 ---

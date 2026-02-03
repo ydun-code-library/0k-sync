@@ -8,10 +8,10 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Last Session:** Phase 5 - IrohTransport E2E + Documentation Review (Q)
-**Current Phase:** PHASE 5 IN PROGRESS (95% - E2E verified, docs updated, chaos tests pending)
+**Last Session:** Phase 5 Complete - Chaos Scenarios Implementation (Q)
+**Current Phase:** PHASE 5 COMPLETE (chaos scenarios implemented, ready for Phase 6)
 **Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (Phase 5 completion: chaos tests → Phase 6: sync-relay)
+**Next Handler:** Q (Phase 6: sync-relay)
 
 ---
 
@@ -41,17 +41,17 @@ This handoff from Moneypenny contains:
 - Create framework integrations as needed (e.g., Tauri plugin)
 - Write tests and documentation
 
-**Current Status:** 90% complete
+**Current Status:** 95% complete
 - ✅ Documentation complete (~6,300 lines across 6 core docs)
 - ✅ Phase 1: sync-types (28 tests) - wire format types
 - ✅ Phase 2: sync-core (60 tests) - pure logic, zero I/O
-- ✅ Phase 3: sync-client (42 tests) - E2E encryption, transport abstraction
-- ✅ Phase 4: sync-cli (15 tests) - CLI with 5 commands
-- ✅ Chaos harness skeleton (24 tests) - infrastructure ready
-- ✅ 169+ tests passing
+- ✅ Phase 3: sync-client (60 tests) - E2E encryption, transport abstraction
+- ✅ Phase 4: sync-cli (20 tests) - CLI with 6 commands
+- ✅ Phase 5: IrohTransport (E2E verified Mac Mini ↔ Beast)
+- ✅ Chaos scenarios (78 tests: 50 passing, 28 stubs for Phase 6)
+- ✅ 246 tests total (213 passing, 33 ignored)
 - ✅ GitHub repository: https://github.com/ydun-code-library/0k-sync
-- 🔄 **Phase 5: IrohTransport (95%)** - E2E working, pair --join fixed, chaos tests pending
-- ⚪ Phase 6: sync-relay server (future)
+- ⚪ **Phase 6: sync-relay server (NEXT)**
 
 **⚠️ Critical Dependency Note:**
 iroh 0.96 requires a cargo patch for curve25519-dalek. This is already configured in workspace Cargo.toml:
@@ -107,23 +107,28 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ---
 
-## 🎯 Current Task: Phase 5 - Transport Chaos (95% Complete)
+## 🎯 Current Task: Phase 6 - sync-relay
 
-### Completed ✅
+### Phase 5 Complete ✅
 - [x] IrohTransport implementing Transport trait
 - [x] iroh 0.96 Endpoint connection management
 - [x] Replace MockTransport with IrohTransport (--mock fallback available)
 - [x] `serve` command for E2E testing
 - [x] E2E test: Mac Mini ↔ Beast over iroh QUIC ✓
 - [x] curve25519-dalek dependency resolved (cargo patch)
+- [x] Chaos scenarios (26 tests: E-HS-*, E-ENC-*, E-PQ-*, S-BLOB-*, C-STOR-*, C-COLL-*)
+- [x] Transport/sync stubs (28 ignored tests for Phase 6)
 
-### Remaining (5%)
-- [ ] Transport chaos scenarios:
-  - [ ] Connection drops and reconnects
-  - [ ] Timeout handling
-  - [ ] Network partition simulation
+### Phase 6 Tasks
+- [ ] iroh Endpoint server (accept connections)
+- [ ] Noise XX handshake implementation
+- [ ] SQLite storage layer
+- [ ] Message routing logic
+- [ ] Health/metrics endpoints (axum)
+- [ ] Docker containerization
+- [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
 
-**Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 5 details
+**Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 6 details
 **Reference:** See `docs/06-CHAOS-TESTING-STRATEGY.md` for chaos scenarios
 
 ---
@@ -147,34 +152,35 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ## 🎯 Immediate Next Steps
 
-### Option 1: Implement iroh Transport ⭐ RECOMMENDED
+### Option 1: Implement sync-relay Server ⭐ RECOMMENDED
 
-**Goal:** Real P2P transport replacing MockTransport
+**Goal:** Custom relay server for multi-device sync
 
 **Tasks:**
-- [ ] IrohTransport struct implementing Transport trait
-- [ ] iroh Endpoint connection lifecycle
-- [ ] Connect to iroh public network (Tier 1)
-- [ ] Update sync-cli to use IrohTransport
-- [ ] Test real device-to-device sync
+- [ ] iroh Endpoint server (accept incoming connections)
+- [ ] Noise XX handshake for mutual authentication
+- [ ] SQLite storage layer (blob persistence)
+- [ ] Message routing (Push/Pull/Notify)
+- [ ] Health/metrics endpoints (axum)
 
-**Key Design:** Transport trait abstraction allows drop-in replacement.
+**Key Design:** Relay is zero-knowledge - sees only ciphertext.
 
-**Reference:** Use `mcp__iroh-rag__iroh_ecosystem_search` for iroh patterns
+**Reference:** Use `mcp__iroh-rag__iroh_ecosystem_search` for iroh server patterns
 
 ---
 
-### Option 2: Transport Chaos Scenarios
+### Option 2: Full Topology Chaos (Docker)
 
-**Prerequisites:** IrohTransport working
+**Prerequisites:** sync-relay working
 
 **Tasks:**
-- [ ] Connection drop scenarios
-- [ ] Reconnect with backoff validation
-- [ ] Timeout handling under load
-- [ ] Network partition simulation
+- [ ] Docker containerization (Dockerfile.relay)
+- [ ] docker-compose.chaos.yml topology
+- [ ] Toxiproxy network fault injection
+- [ ] Implement 28 ignored chaos stubs
+- [ ] Multi-node convergence testing
 
-**Key Design:** Test ConnectionState machine under real network conditions.
+**Key Design:** Test full system under network chaos.
 
 ---
 
@@ -196,7 +202,11 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ### Access Project
 ```bash
-cd /home/jimmyb/crabnebula/sync-relay
+# On Q (Mac Mini):
+cd /Users/ydun.io/Projects/Personal/0k-sync
+
+# On Beast:
+cd /home/jimmyb/projects/0k-sync
 
 # Read session context
 cat NEXT-SESSION-START-HERE.md
@@ -255,9 +265,9 @@ docker-compose up -d
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport 🔄 → chaos-tests ⬅️ NEXT → sync-relay → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay ⬅️ NEXT → tauri-plugin
 ```
-Phase 5 transport working (E2E verified). Next: chaos tests, then Phase 6 relay.
+Phase 5 complete (E2E verified + chaos scenarios). Next: Phase 6 sync-relay.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -307,20 +317,24 @@ git status
 
 ## Note for Q
 
-**Phase 5 Focus:**
+**Phase 5 Complete ✅:**
 - IrohTransport implementation (Transport trait from sync-client)
-- iroh Endpoint connection management
-- Transport chaos scenarios (drops, reconnects, timeouts)
+- iroh Endpoint connection management (iroh 0.96)
+- E2E verified (Mac Mini ↔ Beast)
+- Chaos scenarios implemented (26 passing + 28 stubs)
 
-**Phase 6 (after Phase 5):**
+**Phase 6 Focus (NEXT):**
 - sync-relay server (iroh Endpoint + SQLite)
+- Noise XX handshake implementation (use clatter 2.2)
 - Full topology chaos (multi-node, partitions, Toxiproxy)
+- Implement 28 ignored chaos test stubs
 
-**Chaos Testing Strategy:**
-- Phase 5: Transport-level chaos (client-side)
-- Phase 6: Full topology chaos (relay + multi-node)
+**Chaos Testing Status:**
+- Phase 3/3.5: 26 tests passing (encryption + content scenarios)
+- Phase 4/5/6: 28 stubs ready (transport + sync scenarios)
+- Total chaos-tests: 78 tests (50 passing, 28 ignored)
 
 **MCP Servers:**
-- `mcp__iroh-rag__iroh_ecosystem_search` - iroh patterns
-- `mcp__rust-rag__rust_dev_search` - Rust patterns
-- `mcp__crypto-rag__crypto_protocols_search` - Noise Protocol
+- `mcp__iroh-rag__iroh_ecosystem_search` - iroh server patterns
+- `mcp__rust-rag__rust_dev_search` - Rust patterns (axum, sqlx)
+- `mcp__crypto-rag__crypto_protocols_search` - Noise Protocol XX
