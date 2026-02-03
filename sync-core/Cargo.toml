@@ -10,7 +10,20 @@ keywords = ["sync", "state-machine", "local-first"]
 categories = ["data-structures", "algorithms"]
 
 [dependencies]
-# Dependencies will be added in Phase 2
-# For now, just a placeholder to allow workspace to compile
+# Wire format types (our foundation)
+zerok-sync-types = { path = "../sync-types", package = "zerok-sync-types" }
+
+# Serialization for invite payloads
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Base64 for invite encoding
+base64 = "0.22"
+
+# Random for jitter generation (getrandom is sync, not async I/O)
+getrandom = "0.2"
+
+# Thiserror for clean error types
+thiserror = { workspace = true }
 
 [dev-dependencies]
