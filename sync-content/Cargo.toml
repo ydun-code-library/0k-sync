@@ -10,7 +10,28 @@ keywords = ["sync", "content-addressed", "iroh-blobs", "encryption"]
 categories = ["network-programming", "cryptography"]
 
 [dependencies]
-# Dependencies will be added in Phase 3.5
-# For now, just a placeholder to allow workspace to compile
+# Internal
+sync-types = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Crypto
+chacha20poly1305 = { workspace = true }
+hkdf = { workspace = true }
+sha2 = { workspace = true }
+blake3 = { workspace = true }
+getrandom = { workspace = true }
+
+# Utilities
+hex = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }

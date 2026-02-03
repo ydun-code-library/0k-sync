@@ -53,6 +53,10 @@ getrandom = "0.2"
 hkdf = "0.12"
 sha2 = "0.10"
 blake3 = "1"                     # Hash ciphertext for iroh-blobs content address
+hex = "0.4"                      # Hex encoding for error messages
+
+# Async utilities
+async-trait = "0.1"              # Async trait methods
 
 # Chaos testing infrastructure
 bollard = "0.16"                 # Docker API client for topology management

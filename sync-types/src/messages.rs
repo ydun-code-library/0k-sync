@@ -28,6 +28,10 @@ pub enum Message {
     Notify(Notify),
     /// Graceful disconnect
     Bye(Bye),
+    /// Reference to large content (stored in iroh-blobs)
+    ContentRef(ContentRef),
+    /// Acknowledge content transfer complete
+    ContentAck(ContentAck),
 }
 
 impl Message {
@@ -122,6 +126,30 @@ pub struct Notify {
 pub struct Bye {
     /// Optional reason for disconnect
     pub reason: Option<String>,
+}
+
+/// Reference to large encrypted content (stored in iroh-blobs).
+///
+/// Small sync messages (<64KB) go through the relay directly.
+/// Large content (photos, documents, audio) is stored in iroh-blobs
+/// and only the ContentRef is sent through the relay.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentRef {
+    /// BLAKE3 hash of ciphertext (content address for iroh-blobs)
+    pub content_hash: [u8; 32],
+    /// XChaCha20-Poly1305 encryption nonce (24 bytes)
+    pub encryption_nonce: [u8; 24],
+    /// Original plaintext size in bytes
+    pub content_size: u64,
+    /// Ciphertext size in bytes (content_size + 16 byte auth tag)
+    pub encrypted_size: u64,
+}
+
+/// Acknowledge that content transfer is complete.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentAck {
+    /// BLAKE3 hash of the acknowledged content
+    pub content_hash: [u8; 32],
 }
 
 #[cfg(test)]
@@ -262,5 +290,50 @@ mod tests {
         let restored = Message::from_bytes(&bytes).unwrap();
 
         assert!(matches!(restored, Message::Push(_)));
+    }
+
+    #[test]
+    fn content_ref_roundtrip() {
+        let content_ref = ContentRef {
+            content_hash: [0xAB; 32],
+            encryption_nonce: [0xCD; 24],
+            content_size: 1024 * 1024, // 1MB
+            encrypted_size: 1024 * 1024 + 16, // + auth tag
+        };
+
+        let bytes = rmp_serde::to_vec(&content_ref).unwrap();
+        let restored: ContentRef = rmp_serde::from_slice(&bytes).unwrap();
+
+        assert_eq!(content_ref.content_hash, restored.content_hash);
+        assert_eq!(content_ref.encryption_nonce, restored.encryption_nonce);
+        assert_eq!(content_ref.content_size, restored.content_size);
+        assert_eq!(content_ref.encrypted_size, restored.encrypted_size);
+    }
+
+    #[test]
+    fn content_ack_roundtrip() {
+        let content_ack = ContentAck {
+            content_hash: [0xEF; 32],
+        };
+
+        let bytes = rmp_serde::to_vec(&content_ack).unwrap();
+        let restored: ContentAck = rmp_serde::from_slice(&bytes).unwrap();
+
+        assert_eq!(content_ack.content_hash, restored.content_hash);
+    }
+
+    #[test]
+    fn message_content_ref_roundtrip() {
+        let msg = Message::ContentRef(ContentRef {
+            content_hash: [0x11; 32],
+            encryption_nonce: [0x22; 24],
+            content_size: 5000,
+            encrypted_size: 5016,
+        });
+
+        let bytes = msg.to_bytes().unwrap();
+        let restored = Message::from_bytes(&bytes).unwrap();
+
+        assert!(matches!(restored, Message::ContentRef(_)));
     }
 }
