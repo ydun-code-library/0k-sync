@@ -52,7 +52,7 @@ Device A                     RELAY                      Device B
 use sync_client::SyncClient;
 
 // Connect to relay
-let client = SyncClient::connect("wss://relay.example.com").await?;
+let client = SyncClient::new(SyncConfig::default()).await?;
 
 // Pair devices (one-time)
 let invite = client.create_invite().await?;
@@ -101,7 +101,7 @@ let blobs = client.pull().await?;
 | Post-Quantum KEM | ML-KEM-768 | Quantum-resistant key exchange |
 | E2E Encryption | XChaCha20-Poly1305 | Blob encryption (256-bit) |
 | Key Derivation | Argon2id | Passphrase to key |
-| WebSocket | tokio-tungstenite | Transport (Tiers 2-6) |
+| Transport | [iroh](https://github.com/n0-computer/iroh) | QUIC P2P + relay fallback (all tiers) |
 
 **Why hybrid cryptography?** Classical algorithms (X25519) are vulnerable to future quantum computers. 0k-Sync combines classical + post-quantum algorithms so security holds if either is broken. See [Appendix B](appendix-b-hybrid-crypto.md) for details.
 

@@ -32,7 +32,7 @@ A lightweight, self-hosted relay server that enables secure synchronization betw
 - File sync (use Syncthing for that)
 - User account management (handled by client apps)
 - Background push notifications (see **Section 7.4** for mobile lifecycle details)
-- Always-on sync on mobile (OS kills background WebSockets)
+- Always-on sync on mobile (OS kills background connections)
 
 ---
 
@@ -400,7 +400,7 @@ See **Section 6.3** for how the relay assigns cursors.
 
 ### 6.2 Custom Relay Responsibilities (Future)
 
-1. Accept WebSocket connections
+1. Accept iroh connections (QUIC)
 2. Perform Noise XX handshake
 3. Route messages between devices in same sync group
 4. Store blobs temporarily for offline devices
@@ -807,11 +807,11 @@ console.log(`Assigned cursor: ${pushResult.cursor}`);
 
 ### 7.4 Mobile Lifecycle Considerations
 
-**Critical:** On iOS and modern Android, WebSocket connections are killed within ~30 seconds of the app being backgrounded. You cannot rely on persistent connections for sync.
+**Critical:** On iOS and modern Android, background network connections are killed within ~30 seconds of the app being backgrounded. You cannot rely on persistent connections for sync.
 
 #### The "Mobile Exit" Problem
 
-> ⚠️ **Reality Check:** On iOS, `applicationWillTerminate` does NOT guarantee enough execution time to establish a WebSocket, perform a Noise handshake, and upload a blob. The OS watchdog will kill your app.
+> ⚠️ **Reality Check:** On iOS, `applicationWillTerminate` does NOT guarantee enough execution time to establish a connection, perform a Noise handshake, and upload a blob. The OS watchdog will kill your app.
 
 **Design Assumption:** Data generated while offline or just before closing **will not sync until the next app launch**. The UI must reflect this:
 
@@ -886,7 +886,7 @@ fn main() {
 
 #### What We DON'T Support (Yet)
 
-- **Background sync**: iOS/Android kill background WebSockets
+- **Background sync**: iOS/Android kill background connections
 - **Push notifications for new data**: Would require APNS/FCM integration
 - **Always-on sync**: Not possible on mobile without OS support
 - **Guaranteed sync on exit**: OS doesn't allow it
@@ -1030,7 +1030,7 @@ services:
 ```toml
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = "0.21"           # WebSocket
+iroh = "1.0"                         # QUIC transport
 snow = "0.9"                          # Noise Protocol
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
 serde = { version = "1", features = ["derive"] }
@@ -1048,7 +1048,7 @@ axum = "0.7"                          # Health/metrics endpoints
 ```toml
 [dependencies]
 tokio = { version = "1", features = ["rt", "sync", "time"] }
-tokio-tungstenite = "0.21"
+iroh = "1.0"
 snow = "0.9"
 serde = { version = "1", features = ["derive"] }
 rmp-serde = "1"
@@ -1550,7 +1550,7 @@ Leverage the existing [Nostr](https://nostr.com/) relay ecosystem.
 - Decentralized protocol for publishing/subscribing to messages
 - ~1000 public relays globally
 - Uses Schnorr signatures (secp256k1)
-- WebSocket-based
+- QUIC-based (iroh)
 
 **How we'd use it:**
 - Create a custom NIP (Nostr Implementation Possibility) for sync
@@ -1749,7 +1749,7 @@ tauri-secure-sync/
 │   ├── Cargo.toml
 │   ├── src/
 │   │   ├── main.rs            # Entry point
-│   │   ├── server.rs          # WebSocket + Noise handshake
+│   │   ├── server.rs          # iroh Endpoint + Noise handshake
 │   │   ├── storage.rs         # SQLite operations
 │   │   └── config.rs          # relay.toml parsing
 │   └── Dockerfile

@@ -172,7 +172,7 @@ gh issue list
 **Sync Relay** is a lightweight, self-hosted relay server and Rust client library that enables secure synchronization between multiple instances of a local-first application.
 
 **Key Responsibilities:**
-- Accept WebSocket connections from local-first apps
+- Accept iroh connections (QUIC) from local-first apps
 - Perform Noise Protocol XX handshake for E2E encryption
 - Route encrypted blobs between devices in same sync group
 - Store blobs temporarily for offline devices
@@ -216,8 +216,8 @@ gh issue list
 - Dependencies: serde, clatter, uuid
 
 **sync-relay/** (server binary):
-- WebSocket server, SQLite storage
-- Dependencies: tokio, tokio-tungstenite, sqlx, axum
+- iroh Endpoint server, SQLite storage
+- Dependencies: tokio, iroh, sqlx, axum
 
 **sync-client/** (library for apps):
 - Connection management, encryption layer
@@ -402,7 +402,7 @@ None at this time
 ```toml
 # sync-relay
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = "0.21"
+iroh = "1.0"  # QUIC transport (all tiers)
 clatter = "2.1"  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 sqlx = { version = "0.7", features = ["sqlite"] }
 axum = "0.7"  # Health endpoints
@@ -423,7 +423,7 @@ RELAY_DATABASE=/data/relay.db
 RUST_LOG=info
 
 # Client
-SYNC_RELAY_URL=wss://sync.yourdomain.com
+SYNC_RELAY_NODE_ID=your-sync-relay-node-id
 SYNC_GROUP_PASSPHRASE=user-provided
 ```
 <!-- PROJECT_SPECIFIC END: ENVIRONMENT_VARIABLES -->

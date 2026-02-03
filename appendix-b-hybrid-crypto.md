@@ -134,7 +134,7 @@ Group Key rotation is not required—symmetric layer is already quantum-resistan
 - [ ] Replace `snow` dependency with `clatter`
 - [ ] Update handshake pattern from `noise_XX` to `noise_hybrid_XX`
 - [ ] Configure ML-KEM-768 for KEM operations
-- [ ] Verify WebSocket transport integration with `clatter`
+- [ ] Verify iroh transport integration with `clatter`
 - [ ] Update protocol version negotiation in HELLO message
 - [ ] Add `hybrid_mode` to `SyncConfig` and `RelayConfig`
 - [ ] Test interoperability between hybrid and classical modes during transition

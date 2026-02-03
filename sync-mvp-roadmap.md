@@ -20,7 +20,7 @@ This document defines the minimum viable implementation for CashTable launch and
 |-----------|--------|-------|
 | sync-types crate | Required | Message definitions, wire format |
 | sync-client crate | Required | E2E encryption, connection management |
-| sync-relay server | Required | WebSocket, message routing, temp buffer |
+| sync-relay server | Required | iroh Endpoint, message routing, temp buffer |
 | Framework integration | Required | App-specific bridge (e.g., Tauri plugin for CashTable) |
 
 ### Cryptography
@@ -234,7 +234,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 | Dependency | Version | Risk |
 |------------|---------|------|
 | clatter | 2.1+ | Low - stable release |
-| tokio-tungstenite | 0.21+ | Low - mature |
+| iroh | 1.0 | Low - production ready |
 | sqlx (relay) | 0.7+ | Low - mature |
 | tauri | 2.0+ | Low - Managed expertise |
 

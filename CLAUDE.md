@@ -113,7 +113,7 @@ cargo run -p sync-cli -- pair --create
 
 **Architecture:**
 ```
-Local-First App → sync-client → WebSocket → sync-relay → SQLite
+Local-First App → sync-client → iroh (QUIC) → sync-relay → SQLite
                       ↓
                Noise Protocol (E2E encryption)
 ```
@@ -126,7 +126,7 @@ Application Messages (Push/Pull)
         ↓
 Noise Protocol (encryption)
         ↓
-    WebSocket
+    iroh (QUIC)
         ↓
       TLS
 ```

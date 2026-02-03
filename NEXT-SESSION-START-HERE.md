@@ -145,7 +145,7 @@ This handoff from Moneypenny contains:
 
 **Tasks:**
 - [ ] Crypto module (Noise XX, XChaCha20-Poly1305, Argon2id)
-- [ ] Transport abstraction (iroh, WebSocket)
+- [ ] Transport abstraction (iroh QUIC)
 - [ ] SyncClient implementation
 - [ ] Integration tests
 

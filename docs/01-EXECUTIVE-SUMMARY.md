@@ -85,7 +85,7 @@ Three gates must be addressed before GA release:
 | Large content | [iroh-blobs](https://github.com/n0-computer/iroh-blobs) | **1.0** | BLAKE3/Bao verified streaming |
 | Blob encryption | XChaCha20-Poly1305 | RustCrypto | 192-bit nonces, no coordination needed |
 | Key derivation | Argon2id | RustCrypto | Device-adaptive parameters |
-| WebSocket | tokio-tungstenite | 0.21.x | 120K connections benchmarked |
+| Transport | [iroh](https://github.com/n0-computer/iroh) | 1.0 RC | QUIC P2P + relay fallback |
 | Storage | SQLite + WAL | via sqlx | 70K+ writes/sec |
 
 **iroh Version Strategy:**
@@ -138,7 +138,7 @@ Three gates must be addressed before GA release:
 
 ### Mobile Architecture: Wake-on-Push
 
-Mobile platforms kill WebSocket connections within ~30 seconds of backgrounding. Solution:
+Mobile platforms kill background network connections within ~30 seconds of backgrounding. Solution:
 
 ```
 FOREGROUND MODE           BACKGROUND MODE           WAKE EVENT
@@ -171,7 +171,7 @@ Six tiers serve the full market:
 // One line to add sync
 use sync_client::SyncClient;
 
-let client = SyncClient::connect("wss://relay.example.com").await?;
+let client = SyncClient::new(SyncConfig::default()).await?;
 client.push(encrypted_blob).await?;
 ```
 

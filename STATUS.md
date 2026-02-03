@@ -82,7 +82,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - **Status:** Not started
 
 **Tasks:**
-- [ ] WebSocket server with tokio-tungstenite
+- [ ] iroh Endpoint server
 - [ ] Noise XX handshake implementation
 - [ ] SQLite storage layer
 - [ ] Message routing logic
@@ -200,7 +200,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ### Dependencies (Planned)
 - tokio: 1.x
-- tokio-tungstenite: 0.21
+- iroh: 1.0 (QUIC transport)
 - clatter: 2.1 (Hybrid Noise Protocol)
 - sqlx: 0.7
 - axum: 0.7
@@ -247,7 +247,7 @@ None (fresh project)
 - [x] Chaos harness skeleton in place (24 tests)
 
 ### Phase 2 Success Criteria (sync-relay)
-- [ ] Server accepts WebSocket connections
+- [ ] Server accepts iroh connections (QUIC)
 - [ ] Noise handshake completes successfully
 - [ ] Blobs stored and retrieved correctly
 - [ ] Health endpoint returns status

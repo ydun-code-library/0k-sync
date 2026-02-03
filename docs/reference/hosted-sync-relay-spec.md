@@ -31,7 +31,7 @@ A lightweight, self-hosted relay server that enables secure synchronization betw
 - File sync (use Syncthing for that)
 - User account management (handled by client apps)
 - Background push notifications (see **Section 7.4** for mobile lifecycle details)
-- Always-on sync on mobile (OS kills background WebSockets)
+- Always-on sync on mobile (OS kills background connections)
 
 ---
 
@@ -46,7 +46,7 @@ A lightweight, self-hosted relay server that enables secure synchronization betw
 │  │                     Sync Relay Container                   │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
 │  │  │  Relay Service (Rust)                               │  │  │
-│  │  │  - Accepts WebSocket connections                    │  │  │
+│  │  │  - Accepts iroh connections (QUIC)                  │  │  │
 │  │  │  - Noise protocol handshake                         │  │  │
 │  │  │  - Routes encrypted blobs between devices           │  │  │
 │  │  │  - Temporary blob storage (SQLite)                  │  │  │
@@ -111,7 +111,7 @@ A lightweight, self-hosted relay server that enables secure synchronization betw
 │  Layer 2: Noise Protocol                │  ← E2E encryption
 │  (XX handshake pattern)                 │
 ├─────────────────────────────────────────┤
-│  Layer 1: WebSocket                     │  ← Transport
+│  Layer 1: iroh (QUIC)                   │  ← Transport
 │  (Binary frames)                        │
 ├─────────────────────────────────────────┤
 │  Layer 0: TLS 1.3                       │  ← Cloudflare handles
@@ -123,7 +123,7 @@ A lightweight, self-hosted relay server that enables secure synchronization betw
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Transport | WebSocket | Works through firewalls, NAT, proxies; browser compatible |
+| Transport | iroh (QUIC) | NAT traversal, P2P + relay fallback |
 | Encryption | Noise XX | Mutual auth, forward secrecy, battle-tested (WireGuard uses it) |
 | Framing | Custom envelope | Minimal overhead, just what we need |
 | Application | Custom messages | Tailored to sync use case |
@@ -336,7 +336,7 @@ See **Section 6.3** for how the relay assigns cursors.
 
 ### 6.1 Responsibilities
 
-1. Accept WebSocket connections
+1. Accept iroh connections (QUIC)
 2. Perform Noise XX handshake
 3. Route messages between devices in same sync group
 4. Store blobs temporarily for offline devices
@@ -636,7 +636,7 @@ console.log(`Assigned cursor: ${pushResult.cursor}`);
 
 ### 7.4 Mobile Lifecycle Considerations
 
-**Critical:** On iOS and modern Android, WebSocket connections are killed within ~30 seconds of the app being backgrounded. You cannot rely on persistent connections for sync.
+**Critical:** On iOS and modern Android, background network connections are killed within ~30 seconds of the app being backgrounded. You cannot rely on persistent connections for sync.
 
 #### Sync Trigger Points
 
@@ -687,7 +687,7 @@ fn main() {
 
 #### What We DON'T Support (Yet)
 
-- **Background sync**: iOS/Android kill background WebSockets
+- **Background sync**: iOS/Android kill background connections
 - **Push notifications for new data**: Would require APNS/FCM integration
 - **Always-on sync**: Not possible on mobile without OS support
 
@@ -776,7 +776,7 @@ sync_relay_bytes_transferred 15728640
 ```toml
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = "0.21"           # WebSocket
+iroh = "1.0"                         # QUIC transport
 snow = "0.9"                          # Noise Protocol
 sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
 serde = { version = "1", features = ["derive"] }
@@ -794,7 +794,7 @@ axum = "0.7"                          # Health/metrics endpoints
 ```toml
 [dependencies]
 tokio = { version = "1", features = ["rt", "sync", "time"] }
-tokio-tungstenite = "0.21"
+iroh = "1.0"
 snow = "0.9"
 serde = { version = "1", features = ["derive"] }
 rmp-serde = "1"
@@ -1261,7 +1261,7 @@ Leverage the existing [Nostr](https://nostr.com/) relay ecosystem.
 - Decentralized protocol for publishing/subscribing to messages
 - ~1000 public relays globally
 - Uses Schnorr signatures (secp256k1)
-- WebSocket-based
+- QUIC-based (iroh)
 
 **How we'd use it:**
 - Create a custom NIP (Nostr Implementation Possibility) for sync
@@ -1423,7 +1423,7 @@ tauri-secure-sync/
 │   ├── Cargo.toml
 │   ├── src/
 │   │   ├── main.rs            # Entry point
-│   │   ├── server.rs          # WebSocket + Noise handshake
+│   │   ├── server.rs          # iroh Endpoint + Noise handshake
 │   │   ├── storage.rs         # SQLite operations
 │   │   └── config.rs          # relay.toml parsing
 │   └── Dockerfile
@@ -1432,7 +1432,7 @@ tauri-secure-sync/
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs             # Public API: SyncClient, SyncConfig
-│       ├── connection.rs      # WebSocket + reconnect logic
+│       ├── connection.rs      # iroh connection + reconnect logic
 │       ├── crypto.rs          # Noise session, Group Key encryption
 │       └── storage.rs         # Local cursor persistence
 │
@@ -1513,7 +1513,7 @@ tauri-plugin-sync = { git = "https://github.com/yourname/tauri-secure-sync", tag
 | Phase | Crate | Deliverable | Test |
 |-------|-------|-------------|------|
 | **1** | `sync-types` | Envelope, Messages, Cursor types | Unit tests for serialization round-trip |
-| **2** | `sync-relay` | Server + SQLite storage | `curl` health endpoint, manual WebSocket test |
+| **2** | `sync-relay` | Server + SQLite storage | `curl` health endpoint, iroh connection test |
 | **3** | `sync-cli` | Basic push/pull commands | Script: push 10 blobs, pull all, verify |
 | **4** | `sync-client` | Refined library API | CLI becomes thin wrapper around library |
 | **5** | `tauri-plugin-sync` | Tauri commands | Import into CashTable, test in app |
