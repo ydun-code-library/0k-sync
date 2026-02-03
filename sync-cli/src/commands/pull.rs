@@ -2,13 +2,15 @@
 
 use anyhow::{Context, Result};
 use std::path::Path;
-use zerok_sync_client::{GroupKey, MockTransport, SyncClient, SyncConfig};
+use zerok_sync_client::{
+    GroupKey, IrohTransport, MockTransport, SyncClient, SyncConfig, Transport,
+};
 use zerok_sync_types::Cursor;
 
 use crate::config::{DeviceConfig, GroupConfig};
 
 /// Run the pull command.
-pub async fn run(data_dir: &Path, after_cursor: Option<u64>) -> Result<()> {
+pub async fn run(data_dir: &Path, after_cursor: Option<u64>, use_mock: bool) -> Result<()> {
     // Load configuration
     let device = DeviceConfig::load(data_dir).await?;
     let mut group = GroupConfig::load(data_dir).await?;
@@ -16,11 +18,25 @@ pub async fn run(data_dir: &Path, after_cursor: Option<u64>) -> Result<()> {
     let cursor = after_cursor.unwrap_or(group.cursor);
     println!("Pulling data after cursor {}...", cursor);
 
-    // Create sync client
-    // Note: Using MockTransport for now. In production, this would be IrohTransport.
+    // Create sync client config
     let config = SyncConfig::new("placeholder-passphrase", &group.relay_address)
         .with_device_name(&device.device_name);
 
+    // Create transport and client based on mode
+    if use_mock {
+        run_with_mock(config, &mut group, data_dir, cursor).await
+    } else {
+        run_with_iroh(config, &mut group, data_dir, cursor).await
+    }
+}
+
+/// Run pull with MockTransport (for testing/demo).
+async fn run_with_mock(
+    config: SyncConfig,
+    group: &mut GroupConfig,
+    data_dir: &Path,
+    cursor: u64,
+) -> Result<()> {
     let transport = MockTransport::new();
 
     // Queue a mock PullResponse
@@ -28,7 +44,35 @@ pub async fn run(data_dir: &Path, after_cursor: Option<u64>) -> Result<()> {
     transport.queue_response(mock_response);
 
     let client = SyncClient::new(config, transport);
+    do_pull(client, group, data_dir, cursor).await
+}
 
+/// Run pull with IrohTransport (real P2P).
+async fn run_with_iroh(
+    config: SyncConfig,
+    group: &mut GroupConfig,
+    data_dir: &Path,
+    cursor: u64,
+) -> Result<()> {
+    println!("Connecting to peer: {}", group.relay_address);
+
+    let transport = IrohTransport::new()
+        .await
+        .context("Failed to create iroh transport")?;
+
+    println!("  Our EndpointId: {}", transport.endpoint_id());
+
+    let client = SyncClient::new(config, transport);
+    do_pull(client, group, data_dir, cursor).await
+}
+
+/// Common pull logic for any transport.
+async fn do_pull<T: Transport>(
+    client: SyncClient<T>,
+    group: &mut GroupConfig,
+    data_dir: &Path,
+    cursor: u64,
+) -> Result<()> {
     // Connect and pull
     client
         .connect()
@@ -123,8 +167,8 @@ mod tests {
     async fn pull_requires_device_and_group() {
         let dir = tempdir().unwrap();
 
-        // Should fail without device
-        let result = run(dir.path(), None).await;
+        // Should fail without device (use_mock=true)
+        let result = run(dir.path(), None, true).await;
         assert!(result.is_err());
     }
 
@@ -134,7 +178,7 @@ mod tests {
         setup_device_and_group(dir.path()).await;
 
         // This will use MockTransport with a mock response
-        let result = run(dir.path(), None).await;
+        let result = run(dir.path(), None, true).await;
         assert!(result.is_ok());
     }
 
@@ -143,7 +187,7 @@ mod tests {
         let dir = tempdir().unwrap();
         setup_device_and_group(dir.path()).await;
 
-        let result = run(dir.path(), Some(100)).await;
+        let result = run(dir.path(), Some(100), true).await;
         assert!(result.is_ok());
     }
 }

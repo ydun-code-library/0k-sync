@@ -47,6 +47,10 @@ struct Cli {
     #[arg(long, global = true)]
     data_dir: Option<PathBuf>,
 
+    /// Use mock transport instead of real iroh P2P (for testing/demo)
+    #[arg(long, global = true)]
+    mock: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -142,13 +146,13 @@ async fn main() -> Result<()> {
             } else {
                 anyhow::bail!("Must specify message or --file");
             };
-            push::run(&data_dir, &data).await?;
+            push::run(&data_dir, &data, cli.mock).await?;
         }
         Commands::Pull {
             after_cursor,
             limit: _,
         } => {
-            pull::run(&data_dir, after_cursor).await?;
+            pull::run(&data_dir, after_cursor, cli.mock).await?;
         }
         Commands::Status => {
             status::run(&data_dir).await?;
