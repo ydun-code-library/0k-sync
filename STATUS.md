@@ -9,7 +9,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 **Last Updated:** 2026-02-03
 **Project Phase:** PHASE 5 IN PROGRESS
-**Completion:** 85% (sync-types, sync-core, sync-client, sync-cli complete; IrohTransport E2E verified)
+**Completion:** 90% (sync-types, sync-core, sync-client, sync-cli complete; IrohTransport E2E verified; docs updated)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
 **Next Phase:** Phase 5 completion (chaos tests) → Phase 6 (sync-relay)
 
@@ -129,7 +129,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ### Phase 5: iroh Transport + Transport Chaos 🔄 IN PROGRESS
 - **Duration:** 2 sessions
 - **Output:** Real P2P transport, E2E verified between machines
-- **Status:** 90% complete (E2E working, chaos tests pending)
+- **Status:** 95% complete (E2E working, pair --join fixed, chaos tests pending)
 
 **Tasks:**
 - [x] Restructure transport module (transport/mod.rs, mock.rs, iroh.rs)
@@ -183,12 +183,11 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - ✅ All phases committed and tagged
 
 ### Completed This Session (2026-02-03)
-- [x] Phase 2: sync-core crate (ConnectionState, MessageBuffer, CursorTracker, Invite, GroupSecret)
-- [x] Phase 3: sync-client crate (GroupKey encryption, Argon2id KDF, Transport trait, MockTransport, SyncClient)
-- [x] Phase 4: sync-cli crate (init, pair, push, pull, status commands)
-- [x] 169 total tests passing across workspace
-- [x] Clippy clean, fmt clean
-- [x] Git tags: v0.1.0-phase2, v0.1.0-phase3, v0.1.0-phase4
+- [x] Phase 5: IrohTransport E2E verified (Mac Mini ↔ Beast)
+- [x] Fixed `pair --join` to save EndpointId correctly
+- [x] Full documentation review (iroh version consistency)
+- [x] All tests pass, clippy clean
+- [x] Pushed to both remotes
 
 ### Blockers
 - None at this time
@@ -328,6 +327,18 @@ None
 ---
 
 ## Session History
+
+### Session 11: 2026-02-03 (Documentation Review - Q)
+- Fixed `pair --join` to properly save EndpointId as relay_address
+- Systematic documentation review following Jimmy's Workflow
+- Updated iroh version references across all active documentation:
+  - `docs/01-EXECUTIVE-SUMMARY.md`: Fixed 4 stale "1.0 RC" → "0.96"
+  - `docs/02-SPECIFICATION.md`: Fixed iroh-blobs 1.0 → 0.98
+  - `docs/04-RESEARCH-VALIDATION.md`: Fixed checklist and changelog
+  - `docs/WEBSOCKET-REMOVAL-AMENDMENT.md`: Added version note, fixed instructions
+  - `docs/research/iroh-deep-dive-report.md`: Added "Reality Check" section
+- All tests pass, clippy clean
+- **Output:** Documentation consistent, ready for chaos testing
 
 ### Session 10: 2026-02-03 (Phase 5 - IrohTransport - Q)
 - Resolved curve25519-dalek dependency blocker (forked, fixed, PR #878)
@@ -489,10 +500,10 @@ None
 
 ## Next Steps (Priority Order)
 
-### Immediate (Next Session) - Phase 5
-1. Implement IrohTransport (implements Transport trait)
-2. Replace MockTransport with IrohTransport in sync-cli
-3. Test real P2P connections
+### Immediate (Next Session) - Phase 5 Completion
+1. ✅ IrohTransport implemented and E2E verified
+2. ✅ pair --join fixed for EndpointId handling
+3. ✅ Documentation review complete
 4. Implement transport chaos scenarios (drops, reconnects, timeouts)
 
 ### Short Term (Next 2-3 Sessions) - Phase 6

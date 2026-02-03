@@ -8,8 +8,8 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Last Session:** Phase 5 - IrohTransport E2E (Q)
-**Current Phase:** PHASE 5 IN PROGRESS (IrohTransport working, chaos tests pending)
+**Last Session:** Phase 5 - IrohTransport E2E + Documentation Review (Q)
+**Current Phase:** PHASE 5 IN PROGRESS (95% - E2E verified, docs updated, chaos tests pending)
 **Session Summary:** See STATUS.md for complete details
 **Next Handler:** Q (Phase 5 completion: chaos tests → Phase 6: sync-relay)
 
@@ -41,7 +41,7 @@ This handoff from Moneypenny contains:
 - Create framework integrations as needed (e.g., Tauri plugin)
 - Write tests and documentation
 
-**Current Status:** 85% complete
+**Current Status:** 90% complete
 - ✅ Documentation complete (~6,300 lines across 6 core docs)
 - ✅ Phase 1: sync-types (28 tests) - wire format types
 - ✅ Phase 2: sync-core (60 tests) - pure logic, zero I/O
@@ -50,7 +50,7 @@ This handoff from Moneypenny contains:
 - ✅ Chaos harness skeleton (24 tests) - infrastructure ready
 - ✅ 169+ tests passing
 - ✅ GitHub repository: https://github.com/ydun-code-library/0k-sync
-- 🔄 **Phase 5: IrohTransport (90%)** - E2E working, chaos tests pending
+- 🔄 **Phase 5: IrohTransport (95%)** - E2E working, pair --join fixed, chaos tests pending
 - ⚪ Phase 6: sync-relay server (future)
 
 **⚠️ Critical Dependency Note:**
@@ -107,7 +107,7 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ---
 
-## 🎯 Current Task: Phase 5 - Transport Chaos (90% Complete)
+## 🎯 Current Task: Phase 5 - Transport Chaos (95% Complete)
 
 ### Completed ✅
 - [x] IrohTransport implementing Transport trait
@@ -117,14 +117,14 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 - [x] E2E test: Mac Mini ↔ Beast over iroh QUIC ✓
 - [x] curve25519-dalek dependency resolved (cargo patch)
 
-### Remaining (10%)
+### Remaining (5%)
 - [ ] Transport chaos scenarios:
   - [ ] Connection drops and reconnects
   - [ ] Timeout handling
   - [ ] Network partition simulation
-- [ ] Fix `pair --join` to save EndpointId correctly
 
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 5 details
+**Reference:** See `docs/06-CHAOS-TESTING-STRATEGY.md` for chaos scenarios
 
 ---
 
