@@ -8,10 +8,10 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Last Session:** Dead Drop processing + audit fixes + chaos integration (Moneypenny)
-**Current Phase:** DESIGN COMPLETE + ORGANIZED (Ready for Q implementation)
+**Last Session:** Phase 1 Implementation (Q)
+**Current Phase:** PHASE 1 COMPLETE (sync-types + chaos harness skeleton)
 **Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (implementation phase)
+**Next Handler:** Q (Phase 2: sync-core)
 
 ---
 
@@ -59,6 +59,16 @@ This handoff from Moneypenny contains:
 
 ### What's Been Completed ✅
 
+**Phase 1: sync-types + Chaos Harness (Complete - 2026-02-03):**
+- ✅ Cargo workspace with 7 crates
+- ✅ `sync-types/` - Wire format types (DeviceId, GroupId, BlobId, Cursor, Envelope, Messages)
+- ✅ MessagePack serialization (rmp-serde)
+- ✅ 28 unit tests for sync-types
+- ✅ `tests/chaos/` - Chaos harness skeleton (topology, toxiproxy, pumba, assertions)
+- ✅ 24 unit tests for chaos harness
+- ✅ docker-compose.chaos.yml for chaos testing
+- ✅ Dockerfile stubs for relay and CLI
+
 **Documentation (Complete):**
 - ✅ `docs/01-EXECUTIVE-SUMMARY.md` - Technical overview
 - ✅ `docs/02-SPECIFICATION.md` - Full protocol spec with mobile lifecycle
@@ -66,12 +76,10 @@ This handoff from Moneypenny contains:
 - ✅ `docs/04-RESEARCH-VALIDATION.md` - Technology validation
 - ✅ `docs/05-RELEASE-STRATEGY.md` - Release playbook
 - ✅ `docs/06-CHAOS-TESTING-STRATEGY.md` - 68 chaos scenarios (v1.5.0)
-- ✅ `docs/handoffs/P2-MONEY-Q-0k-sync-implementation-handoff.md` - Q's handoff
 - ✅ `README.md` - Project overview
 - ✅ `AGENTS.md` - Template v1.7.0 compliant
-- ✅ `CLAUDE.md` - Updated for new structure
+- ✅ `CLAUDE.md` - Updated with MCP server documentation
 - ✅ `STATUS.md` / `NEXT-SESSION-START-HERE.md`
-- ✅ `JIMMYS-WORKFLOW.md`
 
 **Architecture Decisions:**
 - ✅ 6 product tiers defined
@@ -81,17 +89,17 @@ This handoff from Moneypenny contains:
 
 ---
 
-## 🎯 Current Task: Cargo Workspace Setup (0% Complete)
+## 🎯 Current Task: Phase 2 - sync-core (0% Complete)
 
-### Remaining Steps
-- [ ] Create Cargo.toml workspace
-- [ ] Create sync-types crate skeleton
-- [ ] Create sync-core crate skeleton
-- [ ] Create sync-client crate skeleton
-- [ ] Create sync-cli crate skeleton
-- [ ] Verify `cargo build --workspace` works
+### Next Steps
+- [ ] Implement ConnectionState state machine
+- [ ] Implement MessageBuffer with pending tracking
+- [ ] Implement CursorTracker with gap detection
+- [ ] Implement Invite generation/parsing
+- [ ] Add chaos assertion helpers to chaos-tests
+- [ ] All tests must pass instantly (no I/O)
 
-**Estimated Time:** 1-2 hours
+**Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` Section 5 (Phase 2)
 
 ---
 
@@ -112,60 +120,48 @@ This handoff from Moneypenny contains:
 
 ---
 
-## 🎯 Immediate Next Steps (Choose One)
+## 🎯 Immediate Next Steps
 
-### Option 1: Create Workspace Structure ⭐ RECOMMENDED (2 hours)
+### Option 1: Implement sync-core ⭐ RECOMMENDED
 
-**Goal:** Cargo workspace with all crate skeletons
+**Goal:** Pure logic crate with zero I/O (instant tests)
 
 **Tasks:**
-- [ ] Create workspace Cargo.toml
-- [ ] Create sync-types crate with skeleton
-- [ ] Create sync-core crate with skeleton
-- [ ] Create sync-client crate with skeleton
-- [ ] Create sync-cli crate with skeleton
-- [ ] Create sync-relay crate with skeleton
-- [ ] Verify `cargo build --workspace`
+- [ ] ConnectionState state machine (connect, disconnect, reconnect with backoff)
+- [ ] MessageBuffer with pending tracking
+- [ ] CursorTracker with gap detection
+- [ ] Invite generation/parsing (QR code, short code)
+- [ ] Chaos assertion helpers in chaos-tests
 
-**Why First:** Need workspace structure before any implementation
+**Key Design:** All functions are pure - state in, (new_state, actions) out. No I/O!
 
-**Commands:**
-```bash
-cd /home/jimmyb/crabnebula/sync-relay
-
-# Create workspace structure
-mkdir -p sync-types/src sync-core/src sync-client/src sync-content/src sync-cli/src tauri-plugin-sync/src sync-relay/src
-```
+**Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` Section 5 (Phase 2)
 
 ---
 
-### Option 2: Implement sync-types (2-3 hours)
+### Option 2: Continue to sync-client (Phase 3)
 
-**Goal:** Complete wire format types with tests
+**Prerequisites:** Phase 2 (sync-core) must be complete first
 
 **Tasks:**
-- [ ] Define Envelope struct
-- [ ] Define all Message types
-- [ ] Implement MessagePack serialization
-- [ ] Write round-trip tests
-- [ ] Document all types
-
-**Prerequisites:**
-- Option 1 must be complete first
+- [ ] Crypto module (Noise XX, XChaCha20-Poly1305, Argon2id)
+- [ ] Transport abstraction (iroh, WebSocket)
+- [ ] SyncClient implementation
+- [ ] Integration tests
 
 ---
 
-### Option 3: ✅ iroh Integration Research COMPLETE
+### ✅ Completed: Phase 1 (sync-types + chaos harness)
 
-**Status:** Done (2026-02-02)
+**Status:** Done (2026-02-03)
 
-**Decisions Made:**
-- [x] Using iroh 1.0 RC (stable API)
-- [x] iroh-blobs for large content transfer
-- [x] Self-hosted iroh-relay and iroh-dns-server option
-- [x] mDNS for LAN discovery
-
-**Reference:** See `docs/research/iroh-deep-dive-report.md` and amendments in spec
+**Deliverables:**
+- [x] Cargo workspace with 7 crates
+- [x] sync-types crate (DeviceId, GroupId, BlobId, Cursor, Envelope, Messages)
+- [x] 28 tests for sync-types
+- [x] Chaos harness skeleton (topology, toxiproxy, pumba, assertions)
+- [x] 24 tests for chaos harness
+- [x] All validation passes (tests, clippy, fmt, doc)
 
 ---
 

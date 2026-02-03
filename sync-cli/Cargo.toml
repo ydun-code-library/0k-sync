@@ -1,0 +1,20 @@
+[package]
+name = "zerok-sync-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "CLI tool for testing 0k-Sync protocol"
+keywords = ["sync", "cli", "testing"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "sync-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Dependencies will be added in Phase 4
+# For now, just a placeholder to allow workspace to compile
+
+[dev-dependencies]

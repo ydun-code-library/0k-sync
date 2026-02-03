@@ -1,0 +1,17 @@
+# Dockerfile for sync-relay chaos testing
+# Stub - will be populated when sync-relay is implemented (Phase 6)
+
+FROM rust:1.75-slim as builder
+
+WORKDIR /app
+
+# For now, just create a placeholder that exits cleanly
+RUN echo '#!/bin/sh\necho "sync-relay stub - not yet implemented"\nwhile true; do sleep 3600; done' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+FROM debian:bookworm-slim
+
+COPY --from=builder /entrypoint.sh /entrypoint.sh
+
+EXPOSE 8080
+
+CMD ["/entrypoint.sh"]

@@ -1,0 +1,16 @@
+[package]
+name = "tauri-plugin-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Tauri plugin for 0k-Sync zero-knowledge sync"
+keywords = ["tauri", "plugin", "sync", "local-first"]
+categories = ["gui"]
+
+[dependencies]
+# Dependencies will be added in Phase 5
+# For now, just a placeholder to allow workspace to compile
+
+[dev-dependencies]

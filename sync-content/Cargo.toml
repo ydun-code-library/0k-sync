@@ -1,0 +1,16 @@
+[package]
+name = "zerok-sync-content"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Large content transfer for 0k-Sync using iroh-blobs"
+keywords = ["sync", "content-addressed", "iroh-blobs", "encryption"]
+categories = ["network-programming", "cryptography"]
+
+[dependencies]
+# Dependencies will be added in Phase 3.5
+# For now, just a placeholder to allow workspace to compile
+
+[dev-dependencies]

@@ -139,5 +139,49 @@ Noise Protocol (encryption)
 
 ---
 
-*Last updated: 2026-02-02*
+## MCP Servers (Q's Toolbox)
+
+The following MCP servers are available for this project. Check these at session start.
+
+### Essential for 0k-Sync
+
+| Server | Tool | Purpose |
+|--------|------|---------|
+| `rust-rag` | `mcp__rust-rag__rust_dev_search` | Rust patterns, serde, tokio, thiserror, async |
+| `iroh-rag` | `mcp__iroh-rag__iroh_ecosystem_search` | iroh P2P, QUIC, blobs, gossip, relay |
+| `crypto-rag` | `mcp__crypto-rag__crypto_protocols_search` | Noise Protocol, hybrid crypto, ML-KEM |
+
+### Future Phases
+
+| Server | Tool | Purpose |
+|--------|------|---------|
+| `tauri-rag` | `mcp__tauri-rag__tauri_dev_search` | Tauri 2.x commands, plugins, state (Phase 5) |
+
+### Not Needed
+
+| Server | Purpose | Why Not |
+|--------|---------|---------|
+| `zk-runtime-rag` | deno_core, arkworks ZK | Different project |
+| `cardano-rag` | Cardano, Plutus, CIPs | Different project |
+| `solidjs-rag` | SolidJS frontend | No frontend work |
+| `lucid-rag` | Lucid Evolution | Different project |
+| `aiken-rag` | Aiken validators | Different project |
+| `vault-core-rag` | vault-core project | Different project |
+
+### Usage Examples
+
+```
+# Search Rust patterns
+mcp__rust-rag__rust_dev_search("serde MessagePack serialization")
+
+# Search iroh documentation
+mcp__iroh-rag__iroh_ecosystem_search("iroh-blobs content-addressed storage")
+
+# Search crypto protocols
+mcp__crypto-rag__crypto_protocols_search("Noise Protocol XX handshake")
+```
+
+---
+
+*Last updated: 2026-02-03*
 *Template Version: 1.7.0*

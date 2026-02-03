@@ -1,0 +1,21 @@
+[package]
+name = "chaos-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Chaos testing harness for 0k-Sync"
+publish = false
+
+[dependencies]
+sync-types = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Docker management
+bollard = { workspace = true }
+
+[dev-dependencies]

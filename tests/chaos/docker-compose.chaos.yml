@@ -1,0 +1,82 @@
+# Chaos Testing Docker Compose Configuration
+# Version: 1.0
+#
+# Topologies:
+# - Pair: 1 relay, 2 clients (default)
+# - Swarm: 1 relay, N clients (for resource exhaustion tests)
+
+services:
+  # Toxiproxy for network chaos injection
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:latest
+    ports:
+      - "8474:8474"   # API port
+      - "19000:19000" # Relay proxy port
+    networks:
+      - chaos-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8474/version"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Sync relay server (stub - populated when sync-relay is built)
+  relay:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.relay
+    ports:
+      - "8080:8080"
+    networks:
+      - chaos-net
+    depends_on:
+      toxiproxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "true"]  # Stub - real health check when relay is implemented
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Client A
+  client-a:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.cli
+    networks:
+      - chaos-net
+    depends_on:
+      relay:
+        condition: service_healthy
+    environment:
+      - RELAY_URL=ws://toxiproxy:19000
+      - CLIENT_NAME=client-a
+      - DATA_DIR=/data
+    volumes:
+      - client-a-data:/data
+
+  # Client B
+  client-b:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.cli
+    networks:
+      - chaos-net
+    depends_on:
+      relay:
+        condition: service_healthy
+    environment:
+      - RELAY_URL=ws://toxiproxy:19000
+      - CLIENT_NAME=client-b
+      - DATA_DIR=/data
+    volumes:
+      - client-b-data:/data
+
+networks:
+  chaos-net:
+    driver: bridge
+    internal: true  # Isolated from external network
+
+volumes:
+  client-a-data:
+  client-b-data:

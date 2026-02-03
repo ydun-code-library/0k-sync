@@ -1,0 +1,22 @@
+[package]
+name = "zerok-sync-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Wire format types for 0k-Sync zero-knowledge sync protocol"
+keywords = ["sync", "zero-knowledge", "e2e-encryption", "local-first"]
+categories = ["encoding", "data-structures"]
+
+[dependencies]
+serde = { workspace = true }
+rmp-serde = { workspace = true }
+uuid = { workspace = true }
+base64 = { workspace = true }
+thiserror = { workspace = true }
+getrandom = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

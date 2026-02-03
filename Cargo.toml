@@ -1,0 +1,64 @@
+[workspace]
+resolver = "2"
+members = [
+    "sync-types",
+    "sync-core",
+    "sync-client",
+    "sync-content",
+    "sync-cli",
+    "tauri-plugin-sync",
+    "tests/chaos",
+    # "sync-relay",  # Enable when implementing Phase 6
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ydun-code-library/0k-sync"
+authors = ["James Barclay <james@ydun.io>"]
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rmp-serde = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+base64 = "0.22"
+
+# Error handling
+thiserror = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Cryptography (PINNED VERSIONS - security critical)
+clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
+argon2 = "0.5"                   # Key derivation with device-adaptive parameters
+
+# P2P networking (use latest stable)
+iroh = "0.96"                    # iroh - stable transport layer
+iroh-blobs = "0.98"              # Content-addressed storage with BLAKE3/Bao
+
+# Random number generation
+rand = "0.8"
+getrandom = "0.2"
+
+# Content key derivation
+hkdf = "0.12"
+sha2 = "0.10"
+blake3 = "1"                     # Hash ciphertext for iroh-blobs content address
+
+# Chaos testing infrastructure
+bollard = "0.16"                 # Docker API client for topology management
+
+# Internal crates (package names use zerok-sync-* prefix for crates.io)
+sync-types = { path = "sync-types", package = "zerok-sync-types" }
+sync-core = { path = "sync-core", package = "zerok-sync-core" }
+sync-client = { path = "sync-client", package = "zerok-sync-client" }
+sync-content = { path = "sync-content", package = "zerok-sync-content" }

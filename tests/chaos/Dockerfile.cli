@@ -1,0 +1,15 @@
+# Dockerfile for sync-cli chaos testing
+# Stub - will be populated when sync-cli is implemented (Phase 4)
+
+FROM rust:1.75-slim as builder
+
+WORKDIR /app
+
+# For now, just create a placeholder
+RUN echo '#!/bin/sh\necho "sync-cli stub - not yet implemented"\nsleep infinity' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+FROM debian:bookworm-slim
+
+COPY --from=builder /entrypoint.sh /entrypoint.sh
+
+CMD ["/entrypoint.sh"]

@@ -1,0 +1,16 @@
+[package]
+name = "zerok-sync-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Client library for 0k-Sync zero-knowledge sync protocol"
+keywords = ["sync", "zero-knowledge", "e2e-encryption", "local-first", "iroh"]
+categories = ["network-programming", "cryptography"]
+
+[dependencies]
+# Dependencies will be added in Phase 3
+# For now, just a placeholder to allow workspace to compile
+
+[dev-dependencies]
