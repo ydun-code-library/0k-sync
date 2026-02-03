@@ -270,11 +270,12 @@ See: https://github.com/dalek-cryptography/curve25519-dalek/pull/878
 None
 
 ### 🟡 Important Issues
-1. **pair --join EndpointId** — `pair --join` command saves placeholder instead of actual EndpointId. Manual fix required for E2E testing. (Phase 5 cleanup item)
+None
 
 ### ✅ Resolved Issues (2026-02-03)
 1. **curve25519-dalek build failure** — iroh 0.96 pulls curve25519-dalek 5.0.0-pre.1 which has incompatible digest import. Fixed with cargo patch pointing to fork with PR #878.
 2. **Stream acknowledgment race** — Server response not reaching client due to connection cleanup before QUIC transmission. Fixed by adding `send.stopped().await` after `finish()`.
+3. **pair --join EndpointId** — Command now properly handles 64-char hex EndpointId strings, saving them directly as relay_address.
 
 ### 📝 Technical Debt
 1. iroh version (0.96) is pre-1.0 — minor API changes possible before stable release

@@ -352,11 +352,11 @@ None
 
 ### 🟡 Important Issues
 1. **iroh 0.96** requires cargo patch for curve25519-dalek (configured in Cargo.toml)
-2. `pair --join` doesn't save EndpointId correctly (Phase 5 cleanup)
 
 ### ✅ Resolved Issues
 1. **curve25519-dalek build failure** — Fixed with cargo patch (PR #878 upstream)
 2. **Stream acknowledgment race** — Fixed with `send.stopped().await`
+3. **pair --join EndpointId** — Now properly saves EndpointId as relay_address
 
 ### 📝 Technical Debt
 1. iroh 0.96 is pre-1.0 — minor API changes possible
