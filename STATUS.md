@@ -8,8 +8,8 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Project Phase:** PHASE 5 COMPLETE
-**Completion:** 95% (Phases 1-5 complete; chaos scenarios implemented; ready for Phase 6)
+**Project Phase:** PHASE 5 + 3.5 COMPLETE
+**Completion:** 98% (Phases 1-5 + 3.5 complete; ready for Phase 6)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
 **Next Phase:** Phase 6 (sync-relay)
 
@@ -69,7 +69,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - zerok-sync-types (fully implemented)
 - zerok-sync-core (skeleton)
 - zerok-sync-client (skeleton)
-- zerok-sync-content (skeleton)
+- zerok-sync-content (23 tests)
 - zerok-sync-cli (skeleton)
 - tauri-plugin-sync (skeleton)
 - chaos-tests (78 tests: 50 passing, 28 ignored for Phase 6)
@@ -145,6 +145,23 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ---
 
+### Phase 3.5: sync-content ✅ COMPLETE
+- **Duration:** 1 session
+- **Output:** Encrypt-then-hash content transfer for large files
+- **Status:** Complete (2026-02-03)
+
+**Tasks:**
+- [x] ContentRef/ContentAck types in sync-types
+- [x] Content key derivation via HKDF (GroupSecret + blob_id)
+- [x] XChaCha20-Poly1305 encryption with BLAKE3 hash of ciphertext
+- [x] BlobStore trait with MemoryStore implementation
+- [x] ContentTransfer API (add/get operations)
+- [x] 23 unit tests
+
+**Key Design:** Encrypt-then-hash pattern — ciphertext is hashed with BLAKE3 for content addressing, enabling iroh-blobs integration.
+
+---
+
 ### Phase 6: sync-relay + Full Chaos ⚪ NOT STARTED
 - **Duration:** Estimated 2-3 sessions
 - **Output:** Custom relay server, full topology chaos
@@ -204,11 +221,11 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Project Metrics
 
 ### Code Metrics
-- **Total Lines of Code:** ~6,300+ (sync-types, sync-core, sync-client, sync-cli, chaos-tests)
-- **Test Count:** 246 tests (28 sync-types + 60 sync-core + 60 sync-client + 20 sync-cli + 78 chaos-tests)
-- **Passing:** 213 | **Ignored:** 33 (28 chaos stubs for Phase 6, 5 sync-client E2E)
+- **Total Lines of Code:** ~7,100+ (sync-types, sync-core, sync-client, sync-content, sync-cli, chaos-tests)
+- **Test Count:** 269 tests (31 sync-types + 60 sync-core + 60 sync-client + 23 sync-content + 20 sync-cli + 78 chaos-tests)
+- **Passing:** 235 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
 - **Test Coverage:** 100% for public APIs
-- **Crates:** 4 of 6 implemented (sync-types, sync-core, sync-client, sync-cli complete)
+- **Crates:** 5 of 6 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli complete)
 
 ### Documentation Metrics
 - **Total Documentation:** ~6,300+ lines across 6 core docs
@@ -330,6 +347,16 @@ None
 ---
 
 ## Session History
+
+### Session 13: 2026-02-03 (Phase 3.5 - sync-content - Q)
+- Implemented encrypt-then-hash content transfer pipeline
+- ContentRef/ContentAck types added to sync-types (3 new tests)
+- Content key derivation via HKDF (GroupSecret + blob_id)
+- XChaCha20-Poly1305 encryption with BLAKE3 ciphertext hash
+- BlobStore trait with MemoryStore for testing
+- ContentTransfer API with add/get/contains/remove
+- 23 new tests, all passing
+- **Output:** Phase 3.5 complete, large file support ready
 
 ### Session 12: 2026-02-03 (Chaos Scenarios Implementation - Q)
 - Implemented Phase 3/3.5 chaos scenarios (78 total tests)
