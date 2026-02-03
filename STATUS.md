@@ -9,7 +9,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 **Last Updated:** 2026-02-03
 **Project Phase:** DESIGN COMPLETE + ORGANIZED
-**Completion:** 25% (Documentation complete, release strategy defined, audit passed)
+**Completion:** 30% (Documentation complete, chaos testing integrated into implementation plan)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
 **Next Phase:** Implementation - sync-types crate first (Q's entry point)
 
@@ -123,9 +123,9 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Current Sprint/Session Status
 
 ### Active Tasks (Current Session)
-- ✅ Dead Drop processed
-- ✅ Pre-flight audit completed
-- ✅ All 14 issues fixed
+- ✅ Dead Drop processed (3 files total)
+- ✅ Pre-flight audit completed (14 issues fixed)
+- ✅ Chaos integration amendments applied (13 amendments)
 
 ### Completed This Session (2026-02-03)
 - [x] Created GitHub repo: ydun-code-library/0k-sync
@@ -135,7 +135,15 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - [x] Fixed 6 errors (section numbering, enum syntax, versions, imports)
 - [x] Fixed 5 minor issues (crypto table, repo structure, known issues)
 - [x] Updated DOCS-MAP.md with new documents
-- [x] Pushed to new canonical repo
+- [x] Applied CHAOS-INTEGRATION-AMENDMENTS.md (13 amendments):
+  - Added tests/chaos/ to project structure
+  - Added chaos-tests to workspace Cargo.toml
+  - Added chaos deliverables to Phases 1-6
+  - Added chaos dimension to test pyramid
+  - Added chaos-smoke CI job
+  - Updated summary table with chaos column
+  - Implementation plan now v2.2.0 (chaos appears 83 times, was 0)
+- [x] Pushed all changes to ydun-code-library/0k-sync
 
 ### Blockers
 - None at this time
@@ -150,13 +158,13 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - **Crates:** 0 of 6 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay)
 
 ### Documentation Metrics
-- **Total Documentation:** ~5,600+ lines across 6 core docs
+- **Total Documentation:** ~6,300+ lines across 6 core docs
 - **Executive Summary:** 263 lines
 - **Specification:** 1,684 lines
-- **Implementation Plan:** 2,013 lines
+- **Implementation Plan:** 2,213 lines (v2.2.0, +200 chaos integration)
 - **Research Validation:** 652 lines
-- **Release Strategy:** 930 lines (NEW)
-- **Chaos Testing Strategy:** 775 lines (NEW)
+- **Release Strategy:** 930 lines
+- **Chaos Testing Strategy:** 778 lines (v1.5.0)
 - **AGENTS.md:** ~470 lines (template v1.7.0)
 - **Time Invested:** Multiple sessions
 
@@ -232,13 +240,19 @@ None (fresh project)
 
 ## Session History
 
-### Session 4: 2026-02-03 (Dead Drop + Audit Fixes)
-- Processed Dead Drop: 05-RELEASE-STRATEGY.md, 06-CHAOS-TESTING-STRATEGY.md
+### Session 4: 2026-02-03 (Dead Drop + Audit Fixes + Chaos Integration)
+- Processed Dead Drop: 05-RELEASE-STRATEGY.md, 06-CHAOS-TESTING-STRATEGY.md, CHAOS-INTEGRATION-AMENDMENTS.md
 - Created GitHub repo: ydun-code-library/0k-sync
-- Completed pre-flight audit (14 issues found)
-- Fixed all blockers, errors, and minor issues
-- Updated origin remote to new repo
-- **Output:** Repo ready for Q implementation, all docs consistent
+- Completed pre-flight audit (14 issues found and fixed)
+- Applied 13 chaos integration amendments to implementation plan:
+  - tests/chaos/ added to project structure and workspace
+  - Chaos deliverables added to each phase (1-6)
+  - Chaos dimension added to test pyramid
+  - CI chaos-smoke job added
+  - Summary table now includes chaos column
+- Implementation plan: v2.1.0 → v2.2.0 (+200 lines, "chaos" appears 83 times)
+- Chaos strategy: v1.4.0 → v1.5.0 (cross-reference added)
+- **Output:** Repo ready for Q implementation, chaos testing fully integrated
 
 ### Session 3: 2026-02-02 (Organization & Template Alignment)
 - Updated JIMMYS-WORKFLOW.md v1.1 → v2.1 (PRE-FLIGHT phase added)
