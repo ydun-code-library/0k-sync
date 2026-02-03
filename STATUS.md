@@ -8,10 +8,10 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
 **Last Updated:** 2026-02-03
-**Project Phase:** PHASE 5 + 3.5 COMPLETE
-**Completion:** 98% (Phases 1-5 + 3.5 complete; ready for Phase 6)
+**Project Phase:** PHASE 6 IN PROGRESS
+**Completion:** 99% (Phases 1-5 + 3.5 complete; Phase 6 MVP functional)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
-**Next Phase:** Phase 6 (sync-relay)
+**Current Focus:** Phase 6 (sync-relay) - MVP running
 
 ---
 
@@ -162,20 +162,29 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ---
 
-### Phase 6: sync-relay + Full Chaos ⚪ NOT STARTED
-- **Duration:** Estimated 2-3 sessions
+### Phase 6: sync-relay + Full Chaos 🟡 IN PROGRESS
+- **Duration:** Current session (2026-02-03)
 - **Output:** Custom relay server, full topology chaos
-- **Status:** Not started
+- **Status:** MVP functional, 28 tests passing
 
-**Tasks:**
-- [ ] iroh Endpoint server
-- [ ] Noise XX handshake implementation
-- [ ] SQLite storage layer
-- [ ] Message routing logic
-- [ ] Health/metrics endpoints (axum)
+**Completed Tasks:**
+- [x] Crate scaffold with dependencies (iroh, sqlx, axum, dashmap)
+- [x] SQLite storage layer with WAL mode (12 tests)
+- [x] BlobStorage trait: store_blob, get_blobs_after, cleanup_expired
+- [x] Protocol handler (ProtocolHandler trait, ALPN /0k-sync/1)
+- [x] Session state machine (AwaitingHello → Active → Closing)
+- [x] Message handlers (HELLO→WELCOME, PUSH→PUSH_ACK, PULL→PULL_RESPONSE)
+- [x] Server coordination (SyncRelay with session tracking)
+- [x] HTTP endpoints (axum): /health, /metrics, /.well-known/iroh
+- [x] Main entry point with graceful shutdown
+- [x] Welcome message type added to sync-types
+
+**Remaining Tasks:**
+- [ ] Rate limiting (connections per IP, messages per minute)
+- [ ] Cleanup task (TTL-based blob expiration)
 - [ ] Docker containerization
-- [ ] Full topology chaos (multi-node, partitions)
-- [ ] Toxiproxy network injection
+- [ ] Integration tests (two CLI instances through relay)
+- [ ] Activate 28 chaos test stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
 
 ---
 
@@ -200,13 +209,13 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - ✅ All phases committed and tagged
 
 ### Completed This Session (2026-02-03)
-- [x] Phase 5: IrohTransport E2E verified (Mac Mini ↔ Beast)
-- [x] Fixed `pair --join` to save EndpointId correctly
-- [x] Full documentation review (iroh version consistency)
-- [x] Chaos scenarios implemented (26 tests: E-HS-*, E-ENC-*, E-PQ-*, S-BLOB-*, C-STOR-*, C-COLL-*)
-- [x] Transport/sync stubs created (28 tests for Phase 6: T-*, S-SM-*, S-CONC-*, S-CONV-*)
-- [x] All tests pass (213 passing, 33 ignored), clippy clean
-- [x] Pushed to both remotes
+- [x] Phase 6: sync-relay MVP implementation
+  - Step 1: Crate scaffold + config (commit 16da7e4)
+  - Steps 2-4: SQLite storage layer (commit 9a530a8)
+  - Steps 5-6: Protocol handler + session (commit caf1d8e)
+  - Steps 12-14: HTTP endpoints + main (commit 724b205)
+- [x] Added Welcome message type to sync-types
+- [x] All tests pass (268 passing, 34 ignored), clippy clean
 
 ### Blockers
 - None at this time
