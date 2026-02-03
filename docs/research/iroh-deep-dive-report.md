@@ -7,6 +7,30 @@
 
 ---
 
+## Reality Check (2026-02-03)
+
+> **This section added post-implementation to document actual versions used.**
+
+The recommendations in this document remain valid, but version numbers have evolved:
+
+| Recommendation | Actual Implementation |
+|---------------|----------------------|
+| iroh ~0.95, approaching 1.0 RC | **iroh 0.96** — pre-1.0, stable API |
+| iroh-blobs ~0.97 | **iroh-blobs 0.98** — verified streaming works |
+| "approaching 1.0 RC" | 1.0 RC not yet released as of 2026-02-03 |
+
+**Cargo Patch Required:** iroh 0.96 requires a cargo patch for `curve25519-dalek 5.0.0-pre.1`:
+```toml
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
+```
+
+**E2E Validation Completed:** Cross-device sync tested successfully (Mac Mini → Beast server) using iroh QUIC transport with the versions above.
+
+The original analysis below remains accurate regarding architecture, security model, and integration approach. Only version numbers needed adjustment.
+
+---
+
 ## 1. Executive Summary
 
 After a thorough audit of iroh's entire ecosystem — core networking, blobs, gossip, docs, discovery, relay infrastructure, security model, and 1.0 roadmap — the conclusion is nuanced:

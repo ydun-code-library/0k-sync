@@ -8,6 +8,8 @@
 **Executor:** Moneypenny (Claude Code CLI)
 **Verifier:** Q workstation
 
+> **Version Note:** This amendment uses iroh 0.96 and iroh-blobs 0.98 (requires cargo patch for curve25519-dalek). See workspace Cargo.toml `[patch.crates-io]` section.
+
 ---
 
 ## The Problem
@@ -336,7 +338,7 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 
 **With:**
 ```toml
-iroh = "1.0"                     # Endpoint for accepting client connections (QUIC)
+iroh = "0.96"                    # Endpoint for accepting client connections (QUIC)
 ```
 
 The sync-relay is an iroh Endpoint. It accepts QUIC connections from clients, not WebSocket connections. `axum` stays — it serves health/metrics HTTP endpoints, not WebSocket upgrades.
@@ -459,7 +461,7 @@ This aligns the Invite struct with the `RelayBackend` enum change (S3). The invi
 
 **With:**
 ```
-- Transport abstraction (iroh 1.0 RC)
+- Transport abstraction (iroh 0.96 with cargo patch)
 ```
 
 Also update the Phase 3 commit message to remove any WebSocket reference.
@@ -650,7 +652,7 @@ transport architecture simplification to iroh QUIC (all tiers).
 | Item | Document | Purpose |
 |------|----------|---------|
 | `iroh::NodeId` addressing | Spec (RelayBackend enum) | Native iroh peer addressing |
-| `iroh = "1.0"` | Spec (sync-relay deps) | Relay is an iroh Endpoint |
+| `iroh = "0.96"` | Spec (sync-relay deps) | Relay is an iroh Endpoint |
 | `MockTransport` | Impl Plan (Phase 3) | Testing without real network |
 | `/.well-known/iroh` | Impl Plan (Phase 6) | NodeId discovery endpoint |
 | Deferred note on tungstenite | Research doc | Preserve research, mark unused |

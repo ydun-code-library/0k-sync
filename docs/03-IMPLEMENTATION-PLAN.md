@@ -1141,8 +1141,8 @@ mod tests {
 #### Step 3: Integration Test (Two Clients)
 
 > **iroh Version Strategy:**
-> - Using **iroh 1.0 RC** for production stability
-> - Stable API, ready for production use
+> - Using **iroh 0.96** (requires cargo patch for curve25519-dalek)
+> - Pre-1.0 but stable, E2E tested
 > - Self-hosted infrastructure option via iroh-relay and iroh-dns-server
 
 ```rust
@@ -1150,7 +1150,7 @@ mod tests {
 
 #[tokio::test]
 async fn two_clients_sync_via_iroh() {
-    // This test uses iroh 1.0 RC - requires network
+    // This test uses iroh 0.96 - requires network
     // Uses mDNS for local discovery when on same LAN
     if std::env::var("RUN_NETWORK_TESTS").is_err() {
         return; // Skip in CI without network
@@ -1230,8 +1230,8 @@ git commit -m "Add sync-client library
 - SyncClient with push/pull/subscribe API
 - GroupKey E2E encryption (XChaCha20-Poly1305, 192-bit nonces)
 - Device-adaptive Argon2id key derivation (12-64 MiB)
-- Hybrid Noise Protocol XX (clatter v2.1+, ML-KEM-768 + X25519)
-- Transport abstraction (iroh 1.0 RC)
+- Hybrid Noise Protocol XX (clatter v2.2, ML-KEM-768 + X25519)
+- Transport abstraction (iroh 0.96 with cargo patch)
 - Thundering herd mitigation with jitter
 - Integration test: two clients syncing
 - Encryption chaos scenarios (16 mock-based: E-HS, E-ENC, E-PQ)

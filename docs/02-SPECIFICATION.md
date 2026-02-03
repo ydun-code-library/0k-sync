@@ -1125,7 +1125,7 @@ Uses iroh public network. No relay infrastructure needed.
 
 > **iroh Version Strategy:**
 > - Using **iroh 0.96** (pre-1.0, requires cargo patch for curve25519-dalek)
-> - iroh-blobs 1.0 for large content transfer
+> - iroh-blobs 0.98 for large content transfer
 > - Self-hosted infrastructure available via iroh-relay and iroh-dns-server
 
 ### 11.2 Tier 2: Home Developer

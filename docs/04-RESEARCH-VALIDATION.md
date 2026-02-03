@@ -634,7 +634,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 
 **Before MVP Release:**
 
-- [x] iroh pinned to stable version (1.0 RC)
+- [x] iroh pinned to stable version (0.96 with cargo patch)
 - [x] clatter for hybrid Noise (ML-KEM-768 + X25519)
 - [ ] XChaCha20-Poly1305 implemented (not standard ChaCha20)
 - [ ] Device-adaptive Argon2id parameters implemented
@@ -664,7 +664,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 
 **v2.2.0 (2026-02-03):** Marked tokio-tungstenite/WebSocket research as deferred per transport architecture simplification to iroh QUIC (all tiers). Updated architecture diagram to show iroh/QUIC.
 
-**v2.1.0 (2026-02-02):** Updated iroh to 1.0 RC stable. Migrated from snow to clatter for hybrid Noise (ML-KEM-768 + X25519).
+**v2.1.0 (2026-02-02):** Updated iroh to 0.96 (requires cargo patch). Migrated from snow to clatter for hybrid Noise (ML-KEM-768 + X25519).
 
 ---
 

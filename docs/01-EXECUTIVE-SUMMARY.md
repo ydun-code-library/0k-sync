@@ -80,18 +80,21 @@ Three gates must be addressed before GA release:
 
 | Component | Choice | Version | Validation |
 |-----------|--------|---------|------------|
-| P2P networking | [iroh](https://github.com/n0-computer/iroh) | **1.0 RC** | 200K+ connections, stable API |
+| P2P networking | [iroh](https://github.com/n0-computer/iroh) | **0.96** | 200K+ connections, stable API |
 | Transport encryption | [clatter](https://github.com/jmwample/clatter) (Hybrid Noise XX) | **2.1+** | ML-KEM-768 + X25519, post-quantum |
-| Large content | [iroh-blobs](https://github.com/n0-computer/iroh-blobs) | **1.0** | BLAKE3/Bao verified streaming |
+| Large content | [iroh-blobs](https://github.com/n0-computer/iroh-blobs) | **0.98** | BLAKE3/Bao verified streaming |
 | Blob encryption | XChaCha20-Poly1305 | RustCrypto | 192-bit nonces, no coordination needed |
 | Key derivation | Argon2id | RustCrypto | Device-adaptive parameters |
-| Transport | [iroh](https://github.com/n0-computer/iroh) | 1.0 RC | QUIC P2P + relay fallback |
+| Transport | [iroh](https://github.com/n0-computer/iroh) | **0.96** | QUIC P2P + relay fallback |
 | Storage | SQLite + WAL | via sqlx | 70K+ writes/sec |
 
 **iroh Version Strategy:**
-- Production: iroh 1.0 RC (stable API, production ready)
-- Content transfer: iroh-blobs 1.0 for large files
+- Production: iroh 0.96 (requires cargo patch for curve25519-dalek)
+- Content transfer: iroh-blobs 0.98 for large files
 - Discovery: mDNS (LAN), DNS, optional DHT
+
+> **⚠️ Dependency Note:** iroh 0.96 requires a cargo patch for curve25519-dalek 5.0.0-pre.1.
+> See workspace Cargo.toml `[patch.crates-io]` section. PR #878 submitted upstream.
 
 ---
 
@@ -213,8 +216,8 @@ From research validation:
 1. **Thundering Herd Mitigation** — Client-side exponential backoff with jitter on reconnect
 2. **Device-Adaptive Argon2** — 12 MiB (low-end) to 64 MiB (desktop) based on available RAM
 3. **XChaCha20 Nonces** — 192-bit random nonces, never 96-bit
-4. **clatter 2.1+** — Hybrid Noise Protocol with ML-KEM-768 + X25519 (post-quantum)
-5. **iroh 1.0 RC** — Stable API, production ready transport layer
+4. **clatter 2.2** — Hybrid Noise Protocol with ML-KEM-768 + X25519 (post-quantum)
+5. **iroh 0.96** — Pre-1.0 but stable, requires cargo patch (see Cargo.toml)
 
 ---
 
@@ -224,7 +227,7 @@ From research validation:
 |------|----------|------------|
 | Post-quantum transition | Low | clatter provides ML-KEM-768 hybrid (future-proof) |
 | FIPS compliance gap | Critical (for Gov/Finance) | Feature flag for AES-GCM/PBKDF2 build |
-| iroh ecosystem maturity | Low | Using stable 1.0 RC; self-hosted option available |
+| iroh ecosystem maturity | Low | Using stable 0.96; self-hosted option available |
 | Mobile battery impact | Medium | Wake-on-Push architecture; quantify in beta |
 | Thundering herd | Medium | Client-side jitter required |
 
@@ -238,7 +241,7 @@ From research validation:
 | Who is it for? | Local-first developers (any framework) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |
-| What's validated? | iroh 1.0, clatter (hybrid Noise), XChaCha20, Argon2id |
+| What's validated? | iroh 0.96 (E2E tested), clatter 2.2 (hybrid Noise), XChaCha20, Argon2id |
 | What's blocked? | FIPS compliance (enterprise only) |
 
 **0k-Sync completes local-first apps: Build → Store Locally → Sync Securely.**
@@ -247,8 +250,8 @@ From research validation:
 
 ## References
 
-- [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking (1.0 RC)
-- [iroh-blobs](https://github.com/n0-computer/iroh-blobs) — Content-addressed storage (1.0)
+- [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking (0.96)
+- [iroh-blobs](https://github.com/n0-computer/iroh-blobs) — Content-addressed storage (0.98)
 - [clatter crate](https://github.com/jmwample/clatter) — Hybrid Noise Protocol (2.1+)
 - [Noise Protocol](https://noiseprotocol.org/noise.html) — Encryption framework
 - [04-RESEARCH-VALIDATION.md](./04-RESEARCH-VALIDATION.md) — Full technology validation
