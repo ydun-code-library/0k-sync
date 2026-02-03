@@ -682,6 +682,9 @@ When a chaos test fails:
 
 ## 15. Development Phasing: When to Write Chaos Tests
 
+> **Cross-reference:** As of v2.2.0, 03-IMPLEMENTATION-PLAN.md includes chaos deliverables
+> in each phase's validation gate and checkpoint, matching the phase-by-phase mapping below.
+
 ### 15.1 Principle: Assertions First, Infrastructure Second, Topology Last
 
 Chaos tests follow the same TDD discipline as everything else in 0k-Sync: **write the assertion before you write the thing it tests.** A chaos scenario's assertion ("after 200ms latency heals, all blobs must be present on both clients") is a resilience requirement. Writing it early forces you to design for recovery from the start.
@@ -771,4 +774,4 @@ Beast (nightly):   Full Docker topology, all 68         →  ~2 hrs
 
 ---
 
-*Document: 06-CHAOS-TESTING-STRATEGY.md | Version: 1.4.0 | Date: 2026-02-02*
+*Document: 06-CHAOS-TESTING-STRATEGY.md | Version: 1.5.0 | Date: 2026-02-03*
