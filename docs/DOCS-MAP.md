@@ -1,6 +1,6 @@
 # Sync-Relay Documentation Map
 
-**Version**: 1.2
+**Version**: 1.3
 **Last Updated**: 2026-02-03
 **Purpose**: Navigation index for humans and AI assistants
 
@@ -15,11 +15,12 @@
 4. `03-IMPLEMENTATION-PLAN.md` — TDD implementation guide
 
 ### For AI Assistants (Q's Entry Point)
-1. `../AGENTS.md` — Development principles, project context
-2. `../CLAUDE.md` — Quick reference, commands
-3. `DOCS-MAP.md` — This file (navigation)
-4. `02-SPECIFICATION.md` — Protocol details
-5. `03-IMPLEMENTATION-PLAN.md` — What to build, in what order
+1. `handoffs/P2-MONEY-Q-0k-sync-implementation-handoff.md` — **READ FIRST** — Handoff from Moneypenny
+2. `../AGENTS.md` — Development principles, project context
+3. `../CLAUDE.md` — Quick reference, commands
+4. `DOCS-MAP.md` — This file (navigation)
+5. `02-SPECIFICATION.md` — Protocol details
+6. `03-IMPLEMENTATION-PLAN.md` — What to build, in what order
 
 ### For Understanding Research Context
 1. `research/iroh-deep-dive-report.md` — iroh ecosystem, integration decisions
@@ -162,6 +163,9 @@ research/tactical-mesh-profile-appendix-d.md
 - `STATUS.md` — Progress tracking
 - `NEXT-SESSION-START-HERE.md` — Session continuity
 
+### Handoff Documents (docs/handoffs/)
+- `P2-MONEY-Q-0k-sync-implementation-handoff.md` — Q's implementation handoff from Moneypenny
+
 ### Archive (Completed Plans)
 - `archive/00-PLAN.md` — Documentation plan (executed)
 - `archive/IROH-AMENDMENTS-PLAN.md` — Amendment plan (executed 2026-02-02)
@@ -189,6 +193,6 @@ research/tactical-mesh-profile-appendix-d.md
 
 ---
 
-**Navigation Index Version**: 1.2
-**Active Documents**: 17 (excludes archive/ and reference/)
+**Navigation Index Version**: 1.3
+**Active Documents**: 18 (excludes archive/ and reference/)
 **Last Audit**: 2026-02-03
