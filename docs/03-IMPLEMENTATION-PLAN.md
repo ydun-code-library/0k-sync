@@ -216,7 +216,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # Cryptography (PINNED VERSIONS - security critical)
-clatter = "2.1"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
@@ -237,8 +237,8 @@ hkdf = "0.12"
 sha2 = "0.10"
 blake3 = "1"                     # Hash ciphertext for iroh-blobs content address
 
-# Chaos testing infrastructure
-toxiproxy-rs = "0.2"             # Toxiproxy API client (verify version on crates.io)
+# Chaos testing infrastructure (Phase 5-6, add when needed)
+# toxiproxy-rs = "0.2"           # Toxiproxy API client (add for network fault injection)
 bollard = "0.16"                 # Docker API client for topology management
 ```
 
@@ -928,7 +928,7 @@ pub struct MockTransport { /* ... */ }
 #### Step 1: Crypto Module
 
 > ⚠️ **Critical Version Pins:**
-> - `clatter = "2.1"` — Hybrid Noise Protocol with ML-KEM-768 + X25519
+> - `clatter = "2.2"` — Hybrid Noise Protocol with ML-KEM-768 + X25519
 > - XChaCha20-Poly1305 — 192-bit nonces (not 96-bit ChaCha20)
 > - Device-adaptive Argon2id — 12 MiB to 64 MiB based on RAM
 

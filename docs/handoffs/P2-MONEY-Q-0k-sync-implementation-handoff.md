@@ -91,7 +91,7 @@ Each phase includes chaos deliverables. See implementation plan for details.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Transport | iroh (QUIC) | P2P + relay fallback, NAT traversal |
-| Encryption | Noise XX (clatter 2.1) | Mutual auth, hybrid post-quantum |
+| Encryption | Noise XX (clatter 2.2) | Mutual auth, hybrid post-quantum |
 | Ordering | Cursors, not timestamps | Relay-assigned, monotonic |
 | Storage | SQLite (sqlx 0.7) | Embedded, reliable |
 | Serialization | MessagePack | Compact, schema-flexible |
