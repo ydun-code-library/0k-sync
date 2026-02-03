@@ -15,7 +15,29 @@ PURPOSE: Provide quick context and continuity between development sessions
 
 ---
 
-## 📋 Q's Handoff Document (READ FIRST)
+## 🔴 CODE REVIEW FEEDBACK (READ FIRST)
+
+**File:** `docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md`
+
+James completed a full code review of sync-relay. **7 issues identified**, none architectural:
+
+| # | Issue | Severity | Effort |
+|---|-------|----------|--------|
+| 1 | Quota enforcement not wired up | Medium | 30 min |
+| 2 | Cleanup N+1 queries | Low-Medium | 15 min |
+| 3 | Pull delivery batching | Low-Medium | 15 min |
+| 4 | Error variant for internal errors | Low | 10 min |
+| 5 | notify_group implementation | Known | 1-2 hrs |
+| 6 | total_sessions accuracy | Low | Optional |
+| 7 | Graceful shutdown | Low-Medium | 30 min |
+
+**Verdict:** Solid MVP. Clean architecture, good test coverage. These are "finish the wiring" items.
+
+**Action:** Address issues #1-4, #7 first (quick wins ~1.5 hrs), then rate limiting, then Docker.
+
+---
+
+## 📋 Q's Handoff Document
 
 **File:** `docs/handoffs/P2-MONEY-Q-0k-sync-implementation-handoff.md`
 
@@ -24,8 +46,6 @@ This handoff from Moneypenny contains:
 - Implementation order with chaos deliverables
 - Key technical decisions already made
 - Critical rules and first task instructions
-
-**⚠️ Q must verify everything and inventory available MCP servers before starting.**
 
 ---
 
@@ -122,11 +142,22 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 - [x] 30 tests in sync-relay
 
 ### Phase 6 Remaining Tasks
+
+**Code Review Fixes (do first - ~1.5 hrs):**
+- [ ] Issue #1: Wire up quota enforcement in `handle_push` (30 min)
+- [ ] Issue #2: Batch cleanup queries (15 min)
+- [ ] Issue #3: Batch delivery marking in `handle_pull` (15 min)
+- [ ] Issue #4: Add `ProtocolError::Internal` variant (10 min)
+- [ ] Issue #7: Implement graceful shutdown (30 min)
+
+**Original Remaining Tasks:**
 - [ ] Rate limiting (connections per IP, messages per minute)
 - [ ] Docker containerization (Dockerfile)
 - [ ] Integration tests (two CLI instances through relay)
+- [ ] Issue #5: Implement `notify_group` (1-2 hrs)
 - [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
 
+**Reference:** See `docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md` for full details
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 6 details
 **Reference:** See `docs/06-CHAOS-TESTING-STRATEGY.md` for chaos scenarios
 
@@ -134,66 +165,75 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ## 📁 Key Project Files (Quick Access)
 
-### Start Here if You're New (Q's Entry Point)
-1. **docs/DOCS-MAP.md** - Navigation index (READ FIRST)
-2. **AGENTS.md** - Development guidelines and context
-3. **docs/02-SPECIFICATION.md** - Full technical specification
-4. **docs/03-IMPLEMENTATION-PLAN.md** - TDD implementation guide
-5. **docs/research/iroh-deep-dive-report.md** - Amendment source (spec changes pending)
-6. **STATUS.md** - Current progress and metrics
+### Start Here Tomorrow
+1. **docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md** - Code review feedback (READ FIRST)
+2. **docs/DOCS-MAP.md** - Navigation index
+3. **AGENTS.md** - Development guidelines and context
+4. **docs/02-SPECIFICATION.md** - Full technical specification
+5. **STATUS.md** - Current progress and metrics
 
-### Implementation Files (after setup)
-5. **Cargo.toml** - Workspace root
-6. **sync-types/src/lib.rs** - Wire format types
-7. **sync-core/src/lib.rs** - Pure logic (no I/O)
+### Implementation Files
+- **sync-relay/src/session.rs** - Fix quota checks (Issue #1), delivery batching (Issue #3)
+- **sync-relay/src/storage/sqlite.rs** - Fix cleanup N+1 (Issue #2)
+- **sync-relay/src/error.rs** - Add Internal variant (Issue #4)
+- **sync-relay/src/main.rs** - Fix graceful shutdown (Issue #7)
 
 ---
 
 ## 🎯 Immediate Next Steps
 
-### Option 1: Implement sync-relay Server ⭐ RECOMMENDED
+### Step 1: Address Code Review Findings ⭐ START HERE
 
-**Goal:** Custom relay server for multi-device sync
+**Goal:** Fix 5 quick-win issues from code review (~1.5 hrs total)
 
 **Tasks:**
-- [ ] iroh Endpoint server (accept incoming connections)
-- [ ] Noise XX handshake for mutual authentication
-- [ ] SQLite storage layer (blob persistence)
-- [ ] Message routing (Push/Pull/Notify)
-- [ ] Health/metrics endpoints (axum)
+1. [ ] Issue #1: Add quota checks in `session.rs:handle_push()` (30 min)
+2. [ ] Issue #2: Batch cleanup queries in `storage/sqlite.rs` (15 min)
+3. [ ] Issue #3: Batch delivery marking in `session.rs:handle_pull()` (15 min)
+4. [ ] Issue #4: Add `ProtocolError::Internal` variant in `error.rs` (10 min)
+5. [ ] Issue #7: Implement graceful shutdown in `main.rs` (30 min)
 
-**Key Design:** Relay is zero-knowledge - sees only ciphertext.
-
-**Reference:** Use `mcp__iroh-rag__iroh_ecosystem_search` for iroh server patterns
+**Reference:** `docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md`
 
 ---
 
-### Option 2: Full Topology Chaos (Docker)
+### Step 2: Rate Limiting
 
-**Prerequisites:** sync-relay working
+**Goal:** Implement connection and message rate limits
 
 **Tasks:**
-- [ ] Docker containerization (Dockerfile.relay)
+- [ ] Create `limits.rs` with governor crate
+- [ ] Connections per IP (max 10)
+- [ ] Messages per device per minute (max 100)
+- [ ] Wire into session.rs
+
+---
+
+### Step 3: Docker + Chaos Integration
+
+**Prerequisites:** Code review fixes complete
+
+**Tasks:**
+- [ ] Docker containerization (Dockerfile)
+- [ ] Expose QUIC UDP port (4433) + HTTP (8080)
 - [ ] docker-compose.chaos.yml topology
-- [ ] Toxiproxy network fault injection
 - [ ] Implement 28 ignored chaos stubs
-- [ ] Multi-node convergence testing
-
-**Key Design:** Test full system under network chaos.
+- [ ] Integration tests (two sync-cli through relay)
 
 ---
 
-### ✅ Completed: Phases 1-4
+### ✅ Completed: Phases 1-5 + Phase 6 MVP
 
 **Status:** Done (2026-02-03)
 
-**Tags:**
-- v0.1.0-phase1: sync-types (28 tests)
-- v0.1.0-phase2: sync-core (60 tests)
-- v0.1.0-phase3: sync-client (42 tests)
-- v0.1.0-phase4: sync-cli (15 tests)
+**Phase 6 MVP:** sync-relay with 30 tests
+- SQLite storage with WAL mode
+- Protocol handler on ALPN /0k-sync/1
+- Session state machine
+- HTTP endpoints (/health, /metrics)
+- Background cleanup task
 
-**Total:** 169 tests passing, clippy clean, fmt clean
+**Total:** 270 tests passing, 34 ignored, clippy clean
 
 ---
 
@@ -264,9 +304,9 @@ docker-compose up -d
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay ⬅️ NEXT → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ⬅️ NOW → Docker → tauri-plugin
 ```
-Phase 5 complete (E2E verified + chaos scenarios). Next: Phase 6 sync-relay.
+Phase 6 MVP complete (30 tests). Next: Address code review findings, then Docker.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -293,14 +333,20 @@ Phase 5 complete (E2E verified + chaos scenarios). Next: Phase 6 sync-relay.
 
 ## 🎬 Ready to Continue!
 
-**Most Common Next Action:**
+**Tomorrow's First Actions:**
 ```bash
-cd /home/jimmyb/crabnebula/sync-relay
-cat docs/03-IMPLEMENTATION-PLAN.md | head -200  # Review implementation phases
-git status
+cd /Users/ydun.io/Projects/Personal/0k-sync
+
+# 1. Read the code review feedback
+cat docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md
+
+# 2. Verify green state
+cargo test --workspace
+
+# 3. Start with Issue #1 (quota enforcement)
 ```
 
-**Then:** Start Option 1 (Create Workspace Structure)
+**Then:** Work through code review issues #1-4, #7 (~1.5 hrs total)
 
 **Good luck!**
 
@@ -316,6 +362,25 @@ git status
 
 ## Note for Q
 
+**🔴 CODE REVIEW COMPLETED (2026-02-03)**
+
+James did a full source code review. **Verdict: Solid MVP.** 7 issues identified, none architectural.
+
+**Read first:** `docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md`
+
+**Quick wins (~1.5 hrs):**
+1. Issue #1: Quota enforcement in `handle_push` (30 min)
+2. Issue #2: Batch cleanup queries (15 min)
+3. Issue #3: Batch delivery marking (15 min)
+4. Issue #4: Add `ProtocolError::Internal` (10 min)
+5. Issue #7: Graceful shutdown (30 min)
+
+**Later:**
+- Issue #5: notify_group implementation (1-2 hrs)
+- Issue #6: total_sessions accuracy (optional)
+
+---
+
 **Phase 6 MVP Complete ✅:**
 - sync-relay crate: 30 tests passing
 - SQLite storage with WAL mode, atomic cursor assignment
@@ -325,7 +390,7 @@ git status
 - HTTP endpoints: /health (JSON), /metrics (Prometheus)
 - Background cleanup task for TTL-based expiration
 
-**Phase 6 Remaining:**
+**Phase 6 Remaining (after code review fixes):**
 - Rate limiting (limits.rs)
 - Docker containerization
 - Integration tests (CLI through relay)
@@ -337,11 +402,12 @@ git status
 - Workspace total: 270 passing, 34 ignored
 
 **Key Commits:**
-- `16da7e4` - Crate scaffold
-- `9a530a8` - Storage layer
-- `caf1d8e` - Protocol + session
-- `724b205` - HTTP + main
+- `87926fc` - Final documentation update
 - `d5089ff` - Cleanup task
+- `724b205` - HTTP + main
+- `caf1d8e` - Protocol + session
+- `9a530a8` - Storage layer
+- `16da7e4` - Crate scaffold
 
 **MCP Servers:**
 - `mcp__iroh-rag__iroh_ecosystem_search` - iroh server patterns
