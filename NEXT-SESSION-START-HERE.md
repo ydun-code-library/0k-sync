@@ -22,7 +22,7 @@ PURPOSE: Provide quick context and continuity between development sessions
 **0k-Sync** (zero-knowledge sync) is a self-hosted relay server and Rust client library that enables E2E encrypted synchronization between local-first app instances.
 
 **Your Role:** Developer / Implementer
-- Implement Rust crates (sync-types, sync-relay, sync-client, sync-cli)
+- Implement Rust crates (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay)
 - Deploy relay server to Beast
 - Create framework integrations as needed (e.g., Tauri plugin)
 - Write tests and documentation
@@ -115,7 +115,7 @@ PURPOSE: Provide quick context and continuity between development sessions
 cd /home/jimmyb/crabnebula/sync-relay
 
 # Create workspace structure
-mkdir -p sync-types/src sync-core/src sync-client/src sync-cli/src tauri-plugin-sync/src
+mkdir -p sync-types/src sync-core/src sync-client/src sync-content/src sync-cli/src tauri-plugin-sync/src sync-relay/src
 ```
 
 ---
@@ -213,7 +213,7 @@ docker-compose up -d
 
 ### 1. Implementation Order Matters
 ```
-sync-types → sync-core → sync-client → sync-cli → sync-relay → framework-integrations
+sync-types → sync-core → sync-client → sync-content → sync-cli → tauri-plugin-sync → sync-relay
 ```
 Each crate depends on previous ones being stable.
 

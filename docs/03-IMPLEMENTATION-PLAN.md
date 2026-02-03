@@ -174,7 +174,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/your-org/0k-sync"
+repository = "https://github.com/ydun-code-library/0k-sync"
 
 [workspace.dependencies]
 # Serialization
@@ -2001,12 +2001,13 @@ If a breaking change reaches users:
 | 1 | sync-types | Wire format | Serialization roundtrip |
 | 2 | sync-core | State machine | Pure logic (no I/O) |
 | 3 | sync-client | Client library | Encryption, transport |
+| 3.5 | sync-content | Large content transfer | iroh-blobs, encrypt-then-hash |
 | 4 | sync-cli | Testing tool | E2E headless |
-| 5 | framework-integration | Example: Tauri plugin | Commands, events |
+| 5 | tauri-plugin-sync | Tauri integration | Commands, events |
 | 6 | sync-relay | Custom relay | Message routing |
 
 **Remember:** Tests first. Every time. No exceptions.
 
 ---
 
-*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.0.0 | Date: 2026-01-16*
+*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.1.0 | Date: 2026-02-02*

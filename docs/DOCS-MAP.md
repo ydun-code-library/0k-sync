@@ -1,7 +1,7 @@
 # Sync-Relay Documentation Map
 
-**Version**: 1.0
-**Last Updated**: 2026-02-02
+**Version**: 1.2
+**Last Updated**: 2026-02-03
 **Purpose**: Navigation index for humans and AI assistants
 
 ---
@@ -52,6 +52,8 @@
 | `02-SPECIFICATION.md` | 1,684 | **PRIMARY SPEC** — Full protocol | Implementation reference |
 | `03-IMPLEMENTATION-PLAN.md` | 1,845 | TDD implementation guide | Before writing code |
 | `04-RESEARCH-VALIDATION.md` | 652 | Technology choices | Understanding "why" decisions |
+| `05-RELEASE-STRATEGY.md` | 930 | Versioning, publishing, CI/CD | Before release activities |
+| `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 scenarios | Building chaos test harness |
 
 ### Reference Documents (docs/reference/)
 
@@ -96,6 +98,20 @@ research/tactical-mesh-profile-appendix-d.md
 ├── extends → 02-SPECIFICATION.md (Appendix D)
 ├── references → research/iroh-deep-dive-report.md
 └── strategic context for → enterprise/defense markets
+
+05-RELEASE-STRATEGY.md (Release Playbook)
+├── references → 02-SPECIFICATION.md, 03-IMPLEMENTATION-PLAN.md
+├── defines → Versioning, crate naming (zerok-sync-*)
+├── defines → CI/CD pipeline (3 tiers)
+├── defines → Quality gates per milestone
+└── coordinates with → 06-CHAOS-TESTING-STRATEGY.md
+
+06-CHAOS-TESTING-STRATEGY.md (Failure Testing)
+├── references → 02-SPECIFICATION.md, 03-IMPLEMENTATION-PLAN.md, 05-RELEASE-STRATEGY.md
+├── defines → 68 chaos scenarios across 6 categories
+├── defines → Test environment (The Beast)
+├── integrates with → CI/CD pipeline (smoke chaos in PRs)
+└── phased with → 03-IMPLEMENTATION-PLAN.md (chaos per impl phase)
 ```
 
 ---
@@ -135,6 +151,10 @@ research/tactical-mesh-profile-appendix-d.md
 - `research/iroh-deep-dive-report.md` — iroh ecosystem
 - `research/tactical-mesh-profile-appendix-d.md` — Tactical applications
 
+### Release & Quality Documents
+- `05-RELEASE-STRATEGY.md` — Versioning, publishing, CI/CD, quality gates
+- `06-CHAOS-TESTING-STRATEGY.md` — Chaos testing, 68 failure scenarios
+
 ### Workflow Documents
 - `AGENTS.md` — AI guidelines
 - `CLAUDE.md` — Quick reference
@@ -169,6 +189,6 @@ research/tactical-mesh-profile-appendix-d.md
 
 ---
 
-**Navigation Index Version**: 1.1
-**Active Documents**: 15 (excludes archive/ and reference/)
-**Last Audit**: 2026-02-02
+**Navigation Index Version**: 1.2
+**Active Documents**: 17 (excludes archive/ and reference/)
+**Last Audit**: 2026-02-03

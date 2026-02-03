@@ -12,7 +12,7 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 **STATUS: IN DEVELOPMENT** - Last Updated: 2026-02-02
 
 ## Repository Information
-- **GitHub Repository**: https://github.com/Jimmyh-world/sync-relay
+- **GitHub Repository**: https://github.com/ydun-code-library/0k-sync
 - **Local Directory**: `/home/jimmyb/crabnebula/sync-relay`
 - **Primary Purpose**: Provide E2E encrypted synchronization between local-first app instances
 
@@ -193,7 +193,7 @@ gh issue list
 ## Current Status
 
 <!-- PROJECT_SPECIFIC START: CURRENT_STATUS -->
-🔄 **Architecture Defined, Implementation Pending** - 0%
+🔄 **Architecture Defined, Implementation Pending** - 20%
 
 - ✅ Protocol design complete (Noise XX)
 - ✅ Message specification defined
@@ -249,10 +249,11 @@ Layer 0: Transport (iroh QUIC, mDNS discovery, DHT)
 
 | Function | Algorithm |
 |----------|-----------|
-| DH | Curve25519 |
-| Cipher | ChaChaPoly |
-| Hash | BLAKE2s |
-| KDF | Argon2id |
+| Key Exchange | Hybrid: ML-KEM-768 + X25519 (via clatter) |
+| DH Fallback | Curve25519 |
+| Cipher | XChaCha20-Poly1305 (192-bit nonces) |
+| Hash | BLAKE3 (content addressing), BLAKE2s (Noise internal) |
+| KDF | HKDF-SHA256 (session keys), Argon2id (passphrase) |
 
 ## Build & Test Commands
 
@@ -291,12 +292,14 @@ cargo run -p sync-cli -- pull --after-cursor 0
 ├── README.md                  # Project overview
 ├── docs/                      # Documentation
 │   ├── DOCS-MAP.md            # Navigation index
-│   ├── 00-PLAN.md             # Documentation planning
 │   ├── 01-EXECUTIVE-SUMMARY.md
-│   ├── 02-SPECIFICATION.md
+│   ├── 02-SPECIFICATION.md    # Primary protocol spec
 │   ├── 03-IMPLEMENTATION-PLAN.md
 │   ├── 04-RESEARCH-VALIDATION.md
-│   ├── reference/             # Original specifications (archive)
+│   ├── 05-RELEASE-STRATEGY.md # Versioning, CI/CD, publishing
+│   ├── 06-CHAOS-TESTING-STRATEGY.md # Failure testing (68 scenarios)
+│   ├── archive/               # Completed plans
+│   ├── reference/             # Superseded specifications
 │   └── research/              # Research documents
 │       ├── iroh-deep-dive-report.md
 │       └── tactical-mesh-profile-appendix-d.md
@@ -315,10 +318,10 @@ cargo run -p sync-cli -- pull --after-cursor 0
 ├── sync-cli/                  # Testing tool (Phase 4)
 │   ├── Cargo.toml
 │   └── src/main.rs
-├── integrations/              # Framework integrations (optional)
+├── tauri-plugin-sync/         # Tauri integration (Phase 5)
 │   ├── Cargo.toml
 │   └── src/lib.rs
-├── sync-relay/                # Custom relay (Phase 6, future)
+├── sync-relay/                # Custom relay (Phase 6)
 │   ├── Cargo.toml
 │   └── Dockerfile
 ├── AGENTS.md                  # This file
@@ -332,7 +335,7 @@ cargo run -p sync-cli -- pull --after-cursor 0
 
 ### Starting Work on a Task
 1. Read this AGENTS.md file for context
-2. Review the specification (`sync-relay-spec.md`)
+2. Review the specification (`docs/02-SPECIFICATION.md`)
 3. Check current implementation status above
 4. **Use Jimmy's Workflow**: Plan → Implement → Validate → Checkpoint
 5. Follow TDD approach - write tests first
@@ -351,7 +354,7 @@ cargo run -p sync-cli -- pull --after-cursor 0
 None at this time (project not yet started)
 
 ### 🟡 Important Issues
-1. iroh dependency - verify compatibility with latest version before starting
+1. iroh dependency - compatibility verified (see docs/research/iroh-deep-dive-report.md, 2026-02-02)
 
 ### 📝 Technical Debt
 None at this time
@@ -443,7 +446,7 @@ SYNC_GROUP_PASSPHRASE=user-provided
 ## Resources & References
 
 ### Documentation
-- **Full Specification**: `sync-relay-spec.md`
+- **Full Specification**: `docs/02-SPECIFICATION.md`
 - **Noise Protocol**: https://noiseprotocol.org/noise.html
 - **clatter Rust crate**: https://github.com/jmwample/clatter (hybrid Noise protocol)
 
@@ -456,7 +459,7 @@ SYNC_GROUP_PASSPHRASE=user-provided
 
 1. **Always use Jimmy's Workflow** for implementation tasks
 2. **Follow TDD** - Write tests before implementation
-3. **Read the spec first** - `sync-relay-spec.md` has all details
+3. **Read the spec first** - `docs/02-SPECIFICATION.md` has all details
 4. **Apply YAGNI** - Only implement what's needed for current phase
 5. **Use GitHub CLI** - Use `gh` for all GitHub operations
 6. **Fix Now** - Never defer fixes

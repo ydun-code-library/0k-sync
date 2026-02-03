@@ -895,7 +895,7 @@ fn sync_last_cursor(state: State<'_, SyncState>) -> u64;
 ### 9.2 JavaScript API
 
 ```typescript
-// @anthropic/tauri-plugin-sync-api
+// @0k-sync/tauri-plugin
 
 export interface SyncPlugin {
   enable(): Promise<void>;
@@ -943,7 +943,7 @@ export interface Blob {
 ### 9.3 Usage Example
 
 ```typescript
-import { sync } from '@anthropic/tauri-plugin-sync-api';
+import { sync } from '@0k-sync/tauri-plugin';
 
 // Initialize sync
 await sync.enable();
@@ -1114,7 +1114,7 @@ Uses iroh public network. No relay infrastructure needed.
 > - iroh-blobs 1.0 for large content transfer
 > - Self-hosted infrastructure available via iroh-relay and iroh-dns-server
 
-### 10.2 Tier 2: Home Developer
+### 11.2 Tier 2: Home Developer
 
 ```rust
 SyncConfig {
@@ -1127,7 +1127,7 @@ SyncConfig {
 
 Self-hosted Docker container + Cloudflare Tunnel.
 
-### 10.3 Tier 3: Vercel-style
+### 11.3 Tier 3: Vercel-style
 
 ```rust
 SyncConfig {
@@ -1140,11 +1140,11 @@ SyncConfig {
 
 Container deployed to Vercel/Railway/Fly.io.
 
-### 10.4 Tier 4-5: Managed Cloud
+### 11.4 Tier 4-5: Managed Cloud
 
 ```rust
 SyncConfig {
-    backend: RelayBackend::Managed Cloud {
+    backend: RelayBackend::ManagedCloud {
         api_key: "cn_live_xxxx".into(),
     },
     ..Default::default()
@@ -1153,7 +1153,7 @@ SyncConfig {
 
 API key determines tier (community vs cloud).
 
-### 10.5 Tier 6: Enterprise
+### 11.5 Tier 6: Enterprise
 
 ```rust
 SyncConfig {
