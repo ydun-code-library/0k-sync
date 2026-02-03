@@ -1,6 +1,6 @@
 # 0k-Sync - Test-Driven Implementation Plan
 
-**Version:** 2.3.0
+**Version:** 2.4.0
 **Date:** 2026-02-03
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementing Developers
@@ -18,11 +18,12 @@
 6. [Phase 3: sync-client](#6-phase-3-sync-client)
 6.5. [Phase 3.5: sync-content](#65-phase-35-sync-content)
 7. [Phase 4: sync-cli](#7-phase-4-sync-cli)
-8. [Phase 5: Framework Integration (Tauri Example)](#8-phase-5-framework-integration-tauri-example)
-9. [Phase 6: sync-relay (Future)](#9-phase-6-sync-relay-future)
-10. [Testing Strategy](#10-testing-strategy)
-11. [Validation Gates](#11-validation-gates)
-12. [Rollback Procedures](#12-rollback-procedures)
+8. [Phase 5: IrohTransport + Transport Chaos](#8-phase-5-irohtransport--transport-chaos)
+9. [Phase 6: sync-relay + Full Topology Chaos](#9-phase-6-sync-relay--full-topology-chaos)
+10. [Phase 7: Framework Integration (Optional)](#10-phase-7-framework-integration-optional)
+11. [Testing Strategy](#11-testing-strategy)
+12. [Validation Gates](#12-validation-gates)
+13. [Rollback Procedures](#13-rollback-procedures)
 
 ---
 
@@ -246,42 +247,45 @@ bollard = "0.16"                 # Docker API client for topology management
 │                        Implementation Phases                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  Phase 1: sync-types        ──────────────────────────┐                 │
+│  Phase 1: sync-types        ──────────────────────────┐   ✅ Complete   │
 │  (wire format)                                         │                 │
 │                                                        ▼                 │
-│  Phase 2: sync-core         ◄─────────────────────────┘                 │
+│  Phase 2: sync-core         ◄─────────────────────────┘   ✅ Complete   │
 │  (pure logic)                                          │                 │
 │                                                        ▼                 │
-│  Phase 3: sync-client       ◄──────────────────────────┘                │
-│  (library)                                             │                 │
+│  Phase 3: sync-client       ◄──────────────────────────┘  ✅ Complete   │
+│  (encryption + MockTransport)                          │                 │
 │                                                        ▼                 │
-│  Phase 3.5: sync-content    ◄──────────────────────────┘                │
-│  (large content transfer)                              │                 │
-│                                                        │                 │
-│                              ┌─────────────────────────┼────────┐       │
-│                              ▼                         ▼        │       │
-│  Phase 4: sync-cli     Phase 5: tauri-plugin     (parallel)     │       │
-│  (testing tool)        (Tauri integration)                      │       │
-│                              │                         │        │       │
-│                              └─────────────────────────┼────────┘       │
+│  Phase 4: sync-cli          ◄──────────────────────────┘  ✅ Complete   │
+│  (testing tool)                                        │                 │
 │                                                        ▼                 │
-│  Phase 6: sync-relay (FUTURE)                                           │
-│  (custom relay)                                                         │
+│  Phase 5: IrohTransport     ◄──────────────────────────┘  ⬅️ NEXT       │
+│  (real P2P transport + transport chaos)                │                 │
+│                                                        ▼                 │
+│  Phase 3.5: sync-content    ◄──────────────────────────┘  (can parallel)│
+│  (iroh-blobs, encrypt-then-hash)                       │                 │
+│                                                        ▼                 │
+│  Phase 6: sync-relay        ◄──────────────────────────┘  ⚪ Not started│
+│  (custom relay + full topology chaos)                  │                 │
+│                                                        ▼                 │
+│  Phase 7: tauri-plugin      ◄──────────────────────────┘  ⚪ Optional   │
+│  (framework integration)                                                 │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Phase Dependencies
 
-| Phase | Depends On | Blocks |
-|-------|------------|--------|
-| 1. sync-types | None | All others |
-| 2. sync-core | sync-types | sync-client |
-| 3. sync-client | sync-types, sync-core | sync-content, sync-cli |
-| 3.5. sync-content | sync-types, sync-client | tauri-plugin |
-| 4. sync-cli | sync-client | None (testing tool) |
-| 5. tauri-plugin | sync-client, sync-content | None (end product) |
-| 6. sync-relay | sync-types | None (future) |
+| Phase | Crate | Depends On | Blocks | Status |
+|-------|-------|------------|--------|--------|
+| 1 | sync-types | None | All others | ✅ Complete |
+| 2 | sync-core | sync-types | sync-client | ✅ Complete |
+| 3 | sync-client | sync-types, sync-core | sync-cli, IrohTransport | ✅ Complete |
+| 4 | sync-cli | sync-client | None (testing tool) | ✅ Complete |
+| 5 | sync-client (transport) | sync-client | sync-content, sync-relay | ⬅️ Next |
+| 3.5 | sync-content | sync-client, IrohTransport | tauri-plugin | ⚪ Skeleton |
+| 6 | sync-relay | sync-types, IrohTransport | None | ⚪ Not started |
+| 7 | tauri-plugin | sync-client, sync-content | None (optional) | ⚪ Not started |
 
 ---
 
@@ -1232,6 +1236,8 @@ git commit -m "Add sync-client library
 git tag v0.1.0-phase3
 ```
 
+> **Scope Note (v2.4.0):** Phase 3 was originally scoped to include iroh transport integration. During implementation, scope was reduced to focus on encryption correctness. The Transport trait abstraction was designed to allow MockTransport to stand in for IrohTransport, enabling full crypto path validation (42 tests) without network dependencies. iroh transport integration moved to Phase 5.
+
 ---
 
 ## 6.5 Phase 3.5: sync-content
@@ -1543,159 +1549,168 @@ git tag v0.1.0-phase4
 
 ---
 
-## 8. Phase 5: Framework Integration (Tauri Example)
+## 8. Phase 5: IrohTransport + Transport Chaos
 
 ### 8.1 Objective
 
-Wrap sync-client for your framework of choice. This section uses Tauri as the example, but the pattern applies to Electron, React Native, Flutter, etc.
+Implement IrohTransport as the real P2P transport for sync-client, replacing MockTransport for production use. This phase completes the transport layer that was deferred from Phase 3 to prioritize encryption correctness.
 
-> ⚠️ **Mobile Lifecycle:** The plugin MUST handle mobile app lifecycle correctly. See Section 10.4 for mobile-specific test requirements. Key rules:
-> - Never block on close
-> - Fire-and-forget flush with 500ms timeout
-> - Persist pending items for next launch
-> - Emit sync status to UI
+### 8.2 Scope
 
-### 8.2 TDD Sequence
+- **IrohTransport struct** implementing the Transport trait from sync-client
+- **iroh Endpoint** construction and connection lifecycle
+- **ALPN registration** (`/0k-sync/1`) for protocol routing
+- **Length-prefixed message framing** over QUIC bidirectional streams
+- **Connection lifecycle:** connect, send/recv, close, error mapping
+- **sync-cli update** to use IrohTransport (replacing MockTransport)
+- **Transport chaos scenarios:** connection drops, reconnects, timeouts, network partitions
+- **Activate `#[ignore]` transport tests** from Phase 3
+
+### 8.3 TDD Sequence
 
 ```rust
-// tauri-plugin-sync/src/lib.rs
+// sync-client/src/transport/iroh.rs
+
+use iroh::{Endpoint, NodeId, SecretKey};
+use crate::transport::{Transport, TransportError};
+
+pub struct IrohTransport {
+    endpoint: Endpoint,
+    connection: Option<iroh::Connection>,
+    peer: NodeId,
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tauri::test::{mock_builder, MockRuntime};
 
-    #[test]
-    fn plugin_initializes() {
-        let app = mock_builder()
-            .plugin(init())
-            .build()
-            .unwrap();
-
-        assert!(app.state::<SyncState>().is_ok());
+    #[tokio::test]
+    async fn iroh_transport_implements_trait() {
+        // IrohTransport must satisfy Transport trait
+        fn assert_transport<T: Transport>() {}
+        assert_transport::<IrohTransport>();
     }
 
     #[tokio::test]
-    async fn sync_enable_command() {
-        let app = mock_builder()
-            .plugin(init())
-            .build()
-            .unwrap();
+    async fn connect_to_peer() {
+        let transport = IrohTransport::new(peer_node_id).await.unwrap();
+        transport.connect().await.unwrap();
+        assert!(transport.is_connected());
+    }
 
-        let result: Result<(), String> = tauri::test::invoke(
-            &app,
-            "plugin:sync|enable",
-            (),
-        ).await;
+    #[tokio::test]
+    async fn send_recv_roundtrip() {
+        let (transport_a, transport_b) = create_connected_pair().await;
 
+        transport_a.send(b"hello").await.unwrap();
+        let received = transport_b.recv().await.unwrap();
+
+        assert_eq!(received, b"hello");
+    }
+
+    #[tokio::test]
+    async fn connection_drop_triggers_reconnect() {
+        let transport = IrohTransport::new(peer_node_id).await.unwrap();
+        transport.connect().await.unwrap();
+
+        // Simulate connection drop
+        drop_connection(&transport);
+
+        // Next send should trigger reconnect
+        let result = transport.send(b"after drop").await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
-    async fn sync_create_invite_returns_code() {
-        let app = mock_builder()
-            .plugin(init())
-            .build()
+    async fn timeout_on_unreachable_peer() {
+        let transport = IrohTransport::new(unreachable_node_id)
+            .with_timeout(Duration::from_secs(5))
+            .await
             .unwrap();
 
-        // Enable first
-        let _: () = tauri::test::invoke(&app, "plugin:sync|enable", ()).await.unwrap();
-
-        // Create invite
-        let invite: Invite = tauri::test::invoke(
-            &app,
-            "plugin:sync|create_invite",
-            (),
-        ).await.unwrap();
-
-        assert!(!invite.short_code.is_empty());
-        assert!(invite.expires_at > 0);
+        let result = transport.connect().await;
+        assert!(matches!(result, Err(TransportError::Timeout)));
     }
 }
 ```
 
-### 8.3 JavaScript Bindings
+### 8.4 Transport Chaos Scenarios
 
-```typescript
-// tauri-plugin-sync/guest-js/src/index.ts
+Remove `#[ignore]` from the 16 transport chaos stubs created in Phase 3. Wire them to real iroh connections:
 
-import { invoke } from '@tauri-apps/api/core';
+| ID | Scenario | Assertion |
+|----|----------|-----------|
+| T-LAT-01 | 100ms latency injection | Messages still delivered, order preserved |
+| T-LAT-02 | 500ms latency spike | ConnectionState shows degraded, recovers |
+| T-LAT-03 | Variable latency (50-200ms) | No message corruption |
+| T-LAT-04 | Asymmetric latency | Bidirectional sync still works |
+| T-LOSS-01 | 1% packet loss | Retransmission succeeds |
+| T-LOSS-02 | 10% packet loss | Connection degrades gracefully |
+| T-LOSS-03 | Burst packet loss | Recovery within timeout |
+| T-LOSS-04 | Asymmetric packet loss | Both directions sync |
+| T-CONN-01 | Clean disconnect | Reconnect succeeds |
+| T-CONN-02 | Abrupt connection drop | ConnectionState detects, reconnects |
+| T-CONN-03 | Reconnect during send | Message queued, delivered after reconnect |
+| T-CONN-04 | Reconnect storm (rapid drops) | Backoff prevents thundering herd |
+| T-CONN-05 | Partial network partition | One direction works, other fails |
+| T-BW-01 | Bandwidth limit 10KB/s | Large message fragmented, delivered |
+| T-BW-02 | Bandwidth spike/drop | No message loss |
+| T-BW-03 | Near-zero bandwidth | Timeout triggers, clean error |
 
-export interface Invite {
-  qrCode: string;
-  shortCode: string;
-  expiresAt: number;
-}
-
-export interface PushResult {
-  blobId: string;
-  cursor: number;
-}
-
-export interface PullResult {
-  blobs: Blob[];
-  hasMore: boolean;
-  maxCursor: number;
-}
-
-export async function enable(): Promise<void> {
-  return invoke('plugin:sync|enable');
-}
-
-export async function disable(): Promise<void> {
-  return invoke('plugin:sync|disable');
-}
-
-export async function createInvite(): Promise<Invite> {
-  return invoke('plugin:sync|create_invite');
-}
-
-export async function joinInvite(invite: string): Promise<void> {
-  return invoke('plugin:sync|join_invite', { invite });
-}
-
-export async function push(data: Uint8Array): Promise<PushResult> {
-  return invoke('plugin:sync|push', { data: Array.from(data) });
-}
-
-export async function pull(afterCursor?: number): Promise<PullResult> {
-  return invoke('plugin:sync|pull', { afterCursor });
-}
-
-// ... events, status, etc.
-```
-
-### 8.4 Validation Gate
+### 8.5 Validation Gate
 
 ```bash
-# Rust tests
-cargo test -p tauri-plugin-sync
+# Unit tests
+cargo test -p sync-client -- iroh
 
-# Build JS bindings
-cd tauri-plugin-sync/guest-js && npm run build
+# Transport chaos (requires two processes or loopback)
+cargo test -p sync-client -- transport_chaos
 
-# Integration test with real Tauri app
-cd examples/test-app && cargo tauri dev
+# Integration: two sync-cli instances
+# Terminal 1:
+sync-cli init --name "Device A"
+sync-cli pair --create --passphrase "test"
+
+# Terminal 2:
+sync-cli init --name "Device B"
+sync-cli pair --join <code> --passphrase "test"
+
+# Terminal 1:
+sync-cli push "Hello from A"
+
+# Terminal 2:
+sync-cli pull
+# Should show: "Hello from A"
 ```
 
-### 8.5 Checkpoint
+### 8.6 Success Criteria
+
+- [ ] IrohTransport passes all existing Transport trait tests
+- [ ] Two sync-cli instances can connect P2P via iroh public network
+- [ ] `push` from device A, `pull` from device B returns decrypted data
+- [ ] Connection drop triggers ConnectionState reconnection flow
+- [ ] All 16 transport chaos scenarios pass
+
+### 8.7 Checkpoint
 
 ```bash
-git add tauri-plugin-sync/
-git commit -m "Add tauri-plugin-sync (example framework integration)
+git add sync-client/src/transport/iroh.rs sync-cli/
+git commit -m "Phase 5: IrohTransport + transport chaos
 
-- Tauri 2.0 plugin structure
-- Commands: enable, disable, create_invite, join_invite, push, pull
-- JavaScript/TypeScript bindings
-- Event emission to frontend
-- Pattern can be adapted to other frameworks (Electron, React Native, etc.)"
+- IrohTransport implementing Transport trait
+- iroh Endpoint connection lifecycle
+- ALPN /0k-sync/1 for protocol routing
+- Length-prefixed message framing over QUIC
+- sync-cli updated to use IrohTransport
+- 16 transport chaos scenarios passing
+- Two devices can sync P2P via iroh public network"
 
 git tag v0.1.0-phase5
 ```
 
 ---
 
-## 9. Phase 6: sync-relay (Future)
+## 9. Phase 6: sync-relay + Full Topology Chaos
 
 ### 9.1 Objective
 
@@ -1811,9 +1826,97 @@ cargo nextest run -p chaos-tests -E 'test(/^adversarial/)'
 
 ---
 
-## 10. Testing Strategy
+## 10. Phase 7: Framework Integration (Optional)
 
-### 10.1 Test Pyramid
+### 10.1 Objective
+
+Wrap sync-client for your framework of choice. This section uses Tauri as the example, but the pattern applies to Electron, React Native, Flutter, etc.
+
+> ⚠️ **Mobile Lifecycle:** The plugin MUST handle mobile app lifecycle correctly. See Section 11.4 for mobile-specific test requirements. Key rules:
+> - Never block on close
+> - Fire-and-forget flush with 500ms timeout
+> - Persist pending items for next launch
+> - Emit sync status to UI
+
+### 10.2 Scope
+
+- **tauri-plugin-sync** wrapping sync-client for Tauri applications
+- **Tauri commands** mapping to SyncClient API (enable, disable, push, pull, create_invite, join_invite)
+- **Event bridge** (SyncEvent → Tauri events)
+- **State management** integration
+- **JavaScript/TypeScript bindings** for frontend
+
+### 10.3 TDD Sequence
+
+```rust
+// tauri-plugin-sync/src/lib.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::test::{mock_builder, MockRuntime};
+
+    #[test]
+    fn plugin_initializes() {
+        let app = mock_builder()
+            .plugin(init())
+            .build()
+            .unwrap();
+
+        assert!(app.state::<SyncState>().is_ok());
+    }
+
+    #[tokio::test]
+    async fn sync_enable_command() {
+        let app = mock_builder()
+            .plugin(init())
+            .build()
+            .unwrap();
+
+        let result: Result<(), String> = tauri::test::invoke(
+            &app,
+            "plugin:sync|enable",
+            (),
+        ).await;
+
+        assert!(result.is_ok());
+    }
+}
+```
+
+### 10.4 Validation Gate
+
+```bash
+# Rust tests
+cargo test -p tauri-plugin-sync
+
+# Build JS bindings
+cd tauri-plugin-sync/guest-js && npm run build
+
+# Integration test with real Tauri app
+cd examples/test-app && cargo tauri dev
+```
+
+### 10.5 Checkpoint
+
+```bash
+git add tauri-plugin-sync/
+git commit -m "Phase 7: tauri-plugin-sync (framework integration)
+
+- Tauri 2.0 plugin structure
+- Commands: enable, disable, create_invite, join_invite, push, pull
+- JavaScript/TypeScript bindings
+- Event emission to frontend
+- Pattern can be adapted to other frameworks"
+
+git tag v0.1.0-phase7
+```
+
+---
+
+## 11. Testing Strategy
+
+### 11.1 Test Pyramid
 
 ```
                     ▲
@@ -1829,7 +1932,7 @@ cargo nextest run -p chaos-tests -E 'test(/^adversarial/)'
           ╱───────────────────╲
 ```
 
-### 10.1.1 Chaos Testing Dimension
+### 11.1.1 Chaos Testing Dimension
 
 Chaos testing is not a fourth layer in the pyramid — it is a parallel dimension that applies at multiple levels. Mock-based chaos (encryption, content) runs at the integration test level. Docker-topology chaos (transport, sync, adversarial) runs at the E2E level. The chaos strategy document (06-CHAOS-TESTING-STRATEGY.md) defines 68 scenarios across 6 categories with phase-by-phase authoring.
 
@@ -1843,7 +1946,7 @@ E2E (slow)             Docker chaos: transport, sync, adversarial (Beast)
 
 Mock-based chaos scenarios run in CI alongside integration tests. Docker-topology chaos runs nightly on The Beast. See 06-CHAOS-TESTING-STRATEGY.md for the full scenario inventory, iteration counts, and pass criteria.
 
-### 10.2 Test Distribution
+### 11.2 Test Distribution
 
 | Layer | Location | Count | Speed |
 |-------|----------|-------|-------|
@@ -1853,7 +1956,7 @@ Mock-based chaos scenarios run in CI alongside integration tests. Docker-topolog
 | Chaos (mock) | `tests/chaos/src/scenarios/` | 26 | < 5 min (CI) |
 | Chaos (Docker) | `tests/chaos/` + Docker | 68 total | ~2 hrs (Beast) |
 
-### 10.3 Test Commands
+### 11.3 Test Commands
 
 ```bash
 # All unit tests (fast)
@@ -1869,7 +1972,7 @@ cargo tarpaulin --workspace --out Html
 ./scripts/e2e-test.sh
 ```
 
-### 10.4 Mobile Lifecycle Testing
+### 11.4 Mobile Lifecycle Testing
 
 Testing mobile-specific sync behavior requires special consideration:
 
@@ -2025,7 +2128,7 @@ mod tests {
 }
 ```
 
-### 10.5 E2E Test Script
+### 11.5 E2E Test Script
 
 ```bash
 #!/bin/bash
@@ -2079,9 +2182,9 @@ rm -rf "$DIR_A" "$DIR_B"
 
 ---
 
-## 11. Validation Gates
+## 12. Validation Gates
 
-### 11.1 Gate Checklist (Every Phase)
+### 12.1 Gate Checklist (Every Phase)
 
 ```markdown
 ## Phase N Validation Gate
@@ -2097,7 +2200,7 @@ rm -rf "$DIR_A" "$DIR_B"
 - [ ] Git tag created: `vX.Y.Z-phaseN`
 ```
 
-### 11.2 CI Pipeline
+### 12.2 CI Pipeline
 
 ```yaml
 # .github/workflows/ci.yml
@@ -2154,9 +2257,9 @@ jobs:
 
 ---
 
-## 12. Rollback Procedures
+## 13. Rollback Procedures
 
-### 12.1 Phase Rollback
+### 13.1 Phase Rollback
 
 If a phase fails validation:
 
@@ -2168,7 +2271,7 @@ git reset --hard v0.1.0-phase$(N-1)
 git revert <commit-hash>
 ```
 
-### 12.2 Dependency Rollback
+### 13.2 Dependency Rollback
 
 If a dependency causes issues:
 
@@ -2183,7 +2286,7 @@ cargo tree -p <crate> --depth 1
 cargo update -p <dependency>
 ```
 
-### 12.3 Breaking Change Rollback
+### 13.3 Breaking Change Rollback
 
 If a breaking change reaches users:
 
@@ -2199,21 +2302,27 @@ If a breaking change reaches users:
 |-------|-------|-----------------|------------|--------------------|
 | 1 | sync-types | Wire format | Serialization roundtrip | Harness skeleton (topology, Toxiproxy, Pumba wrappers) |
 | 2 | sync-core | State machine | Pure logic (no I/O) | Assertion helpers (blob presence, data loss, convergence, plaintext detection) |
-| 3 | sync-client | Client library | Encryption, transport | 16 encryption chaos scenarios (mock), 16 transport stubs (#[ignore]) |
-| 3.5 | sync-content | Content transfer | Encrypt-then-hash, iroh-blobs | 10 content chaos scenarios (mock: S-BLOB, C-STOR, C-COLL) |
+| 3 | sync-client | Client library | Encryption, MockTransport | 16 encryption chaos scenarios (mock), 16 transport stubs (#[ignore]) |
 | 4 | sync-cli | Testing tool | E2E headless | 12 sync chaos scenarios (logic written, relay-dependent #[ignore]) |
-| 5 | tauri-plugin-sync | Tauri integration | Commands, events | None (framework-specific, not protocol-level) |
+| 5 | sync-client (transport) | IrohTransport | Real P2P transport | 16 transport chaos scenarios (activate #[ignore] stubs) |
+| 3.5 | sync-content | Content transfer | Encrypt-then-hash, iroh-blobs | 10 content chaos scenarios (mock: S-BLOB, C-STOR, C-COLL) |
 | 6 | sync-relay | Custom relay | Message routing | Full suite activation: 68 scenarios, Docker topology, nightly runs |
+| 7 | tauri-plugin-sync | Tauri integration | Commands, events | None (framework-specific, not protocol-level) |
 
 **Remember:** Tests first. Every time. No exceptions.
 
 ---
 
-*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.3.0 | Date: 2026-02-03*
+*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.4.0 | Date: 2026-02-03*
 
 ---
 
 ## Changelog
+
+**v2.4.0 (2026-02-03):** Phase reconciliation. Phase 3 scope clarified as encryption-focused
+(iroh transport deferred). Phase 5 redefined as IrohTransport implementation (was Tauri
+plugin). Tauri plugin moved to Phase 7. sync-relay remains Phase 6. Aligns spec with
+de facto numbering used in STATUS.md, session logs, and git tags since implementation began.
 
 **v2.3.0 (2026-02-03):** Removed WebSocket transport. All tiers use iroh QUIC. Removed
 websocket.rs from project structure, WebSocketTransport from Phase 3, replaced with
