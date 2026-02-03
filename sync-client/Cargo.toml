@@ -10,7 +10,30 @@ keywords = ["sync", "zero-knowledge", "e2e-encryption", "local-first", "iroh"]
 categories = ["network-programming", "cryptography"]
 
 [dependencies]
-# Dependencies will be added in Phase 3
-# For now, just a placeholder to allow workspace to compile
+# Our crates
+zerok-sync-types = { path = "../sync-types", package = "zerok-sync-types" }
+zerok-sync-core = { path = "../sync-core", package = "zerok-sync-core" }
+
+# Async runtime
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+async-trait = "0.1"
+
+# Encryption - XChaCha20-Poly1305 with 192-bit nonces
+chacha20poly1305 = "0.10"
+
+# Key derivation
+argon2 = "0.5"
+hkdf = "0.12"
+sha2 = "0.10"
+
+# Random number generation
+getrandom = "0.2"
+
+# Error handling
+thiserror = { workspace = true }
+
+# System info for device-adaptive Argon2
+sysinfo = "0.31"
 
 [dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

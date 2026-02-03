@@ -19,4 +19,6 @@ mod messages;
 pub use envelope::Envelope;
 pub use error::SyncError;
 pub use ids::{BlobId, Cursor, DeviceId, GroupId};
-pub use messages::{Bye, Hello, Message, MessageType, Notify, Pull, PullResponse, Push, PushAck};
+pub use messages::{
+    Bye, Hello, Message, MessageType, Notify, Pull, PullBlob, PullResponse, Push, PushAck,
+};
