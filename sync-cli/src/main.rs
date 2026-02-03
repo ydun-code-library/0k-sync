@@ -36,7 +36,7 @@ use std::path::PathBuf;
 mod commands;
 mod config;
 
-use commands::{init, pair, pull, push, status};
+use commands::{init, pair, pull, push, serve, status};
 
 /// CLI tool for testing 0k-Sync protocol.
 #[derive(Parser, Debug)]
@@ -102,6 +102,13 @@ enum Commands {
 
     /// Show sync status
     Status,
+
+    /// Start a sync server (accepts connections from other devices)
+    Serve {
+        /// Passphrase for the sync group
+        #[arg(long, short)]
+        passphrase: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -156,6 +163,9 @@ async fn main() -> Result<()> {
         }
         Commands::Status => {
             status::run(&data_dir).await?;
+        }
+        Commands::Serve { passphrase } => {
+            serve::run(&data_dir, passphrase.as_deref()).await?;
         }
     }
 

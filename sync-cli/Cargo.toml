@@ -19,6 +19,10 @@ zerok-sync-client = { path = "../sync-client", package = "zerok-sync-client" }
 zerok-sync-core = { path = "../sync-core", package = "zerok-sync-core" }
 zerok-sync-types = { path = "../sync-types", package = "zerok-sync-types" }
 
+# P2P networking (for serve command)
+iroh = { workspace = true }
+n0-error = "0.1"
+
 # CLI parsing
 clap = { version = "4", features = ["derive"] }
 
