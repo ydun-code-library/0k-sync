@@ -21,5 +21,5 @@ pub use error::SyncError;
 pub use ids::{BlobId, Cursor, DeviceId, GroupId};
 pub use messages::{
     Bye, ContentAck, ContentRef, Hello, Message, MessageType, Notify, Pull, PullBlob,
-    PullResponse, Push, PushAck,
+    PullResponse, Push, PushAck, Welcome,
 };

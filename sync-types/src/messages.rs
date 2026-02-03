@@ -16,6 +16,8 @@ pub use crate::envelope::MessageType;
 pub enum Message {
     /// Initial handshake
     Hello(Hello),
+    /// Server response to Hello
+    Welcome(Welcome),
     /// Push a blob
     Push(Push),
     /// Acknowledge a push
@@ -57,6 +59,17 @@ pub struct Hello {
     pub group_id: GroupId,
     /// Client's last known cursor (for resumption)
     pub last_cursor: Cursor,
+}
+
+/// Server response to Hello handshake.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Welcome {
+    /// Protocol version supported by server
+    pub version: u8,
+    /// Highest cursor in this group
+    pub max_cursor: Cursor,
+    /// Number of blobs pending for this device
+    pub pending_count: u32,
 }
 
 /// Push a blob to the sync group.
@@ -170,6 +183,22 @@ mod tests {
 
         assert_eq!(hello.device_name, restored.device_name);
         assert_eq!(hello.version, restored.version);
+    }
+
+    #[test]
+    fn welcome_roundtrip() {
+        let welcome = Welcome {
+            version: 1,
+            max_cursor: Cursor::new(42),
+            pending_count: 5,
+        };
+
+        let bytes = rmp_serde::to_vec(&welcome).unwrap();
+        let restored: Welcome = rmp_serde::from_slice(&bytes).unwrap();
+
+        assert_eq!(welcome.version, restored.version);
+        assert_eq!(welcome.max_cursor, restored.max_cursor);
+        assert_eq!(welcome.pending_count, restored.pending_count);
     }
 
     #[test]
