@@ -5,10 +5,9 @@
 
 use super::{Transport, TransportError};
 use async_trait::async_trait;
-use iroh::{endpoint::Connection, Endpoint, NodeId};
+use iroh::{endpoint::Connection, Endpoint, EndpointAddr, EndpointId};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
 /// Protocol identifier for 0k-Sync over iroh.
@@ -77,10 +76,9 @@ impl IrohTransport {
 
     /// Create a new IrohTransport with custom configuration.
     pub async fn with_config(config: IrohTransportConfig) -> Result<Self, TransportError> {
-        let endpoint = Endpoint::builder()
-            .bind()
-            .await
-            .map_err(|e| TransportError::ConnectionFailed(format!("Failed to bind endpoint: {e}")))?;
+        let endpoint = Endpoint::builder().bind().await.map_err(|e| {
+            TransportError::ConnectionFailed(format!("Failed to bind endpoint: {e}"))
+        })?;
 
         Ok(Self {
             endpoint,
@@ -89,9 +87,14 @@ impl IrohTransport {
         })
     }
 
-    /// Get our NodeId for sharing with peers.
-    pub fn node_id(&self) -> NodeId {
-        self.endpoint.node_id()
+    /// Get our EndpointId for sharing with peers.
+    pub fn endpoint_id(&self) -> EndpointId {
+        self.endpoint.id()
+    }
+
+    /// Get our full EndpointAddr for sharing with peers.
+    pub fn endpoint_addr(&self) -> EndpointAddr {
+        self.endpoint.addr()
     }
 
     /// Get the endpoint for advanced usage (e.g., accepting connections).
@@ -99,26 +102,29 @@ impl IrohTransport {
         &self.endpoint
     }
 
-    /// Parse address string to NodeId.
-    fn parse_address(address: &str) -> Result<NodeId, TransportError> {
+    /// Parse address string to EndpointAddr.
+    ///
+    /// Accepts an EndpointId (base32-encoded public key).
+    fn parse_address(address: &str) -> Result<EndpointAddr, TransportError> {
         address
-            .parse::<NodeId>()
-            .map_err(|e| TransportError::ConnectionFailed(format!("Invalid NodeId: {e}")))
+            .parse::<EndpointId>()
+            .map(EndpointAddr::from)
+            .map_err(|e| TransportError::ConnectionFailed(format!("Invalid EndpointId: {e}")))
     }
 }
 
 #[async_trait]
 impl Transport for IrohTransport {
     async fn connect(&self, address: &str) -> Result<(), TransportError> {
-        let node_id = Self::parse_address(address)?;
+        let addr = Self::parse_address(address)?;
 
         // Close existing connection if any
         self.close().await.ok();
 
         // Connect with timeout
-        let conn = tokio::time::timeout(self.config.connect_timeout, async {
+        let conn: Connection = tokio::time::timeout(self.config.connect_timeout, async {
             self.endpoint
-                .connect(node_id, ALPN)
+                .connect(addr, ALPN)
                 .await
                 .map_err(|e| TransportError::ConnectionFailed(format!("Connection failed: {e}")))
         })
@@ -168,18 +174,22 @@ impl Transport for IrohTransport {
     }
 
     async fn recv(&self) -> Result<Vec<u8>, TransportError> {
+        use iroh::endpoint::ReadExactError;
+
         let mut guard = self.connection.lock().await;
         let conn = guard.as_mut().ok_or(TransportError::NotConnected)?;
 
         // Read length prefix (4 bytes, big-endian)
         let mut len_buf = [0u8; 4];
-        conn.recv.read_exact(&mut len_buf).await.map_err(|e| {
-            if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                TransportError::ConnectionClosed
-            } else {
-                TransportError::ReceiveFailed(format!("Failed to read length: {e}"))
-            }
-        })?;
+        conn.recv
+            .read_exact(&mut len_buf)
+            .await
+            .map_err(|e| match e {
+                ReadExactError::FinishedEarly(_) => TransportError::ConnectionClosed,
+                ReadExactError::ReadError(e) => {
+                    TransportError::ReceiveFailed(format!("Failed to read length: {e}"))
+                }
+            })?;
 
         let len = u32::from_be_bytes(len_buf) as usize;
 
@@ -305,64 +315,73 @@ mod tests {
     // ===========================================
 
     #[tokio::test]
-    async fn node_id_is_available() {
+    async fn endpoint_id_is_available() {
         let transport = IrohTransport::new().await.unwrap();
-        let node_id = transport.node_id();
-        // NodeId should be a valid 32-byte public key
-        assert!(!node_id.to_string().is_empty());
+        let id = transport.endpoint_id();
+        // EndpointId should be a valid 32-byte public key
+        assert!(!id.to_string().is_empty());
     }
 
     #[tokio::test]
-    async fn two_transports_have_different_node_ids() {
+    async fn two_transports_have_different_endpoint_ids() {
         let transport1 = IrohTransport::new().await.unwrap();
         let transport2 = IrohTransport::new().await.unwrap();
 
-        assert_ne!(transport1.node_id(), transport2.node_id());
+        assert_ne!(transport1.endpoint_id(), transport2.endpoint_id());
     }
 
     // ===========================================
     // Integration Tests (Two Endpoints)
     // ===========================================
 
+    /// Echo protocol handler for testing
+    #[derive(Debug, Clone)]
+    struct EchoProtocol;
+
+    impl iroh::protocol::ProtocolHandler for EchoProtocol {
+        async fn accept(
+            &self,
+            connection: iroh::endpoint::Connection,
+        ) -> Result<(), iroh::protocol::AcceptError> {
+            use n0_error::StdResultExt;
+
+            let (mut send, mut recv) = connection.accept_bi().await?;
+
+            // Echo server: read length-prefixed message, send it back
+            let mut len_buf = [0u8; 4];
+            recv.read_exact(&mut len_buf).await.anyerr()?;
+            let len = u32::from_be_bytes(len_buf) as usize;
+            let mut data = vec![0u8; len];
+            recv.read_exact(&mut data).await.anyerr()?;
+
+            // Echo back with same framing
+            send.write_all(&len_buf).await.anyerr()?;
+            send.write_all(&data).await.anyerr()?;
+            send.finish()?;
+
+            Ok(())
+        }
+    }
+
     #[tokio::test]
+    #[ignore = "Requires relay/discovery - run with --ignored for E2E tests"]
     async fn two_endpoints_can_connect() {
         use iroh::protocol::Router;
 
         // Create accepting endpoint with Router
         let acceptor = IrohTransport::new().await.unwrap();
-        let acceptor_node_id = acceptor.node_id().to_string();
+        let acceptor_id = acceptor.endpoint_id().to_string();
 
-        // Set up Router to accept connections
+        // Set up Router to accept connections with our echo protocol
         let router = Router::builder(acceptor.endpoint().clone())
-            .accept(ALPN, |incoming| {
-                Box::pin(async move {
-                    let conn = incoming.await?;
-                    let (mut send, mut recv) = conn.accept_bi().await?;
-
-                    // Echo server: read message, send it back
-                    let mut len_buf = [0u8; 4];
-                    recv.read_exact(&mut len_buf).await?;
-                    let len = u32::from_be_bytes(len_buf) as usize;
-                    let mut data = vec![0u8; len];
-                    recv.read_exact(&mut data).await?;
-
-                    // Echo back
-                    send.write_all(&len_buf).await?;
-                    send.write_all(&data).await?;
-                    send.finish()?;
-
-                    Ok(())
-                })
-            })
-            .spawn()
-            .await
-            .unwrap();
+            .accept(ALPN, EchoProtocol)
+            .spawn();
 
         // Create connecting transport
         let connector = IrohTransport::new().await.unwrap();
 
-        // Connect to acceptor
-        connector.connect(&acceptor_node_id).await.unwrap();
+        // Connect to acceptor (requires relay/discovery for address resolution)
+        connector.connect(&acceptor_id).await.unwrap();
         assert!(connector.is_connected());
 
         // Send a message

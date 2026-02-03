@@ -20,21 +20,11 @@
 //! let response = transport.recv().await?;
 //! ```
 
-// NOTE: iroh module disabled due to iroh 0.96 dependency bug
-// curve25519-dalek 5.0.0-pre.1 has broken imports (digest::crypto_common vs digest::common)
-// Re-enable when iroh publishes fix or curve25519-dalek 5.0.0-pre.2+ is released
-// mod iroh;
+mod iroh;
 mod mock;
 
-// pub use iroh::{IrohTransport, IrohTransportConfig, ALPN, MAX_MESSAGE_SIZE};
+pub use iroh::{IrohTransport, IrohTransportConfig, ALPN, MAX_MESSAGE_SIZE};
 pub use mock::MockTransport;
-
-// Constants that will be used by IrohTransport when enabled
-/// Protocol identifier for 0k-Sync over iroh.
-pub const ALPN: &[u8] = b"/0k-sync/1";
-
-/// Maximum message size (1MB per blob limit from spec).
-pub const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
 
 use async_trait::async_trait;
 use thiserror::Error;

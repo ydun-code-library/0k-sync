@@ -35,6 +35,7 @@ pub mod transport;
 
 pub use client::{ClientError, ReceivedBlob, SyncClient, SyncConfig};
 pub use crypto::{Argon2Params, CryptoError, GroupKey, GroupSecret, KEY_SIZE, NONCE_SIZE};
-// NOTE: IrohTransport disabled due to iroh 0.96 dependency bug
-// pub use transport::{IrohTransport, IrohTransportConfig, ...}
-pub use transport::{MockTransport, Transport, TransportError, ALPN, MAX_MESSAGE_SIZE};
+pub use transport::{
+    IrohTransport, IrohTransportConfig, MockTransport, Transport, TransportError, ALPN,
+    MAX_MESSAGE_SIZE,
+};

@@ -42,9 +42,7 @@ chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
 # P2P networking
-# NOTE: iroh 0.96 currently broken due to curve25519-dalek 5.0.0-pre.1 bug
-# See: https://github.com/dalek-cryptography/curve25519-dalek - main branch has fix
-# iroh = "0.96"                  # DISABLED until dependency fix
+iroh = "0.96"                    # QUIC-based P2P with hole punching
 iroh-blobs = "0.98"              # Content-addressed storage with BLAKE3/Bao
 
 # Random number generation
@@ -65,3 +63,8 @@ sync-core = { path = "sync-core", package = "zerok-sync-core" }
 sync-client = { path = "sync-client", package = "zerok-sync-client" }
 sync-content = { path = "sync-content", package = "zerok-sync-content" }
 
+# Patch for curve25519-dalek digest import fix
+# See: https://github.com/dalek-cryptography/curve25519-dalek/pull/878
+# Remove when curve25519-dalek 5.0.0-pre.2+ is released
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }

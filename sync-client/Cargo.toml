@@ -35,9 +35,9 @@ thiserror = { workspace = true }
 # System info for device-adaptive Argon2
 sysinfo = "0.31"
 
-# P2P networking - DISABLED due to iroh 0.96 dependency bug
-# iroh = { workspace = true }
-# Enable when iroh fixes curve25519-dalek 5.0.0-pre.1 issue
+# P2P networking
+iroh = { workspace = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+n0-error = "0.1"  # For test protocol handler
