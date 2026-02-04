@@ -1911,7 +1911,7 @@ sync-types = { path = "../sync-types" }
 tokio = { version = "1", features = ["full"] }
 iroh = "0.96"                    # Endpoint for accepting client connections (QUIC) - requires cargo patch
 clatter = "2.2"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "derive"] }
 axum = "0.7"                     # Health/metrics HTTP endpoints only
 tower = "0.4"
 tracing = "0.1"

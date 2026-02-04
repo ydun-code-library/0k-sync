@@ -601,7 +601,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 | tokio-tungstenite | https://github.com/snapview/tokio-tungstenite | ⏸️ Deferred |
 | argon2 (RustCrypto) | https://github.com/RustCrypto/password-hashes | 0.5.x |
 | chacha20poly1305 | https://github.com/RustCrypto/AEADs | 0.10.x |
-| sqlx | https://github.com/launchbadge/sqlx | 0.7.x |
+| sqlx | https://github.com/launchbadge/sqlx | 0.8.x |
 
 ### 9.3 Security Notes
 

@@ -424,7 +424,7 @@ argon2 = "0.5"                   # Key derivation
 tokio = { version = "1", features = ["full"] }
 
 # Future (sync-relay)
-sqlx = { version = "0.7", features = ["sqlite"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "derive"] }
 axum = "0.7"  # Health endpoints
 ```
 

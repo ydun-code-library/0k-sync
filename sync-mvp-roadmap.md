@@ -235,7 +235,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 |------------|---------|------|
 | clatter | 2.1+ | Low - stable release |
 | iroh | 1.0 | Low - production ready |
-| sqlx (relay) | 0.7+ | Low - mature |
+| sqlx (relay) | 0.8+ | Low - mature |
 | tauri | 2.0+ | Low - Managed expertise |
 
 ### Internal

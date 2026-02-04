@@ -778,7 +778,7 @@ sync_relay_bytes_transferred 15728640
 tokio = { version = "1", features = ["full"] }
 iroh = "1.0"                         # QUIC transport
 snow = "0.9"                          # Noise Protocol
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "derive"] }
 serde = { version = "1", features = ["derive"] }
 rmp-serde = "1"                       # MessagePack
 uuid = { version = "1", features = ["v4"] }

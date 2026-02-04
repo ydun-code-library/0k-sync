@@ -7,11 +7,11 @@ LAST_SYNC: 2026-01-12
 PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04
 **Project Phase:** PHASE 6 IN PROGRESS
-**Completion:** 99% (Phases 1-5 + 3.5 complete; Phase 6 MVP functional)
+**Completion:** 99% (Phases 1-5 + 3.5 complete; Phase 6 MVP + code review fixes)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
-**Current Focus:** Phase 6 (sync-relay) - MVP running
+**Current Focus:** Phase 6 (sync-relay) - Code review fixes complete, rate limiting next
 
 ---
 
@@ -163,14 +163,14 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ---
 
 ### Phase 6: sync-relay + Full Chaos 🟡 IN PROGRESS
-- **Duration:** Current session (2026-02-03)
+- **Duration:** Sessions 2026-02-03 to 2026-02-04
 - **Output:** Custom relay server, full topology chaos
-- **Status:** MVP functional, 28 tests passing
+- **Status:** MVP functional + code review fixes, 32 tests passing
 
 **Completed Tasks:**
 - [x] Crate scaffold with dependencies (iroh, sqlx, axum, dashmap)
-- [x] SQLite storage layer with WAL mode (12 tests)
-- [x] BlobStorage trait: store_blob, get_blobs_after, cleanup_expired
+- [x] SQLite storage layer with WAL mode
+- [x] BlobStorage trait: store_blob, get_blobs_after, cleanup_expired, mark_delivered_batch
 - [x] Protocol handler (ProtocolHandler trait, ALPN /0k-sync/1)
 - [x] Session state machine (AwaitingHello → Active → Closing)
 - [x] Message handlers (HELLO→WELCOME, PUSH→PUSH_ACK, PULL→PULL_RESPONSE)
@@ -178,13 +178,22 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - [x] HTTP endpoints (axum): /health, /metrics, /.well-known/iroh
 - [x] Main entry point with graceful shutdown
 - [x] Welcome message type added to sync-types
+- [x] Background cleanup task (TTL-based blob expiration)
+- [x] **Code review fixes (2026-02-04):**
+  - [x] Issue #1: Quota enforcement wired up (max_blob_size, max_group_storage)
+  - [x] Issue #2: Batch cleanup queries (N+1 → 2 queries)
+  - [x] Issue #3: Batch delivery marking (mark_delivered_batch with transaction)
+  - [x] Issue #4: ProtocolError::Internal for infrastructure errors
+  - [x] Issue #7: Improved graceful shutdown
+- [x] **sqlx upgraded to 0.8** — fixes RUSTSEC-2024-0363 vulnerability
+- [x] **Excluded sqlx-mysql** — fixes RUSTSEC-2023-0071 (rsa) vulnerability
 
 **Remaining Tasks:**
 - [ ] Rate limiting (connections per IP, messages per minute)
-- [ ] Cleanup task (TTL-based blob expiration)
 - [ ] Docker containerization
 - [ ] Integration tests (two CLI instances through relay)
 - [ ] Activate 28 chaos test stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
+- [ ] Issue #5: notify_group implementation (1-2 hrs)
 
 ---
 
@@ -208,14 +217,13 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - ✅ Phase 4 (sync-cli): Full CLI with 5 commands, 15 tests
 - ✅ All phases committed and tagged
 
-### Completed This Session (2026-02-03)
-- [x] Phase 6: sync-relay MVP implementation
-  - Step 1: Crate scaffold + config (commit 16da7e4)
-  - Steps 2-4: SQLite storage layer (commit 9a530a8)
-  - Steps 5-6: Protocol handler + session (commit caf1d8e)
-  - Steps 12-14: HTTP endpoints + main (commit 724b205)
-- [x] Added Welcome message type to sync-types
-- [x] All tests pass (268 passing, 34 ignored), clippy clean
+### Completed This Session (2026-02-04)
+- [x] Code review fixes (Issues #1, #2, #3, #4, #7)
+- [x] sqlx 0.7 → 0.8 upgrade (security fix)
+- [x] Excluded sqlx-mysql (removed rsa vulnerability)
+- [x] Updated 7 documentation files with sqlx 0.8
+- [x] All tests pass (272 passing, 34 ignored), clippy clean
+- [x] 0 vulnerabilities (was 2)
 
 ### Blockers
 - None at this time
@@ -230,11 +238,11 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Project Metrics
 
 ### Code Metrics
-- **Total Lines of Code:** ~7,100+ (sync-types, sync-core, sync-client, sync-content, sync-cli, chaos-tests)
-- **Test Count:** 269 tests (31 sync-types + 60 sync-core + 60 sync-client + 23 sync-content + 20 sync-cli + 78 chaos-tests)
-- **Passing:** 235 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
+- **Total Lines of Code:** ~7,500+ (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay, chaos-tests)
+- **Test Count:** 306 tests (32 sync-types + 60 sync-core + 55 sync-client + 23 sync-content + 20 sync-cli + 32 sync-relay + 78 chaos-tests + 6 ignored)
+- **Passing:** 272 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
 - **Test Coverage:** 100% for public APIs
-- **Crates:** 5 of 6 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli complete)
+- **Crates:** 6 of 7 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay complete)
 
 ### Documentation Metrics
 - **Total Documentation:** ~6,300+ lines across 6 core docs
@@ -264,6 +272,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - clatter: 2.2 (Hybrid Noise Protocol)
 - chacha20poly1305: 0.10 (XChaCha20-Poly1305)
 - argon2: 0.5 (key derivation)
+- sqlx: **0.8** (SQLite only, default-features=false) — upgraded 2026-02-04
 
 **⚠️ Cargo Patch Required:**
 ```toml
@@ -356,6 +365,21 @@ None
 ---
 
 ## Session History
+
+### Session 14: 2026-02-04 (Code Review Fixes + sqlx Upgrade - Q)
+- Addressed 5 code review issues from James's Phase 6 MVP review
+- Issue #1: Wired up quota enforcement (max_blob_size, max_group_storage checks)
+- Issue #2: Batched cleanup queries (N+1 → 2 queries with subquery)
+- Issue #3: Batched delivery marking (mark_delivered_batch with transaction)
+- Issue #4: Added ProtocolError::Internal, BlobTooLarge, QuotaExceeded variants
+- Issue #7: Improved graceful shutdown (explicit task aborts)
+- Upgraded sqlx 0.7 → 0.8 (fixes RUSTSEC-2024-0363)
+- Excluded sqlx-mysql via default-features=false (fixes RUSTSEC-2023-0071)
+- Updated all documentation with sqlx 0.8 references (7 files)
+- Added 2 new tests for batch delivery (32 total in sync-relay)
+- **Vulnerabilities:** 0 (was 2), only 2 unmaintained warnings in iroh deps
+- **Tests:** 272 passing, 34 ignored, clippy clean
+- **Output:** Code review complete, vulnerabilities fixed, ready for rate limiting
 
 ### Session 13: 2026-02-03 (Phase 3.5 - sync-content - Q)
 - Implemented encrypt-then-hash content transfer pipeline
@@ -576,6 +600,6 @@ None
 
 **This is the source of truth for Sync Relay status.**
 
-**Last Updated:** 2026-02-03
-**Next Update:** End of Q's implementation session
-**Next Handler:** Q (implementation phase)
+**Last Updated:** 2026-02-04
+**Next Update:** After rate limiting implementation
+**Next Handler:** Q (Phase 6 completion: rate limiting, Docker, integration tests)
