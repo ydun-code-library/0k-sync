@@ -291,9 +291,9 @@ docker-compose up -d
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ⬅️ NOW → Docker → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ⬅️ NOW → Docker → tauri-plugin
 ```
-Phase 6 MVP complete (30 tests). Next: Address code review findings, then Docker.
+Phase 6 MVP + code review complete (32 tests). Next: Rate limiting, then Docker.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -324,16 +324,18 @@ Phase 6 MVP complete (30 tests). Next: Address code review findings, then Docker
 ```bash
 cd /Users/ydun.io/Projects/Personal/0k-sync
 
-# 1. Read the code review feedback
-cat docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md
-
-# 2. Verify green state
+# 1. Verify green state
 cargo test --workspace
+cargo audit
 
-# 3. Start with Issue #1 (quota enforcement)
+# 2. Check implementation plan for rate limiting
+cat docs/03-IMPLEMENTATION-PLAN.md | grep -A 50 "Rate Limiting"
+
+# 3. Start rate limiting implementation
+# Create sync-relay/src/limits.rs with governor crate
 ```
 
-**Then:** Work through code review issues #1-4, #7 (~1.5 hrs total)
+**Then:** Rate limiting → Docker → Integration tests
 
 **Good luck!**
 
@@ -341,7 +343,7 @@ cargo test --workspace
 
 **This file is updated at the end of each session for continuity.**
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04
 **Template Version:** 1.0.0
 **Next Handler:** Q (implementation phase)
 
@@ -349,27 +351,28 @@ cargo test --workspace
 
 ## Note for Q
 
-**🔴 CODE REVIEW COMPLETED (2026-02-03)**
+**✅ CODE REVIEW FIXES COMPLETE (2026-02-04)**
 
-James did a full source code review. **Verdict: Solid MVP.** 7 issues identified, none architectural.
+All quick-win code review issues addressed + sqlx security upgrade:
 
-**Read first:** `docs/reviews/2026-02-03-sync-relay-phase6-mvp-review.md`
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | Quota enforcement | ✅ Done |
+| 2 | Cleanup N+1 queries | ✅ Done |
+| 3 | Pull delivery batching | ✅ Done |
+| 4 | ProtocolError::Internal | ✅ Done |
+| 5 | notify_group | ⬜ Later |
+| 6 | total_sessions accuracy | ⬜ Optional |
+| 7 | Graceful shutdown | ✅ Done |
 
-**Quick wins (~1.5 hrs):**
-1. Issue #1: Quota enforcement in `handle_push` (30 min)
-2. Issue #2: Batch cleanup queries (15 min)
-3. Issue #3: Batch delivery marking (15 min)
-4. Issue #4: Add `ProtocolError::Internal` (10 min)
-5. Issue #7: Graceful shutdown (30 min)
-
-**Later:**
-- Issue #5: notify_group implementation (1-2 hrs)
-- Issue #6: total_sessions accuracy (optional)
+**Security:** sqlx 0.8 upgrade - 0 vulnerabilities
 
 ---
 
-**Phase 6 MVP Complete ✅:**
-- sync-relay crate: 30 tests passing
+**Phase 6 Status:**
+- sync-relay crate: 32 tests passing
+- Code review fixes: 5/7 complete (remaining are optional/later)
+- sqlx 0.8: 0 vulnerabilities
 - SQLite storage with WAL mode, atomic cursor assignment
 - Protocol handler on ALPN /0k-sync/1
 - Session management: AwaitingHello → Active → Closing
@@ -377,25 +380,25 @@ James did a full source code review. **Verdict: Solid MVP.** 7 issues identified
 - HTTP endpoints: /health (JSON), /metrics (Prometheus)
 - Background cleanup task for TTL-based expiration
 
-**Phase 6 Remaining (after code review fixes):**
-- Rate limiting (limits.rs)
+**Phase 6 Remaining:**
+- Rate limiting (limits.rs) ⬅️ START HERE
 - Docker containerization
 - Integration tests (CLI through relay)
 - Activate 28 chaos test stubs
 
 **Test Summary:**
-- sync-relay: 30 tests
-- sync-types: 32 tests (includes Welcome)
-- Workspace total: 270 passing, 34 ignored
+- sync-relay: 32 tests
+- sync-types: 32 tests
+- Workspace total: 272 passing, 34 ignored
 
 **Key Commits:**
+- `531e225` - sqlx 0.8 upgrade + docs
+- `05db253` - Code review fixes
 - `87926fc` - Final documentation update
 - `d5089ff` - Cleanup task
 - `724b205` - HTTP + main
 - `caf1d8e` - Protocol + session
-- `9a530a8` - Storage layer
-- `16da7e4` - Crate scaffold
 
 **MCP Servers:**
 - `mcp__iroh-rag__iroh_ecosystem_search` - iroh server patterns
-- `mcp__rust-rag__rust_dev_search` - Rust patterns (axum, sqlx)
+- `mcp__rust-rag__rust_dev_search` - Rust patterns (axum, sqlx, governor)
