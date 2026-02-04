@@ -3,6 +3,7 @@
 //! SyncRelay manages storage, active sessions, and coordinates message routing.
 
 use crate::config::Config;
+use crate::limits::RateLimits;
 use crate::storage::SqliteStorage;
 use dashmap::DashMap;
 use std::collections::HashSet;
@@ -21,6 +22,8 @@ struct GroupSessions {
 pub struct SyncRelay {
     config: Config,
     storage: Arc<SqliteStorage>,
+    /// Rate limiters for connections and messages.
+    rate_limits: RateLimits,
     /// Active sessions per group.
     sessions: DashMap<GroupId, Arc<RwLock<GroupSessions>>>,
 }
@@ -29,6 +32,7 @@ impl std::fmt::Debug for SyncRelay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SyncRelay")
             .field("config", &self.config)
+            .field("rate_limits", &self.rate_limits)
             .field("sessions_count", &self.sessions.len())
             .finish_non_exhaustive()
     }
@@ -37,9 +41,11 @@ impl std::fmt::Debug for SyncRelay {
 impl SyncRelay {
     /// Create a new SyncRelay with the given config and storage.
     pub fn new(config: Config, storage: SqliteStorage) -> Self {
+        let rate_limits = RateLimits::new(&config.limits);
         Self {
             config,
             storage: Arc::new(storage),
+            rate_limits,
             sessions: DashMap::new(),
         }
     }
@@ -57,6 +63,11 @@ impl SyncRelay {
     /// Get a clone of the storage Arc for background tasks.
     pub fn storage_arc(&self) -> Arc<SqliteStorage> {
         self.storage.clone()
+    }
+
+    /// Get access to the rate limiters.
+    pub fn rate_limits(&self) -> &RateLimits {
+        &self.rate_limits
     }
 
     /// Register a session (device connected to a group).

@@ -34,6 +34,19 @@ impl ProtocolHandler for SyncProtocol {
     ) -> impl std::future::Future<Output = Result<(), AcceptError>> + Send {
         let relay = self.relay.clone();
         async move {
+            // Rate limit check: prevent connection flooding from single device
+            let remote_id = connection.remote_id();
+            if let Err(e) = relay.rate_limits().check_connection(remote_id.as_bytes()) {
+                tracing::warn!(
+                    "Connection rate limited for {}: {}",
+                    remote_id,
+                    e
+                );
+                // Close connection immediately
+                connection.close(1u32.into(), b"rate limited");
+                return Ok(());
+            }
+
             let session = Session::new(relay, connection);
             // Spawn session handler - don't block the accept loop
             tokio::spawn(async move {

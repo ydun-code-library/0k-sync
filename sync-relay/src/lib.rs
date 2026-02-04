@@ -38,10 +38,8 @@ pub mod cleanup;
 pub mod config;
 pub mod error;
 pub mod http;
+pub mod limits;
 pub mod protocol;
 pub mod server;
 pub mod session;
 pub mod storage;
-
-// Modules to be implemented
-// pub mod limits;

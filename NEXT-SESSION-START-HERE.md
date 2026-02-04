@@ -8,10 +8,10 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-04
-**Last Session:** Code Review Fixes + sqlx Upgrade (Q)
-**Current Phase:** PHASE 6 IN PROGRESS (Code review complete, rate limiting next)
+**Last Session:** Rate Limiting Implementation (Q)
+**Current Phase:** PHASE 6 IN PROGRESS (Rate limiting complete, Docker next)
 **Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (Phase 6: Rate limiting, Docker, Integration tests)
+**Next Handler:** Q (Phase 6: Docker, Integration tests)
 
 ---
 
@@ -37,7 +37,25 @@ James's code review issues have been addressed:
 - ✅ **0 vulnerabilities** (was 2)
 - ✅ 7 documentation files updated with sqlx 0.8
 
-**Next:** Rate limiting → Docker → Integration tests
+**Next:** Docker → Integration tests
+
+---
+
+## ✅ RATE LIMITING COMPLETE (2026-02-04)
+
+**Files:**
+- `sync-relay/src/limits.rs` - New module with RateLimits struct
+- `sync-relay/src/protocol.rs` - Connection rate check added
+- `sync-relay/src/session.rs` - Message rate check added
+- `sync-relay/src/error.rs` - ProtocolError::RateLimited variant added
+
+**Implementation:**
+- Connection rate limiting by EndpointId (device public key)
+- Message rate limiting by DeviceId (PUSH/PULL operations)
+- Uses `governor` crate with keyed DashMap limiters
+- Config: `connections_per_ip: 10` (per minute), `messages_per_minute: 100`
+
+**Tests:** +7 new tests in limits.rs (279 total passing)
 
 ---
 
@@ -74,8 +92,8 @@ This handoff from Moneypenny contains:
 - ✅ Phase 4: sync-cli (20 tests) - CLI with 6 commands
 - ✅ Phase 5: IrohTransport (E2E verified Mac Mini ↔ Beast)
 - ✅ Chaos scenarios (78 tests: 50 passing, 28 stubs for Phase 6)
-- 🟡 **Phase 6: sync-relay (32 tests) - MVP + code review fixes complete**
-- ✅ 272 tests total (272 passing, 34 ignored)
+- 🟡 **Phase 6: sync-relay (39 tests) - MVP + code review + rate limiting complete**
+- ✅ 279 tests total (279 passing, 34 ignored)
 - ✅ **0 vulnerabilities** (sqlx 0.8, no mysql)
 - ✅ GitHub repository: https://github.com/ydun-code-library/0k-sync
 
@@ -156,8 +174,8 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 ### Phase 6 Remaining Tasks
 
 **Next Up:**
-- [ ] Rate limiting (connections per IP, messages per minute) ⬅️ START HERE
-- [ ] Docker containerization (Dockerfile)
+- [x] Rate limiting (connections per IP, messages per minute) ✅
+- [ ] Docker containerization (Dockerfile) ⬅️ START HERE
 - [ ] Integration tests (two CLI instances through relay)
 - [ ] Issue #5: Implement `notify_group` (1-2 hrs)
 - [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
@@ -184,19 +202,20 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ## 🎯 Immediate Next Steps
 
-### Step 1: Rate Limiting ⭐ START HERE
+### Step 1: Rate Limiting ✅ COMPLETE
 
 **Goal:** Implement connection and message rate limits
 
 **Tasks:**
-- [ ] Create `limits.rs` with governor crate
-- [ ] Connections per IP (max 10)
-- [ ] Messages per device per minute (max 100)
-- [ ] Wire into session.rs
+- [x] Create `limits.rs` with governor crate ✅
+- [x] Connections per EndpointId (max 10/minute) ✅
+- [x] Messages per DeviceId per minute (max 100) ✅
+- [x] Wire into protocol.rs and session.rs ✅
+- [x] 7 unit tests ✅
 
 ---
 
-### Step 3: Docker + Chaos Integration
+### Step 2: Docker + Chaos Integration ⭐ START HERE
 
 **Prerequisites:** Code review fixes complete
 
@@ -291,9 +310,9 @@ docker-compose up -d
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ⬅️ NOW → Docker → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ✅ → Docker ⬅️ NOW → tauri-plugin
 ```
-Phase 6 MVP + code review complete (32 tests). Next: Rate limiting, then Docker.
+Phase 6: MVP + code review + rate limiting complete (39 tests). Next: Docker.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -328,14 +347,12 @@ cd /Users/ydun.io/Projects/Personal/0k-sync
 cargo test --workspace
 cargo audit
 
-# 2. Check implementation plan for rate limiting
-cat docs/03-IMPLEMENTATION-PLAN.md | grep -A 50 "Rate Limiting"
-
-# 3. Start rate limiting implementation
-# Create sync-relay/src/limits.rs with governor crate
+# 2. Start Docker containerization
+# Create sync-relay/Dockerfile
+# Multi-stage build for minimal image size
 ```
 
-**Then:** Rate limiting → Docker → Integration tests
+**Then:** Docker → Integration tests → Chaos stubs
 
 **Good luck!**
 
@@ -381,15 +398,15 @@ All quick-win code review issues addressed + sqlx security upgrade:
 - Background cleanup task for TTL-based expiration
 
 **Phase 6 Remaining:**
-- Rate limiting (limits.rs) ⬅️ START HERE
-- Docker containerization
-- Integration tests (CLI through relay)
-- Activate 28 chaos test stubs
+- [x] Rate limiting (limits.rs) ✅
+- [ ] Docker containerization ⬅️ START HERE
+- [ ] Integration tests (CLI through relay)
+- [ ] Activate 28 chaos test stubs
 
 **Test Summary:**
-- sync-relay: 32 tests
+- sync-relay: 39 tests (+7 from limits.rs)
 - sync-types: 32 tests
-- Workspace total: 272 passing, 34 ignored
+- Workspace total: 279 passing, 34 ignored
 
 **Key Commits:**
 - `531e225` - sqlx 0.8 upgrade + docs

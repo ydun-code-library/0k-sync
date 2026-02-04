@@ -165,7 +165,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ### Phase 6: sync-relay + Full Chaos 🟡 IN PROGRESS
 - **Duration:** Sessions 2026-02-03 to 2026-02-04
 - **Output:** Custom relay server, full topology chaos
-- **Status:** MVP functional + code review fixes, 32 tests passing
+- **Status:** MVP + code review + rate limiting complete, 39 tests passing
 
 **Completed Tasks:**
 - [x] Crate scaffold with dependencies (iroh, sqlx, axum, dashmap)
@@ -187,9 +187,14 @@ PURPOSE: Track project progress, status, and metrics across development sessions
   - [x] Issue #7: Improved graceful shutdown
 - [x] **sqlx upgraded to 0.8** — fixes RUSTSEC-2024-0363 vulnerability
 - [x] **Excluded sqlx-mysql** — fixes RUSTSEC-2023-0071 (rsa) vulnerability
+- [x] **Rate limiting (2026-02-04):**
+  - [x] `limits.rs` module with `governor` crate
+  - [x] Connection rate limiting by EndpointId (max 10/minute)
+  - [x] Message rate limiting by DeviceId (max 100/minute)
+  - [x] `ProtocolError::RateLimited` variant added
+  - [x] 7 new unit tests
 
 **Remaining Tasks:**
-- [ ] Rate limiting (connections per IP, messages per minute)
 - [ ] Docker containerization
 - [ ] Integration tests (two CLI instances through relay)
 - [ ] Activate 28 chaos test stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
@@ -222,7 +227,12 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - [x] sqlx 0.7 → 0.8 upgrade (security fix)
 - [x] Excluded sqlx-mysql (removed rsa vulnerability)
 - [x] Updated 7 documentation files with sqlx 0.8
-- [x] All tests pass (272 passing, 34 ignored), clippy clean
+- [x] Rate limiting implementation (`governor` crate)
+  - [x] `limits.rs` module with keyed rate limiters
+  - [x] Connection rate check in `protocol.rs`
+  - [x] Message rate check in `session.rs`
+  - [x] 7 new tests
+- [x] All tests pass (279 passing, 34 ignored), clippy clean
 - [x] 0 vulnerabilities (was 2)
 
 ### Blockers
@@ -239,8 +249,8 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ### Code Metrics
 - **Total Lines of Code:** ~7,500+ (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay, chaos-tests)
-- **Test Count:** 306 tests (32 sync-types + 60 sync-core + 55 sync-client + 23 sync-content + 20 sync-cli + 32 sync-relay + 78 chaos-tests + 6 ignored)
-- **Passing:** 272 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
+- **Test Count:** 313 tests (32 sync-types + 60 sync-core + 55 sync-client + 23 sync-content + 20 sync-cli + 39 sync-relay + 78 chaos-tests + 6 ignored)
+- **Passing:** 279 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
 - **Test Coverage:** 100% for public APIs
 - **Crates:** 6 of 7 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay complete)
 
@@ -365,6 +375,17 @@ None
 ---
 
 ## Session History
+
+### Session 15: 2026-02-04 (Rate Limiting Implementation - Q)
+- Implemented rate limiting using `governor` crate
+- Created `limits.rs` module with `RateLimits` struct
+- Connection rate limiting by EndpointId (max 10/minute per device)
+- Message rate limiting by DeviceId (max 100/minute for PUSH/PULL)
+- Added `ProtocolError::RateLimited` error variant
+- Wired into `protocol.rs` (connection check) and `session.rs` (message check)
+- 7 new tests in limits.rs (39 total in sync-relay)
+- **Tests:** 279 passing, 34 ignored, clippy clean
+- **Output:** Rate limiting complete, ready for Docker containerization
 
 ### Session 14: 2026-02-04 (Code Review Fixes + sqlx Upgrade - Q)
 - Addressed 5 code review issues from James's Phase 6 MVP review
@@ -573,18 +594,17 @@ None
 
 ## Next Steps (Priority Order)
 
-### Immediate (Next Session) - Phase 6 Start
-1. ✅ Phase 5 complete (IrohTransport E2E + chaos scenarios)
-2. Begin sync-relay server implementation
-3. iroh Endpoint server setup
-4. SQLite storage layer design
+### Immediate (Next Session) - Phase 6 Completion
+1. ✅ sync-relay MVP complete (39 tests)
+2. ✅ Code review fixes complete
+3. ✅ Rate limiting complete
+4. Docker containerization (Dockerfile)
+5. Integration tests (two CLI instances through relay)
 
-### Short Term (Next 2-3 Sessions) - Phase 6 Completion
-1. Implement sync-relay server (iroh Endpoint)
-2. Noise XX handshake implementation
-3. SQLite storage layer
-4. Full topology chaos testing (Docker + Toxiproxy)
-5. Implement 28 ignored chaos stubs
+### Short Term (Next 2-3 Sessions) - Phase 6 Finalization
+1. Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
+2. Full topology chaos testing (Docker + Toxiproxy)
+3. Issue #5: notify_group implementation
 
 ### Medium Term (Next 1-2 Weeks)
 1. End-to-end testing with real relay
@@ -601,5 +621,5 @@ None
 **This is the source of truth for Sync Relay status.**
 
 **Last Updated:** 2026-02-04
-**Next Update:** After rate limiting implementation
-**Next Handler:** Q (Phase 6 completion: rate limiting, Docker, integration tests)
+**Next Update:** After Docker containerization
+**Next Handler:** Q (Phase 6 completion: Docker, integration tests)

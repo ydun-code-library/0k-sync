@@ -99,6 +99,24 @@ impl Session {
         // Read message with length prefix
         let message = self.read_message(&mut recv).await?;
 
+        // Rate limit check for Active state operations (PUSH, PULL)
+        // HELLO is not rate limited here (connection rate limit handles that)
+        // BYE is not rate limited (we always allow graceful disconnect)
+        if let SessionState::Active { device_id, .. } = &self.state {
+            if matches!(message, Message::Push(_) | Message::Pull(_)) {
+                if let Err(e) = self.relay.rate_limits().check_message(device_id.as_bytes()) {
+                    tracing::warn!(
+                        "Message rate limited for device {:?}: {}",
+                        device_id,
+                        e
+                    );
+                    return Err(ProtocolError::RateLimited {
+                        reason: e.to_string(),
+                    });
+                }
+            }
+        }
+
         // Handle message based on state
         let response = match (&self.state, &message) {
             (SessionState::AwaitingHello, Message::Hello(hello)) => {

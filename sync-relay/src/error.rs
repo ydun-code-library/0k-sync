@@ -144,6 +144,13 @@ pub enum ProtocolError {
         /// Server protocol version.
         server: u32,
     },
+
+    /// Rate limit exceeded.
+    #[error("rate limit exceeded: {reason}")]
+    RateLimited {
+        /// Reason for rate limiting.
+        reason: String,
+    },
 }
 
 /// Result type alias for relay operations.
