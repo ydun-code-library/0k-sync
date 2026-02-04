@@ -243,6 +243,41 @@ impl BlobStorage for SqliteStorage {
         Ok(())
     }
 
+    async fn mark_delivered_batch(
+        &self,
+        blob_ids: &[BlobId],
+        device_id: &DeviceId,
+    ) -> Result<(), StorageError> {
+        if blob_ids.is_empty() {
+            return Ok(());
+        }
+
+        let now = Self::current_timestamp();
+        let device_bytes = device_id.as_bytes();
+
+        // Use a transaction for batch insert
+        let mut tx = self.pool.begin().await.map_err(StorageError::Database)?;
+
+        for blob_id in blob_ids {
+            sqlx::query(
+                r#"
+                INSERT INTO deliveries (blob_id, device_id, delivered_at)
+                VALUES (?1, ?2, ?3)
+                ON CONFLICT(blob_id, device_id) DO UPDATE SET delivered_at = ?3
+                "#,
+            )
+            .bind(blob_id.as_bytes())
+            .bind(device_bytes.as_slice())
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .map_err(StorageError::Database)?;
+        }
+
+        tx.commit().await.map_err(StorageError::Database)?;
+        Ok(())
+    }
+
     async fn get_pending_count(
         &self,
         group_id: &GroupId,
@@ -272,29 +307,18 @@ impl BlobStorage for SqliteStorage {
     async fn cleanup_expired(&self) -> Result<u64, StorageError> {
         let now = Self::current_timestamp();
 
-        // First, get expired blob IDs for cascade delete
-        let expired_blob_ids: Vec<Vec<u8>> = sqlx::query_scalar(
+        // Delete deliveries for expired blobs using subquery (avoids N+1)
+        sqlx::query(
             r#"
-            SELECT blob_id FROM blobs WHERE expires_at <= ?1
+            DELETE FROM deliveries WHERE blob_id IN (
+                SELECT blob_id FROM blobs WHERE expires_at <= ?1
+            )
             "#,
         )
         .bind(now)
-        .fetch_all(&self.pool)
+        .execute(&self.pool)
         .await
         .map_err(StorageError::Database)?;
-
-        if expired_blob_ids.is_empty() {
-            return Ok(0);
-        }
-
-        // Delete deliveries for expired blobs
-        for blob_id in &expired_blob_ids {
-            sqlx::query("DELETE FROM deliveries WHERE blob_id = ?1")
-                .bind(blob_id)
-                .execute(&self.pool)
-                .await
-                .map_err(StorageError::Database)?;
-        }
 
         // Delete expired blobs
         let result = sqlx::query(
@@ -560,6 +584,50 @@ mod tests {
         // No longer pending
         let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
         assert_eq!(pending, 0);
+    }
+
+    #[tokio::test]
+    async fn mark_delivered_batch_tracks_multiple() {
+        let storage = SqliteStorage::in_memory().await.unwrap();
+        let group_id = GroupId::random();
+        let sender = DeviceId::random();
+        let receiver = DeviceId::random();
+
+        // Store 3 blobs from sender
+        let req1 = make_request(&group_id, &sender, b"one");
+        let blob_id1 = req1.blob_id;
+        storage.store_blob(req1).await.unwrap();
+
+        let req2 = make_request(&group_id, &sender, b"two");
+        let blob_id2 = req2.blob_id;
+        storage.store_blob(req2).await.unwrap();
+
+        let req3 = make_request(&group_id, &sender, b"three");
+        let blob_id3 = req3.blob_id;
+        storage.store_blob(req3).await.unwrap();
+
+        // Initially 3 pending for receiver
+        let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
+        assert_eq!(pending, 3);
+
+        // Batch mark as delivered
+        storage
+            .mark_delivered_batch(&[blob_id1, blob_id2, blob_id3], &receiver)
+            .await
+            .unwrap();
+
+        // No longer pending
+        let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
+        assert_eq!(pending, 0);
+    }
+
+    #[tokio::test]
+    async fn mark_delivered_batch_empty_is_noop() {
+        let storage = SqliteStorage::in_memory().await.unwrap();
+        let device_id = DeviceId::random();
+
+        // Empty batch should succeed
+        storage.mark_delivered_batch(&[], &device_id).await.unwrap();
     }
 
     #[tokio::test]

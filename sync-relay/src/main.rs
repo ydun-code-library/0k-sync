@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("HTTP server listening on {}", http_addr);
 
     // Run HTTP server in background
-    let http_handle = tokio::spawn(async move {
+    let mut http_handle = tokio::spawn(async move {
         axum::serve(http_listener, http_router).await
     });
 
@@ -97,22 +97,30 @@ async fn main() -> anyhow::Result<()> {
     println!();
     println!("Press Ctrl+C to stop");
 
-    // Wait for shutdown signal
+    // Wait for shutdown signal or unexpected exit
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("Received shutdown signal");
         }
-        result = http_handle => {
-            if let Err(e) = result {
-                tracing::error!("HTTP server error: {}", e);
+        result = &mut http_handle => {
+            match result {
+                Ok(Ok(())) => tracing::info!("HTTP server exited"),
+                Ok(Err(e)) => tracing::error!("HTTP server error: {}", e),
+                Err(e) => tracing::error!("HTTP task panicked: {}", e),
             }
         }
     }
 
     // Graceful shutdown
     tracing::info!("Shutting down...");
+
+    // Abort background tasks
     cleanup_handle.abort();
+    http_handle.abort();
+
+    // Gracefully close router (waits for connections to finish)
     router.shutdown().await?;
+
     tracing::info!("Goodbye!");
 
     Ok(())

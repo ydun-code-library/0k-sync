@@ -222,18 +222,14 @@ impl Session {
             .storage()
             .get_pending_count(&hello.group_id, &device_id)
             .await
-            .map_err(|e: StorageError| ProtocolError::InvalidMessage {
-                reason: e.to_string(),
-            })?;
+            .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
 
         let max_cursor = self
             .relay
             .storage()
             .get_max_cursor(&hello.group_id)
             .await
-            .map_err(|e: StorageError| ProtocolError::InvalidMessage {
-                reason: e.to_string(),
-            })?;
+            .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
 
         // Register session
         self.relay
@@ -266,7 +262,7 @@ impl Session {
     async fn handle_push(&self, push: sync_types::Push) -> ProtocolResult<Message> {
         let (group_id, device_id) = self.get_active_state()?;
 
-        // Validate payload size
+        // Validate payload size against protocol maximum
         if push.payload.len() > MAX_MESSAGE_SIZE {
             return Err(ProtocolError::InvalidMessage {
                 reason: format!(
@@ -274,6 +270,32 @@ impl Session {
                     push.payload.len(),
                     MAX_MESSAGE_SIZE
                 ),
+            });
+        }
+
+        // Validate payload size against configured blob limit
+        let max_blob_size = self.relay.config().storage.max_blob_size;
+        if push.payload.len() > max_blob_size {
+            return Err(ProtocolError::BlobTooLarge {
+                size: push.payload.len(),
+                limit: max_blob_size,
+            });
+        }
+
+        // Check group storage quota
+        let max_group_storage = self.relay.config().storage.max_group_storage;
+        let current_storage = self
+            .relay
+            .storage()
+            .get_group_storage(&group_id)
+            .await
+            .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
+
+        if current_storage as usize + push.payload.len() > max_group_storage {
+            return Err(ProtocolError::QuotaExceeded {
+                current: current_storage,
+                requested: push.payload.len(),
+                limit: max_group_storage,
             });
         }
 
@@ -296,9 +318,7 @@ impl Session {
                 ttl_secs: ttl,
             })
             .await
-            .map_err(|e: StorageError| ProtocolError::InvalidMessage {
-                reason: e.to_string(),
-            })?;
+            .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
 
         tracing::debug!(
             "Stored blob {:?} at cursor {} for group {:?}",
@@ -327,18 +347,15 @@ impl Session {
             .storage()
             .get_blobs_after(&group_id, pull.after_cursor, limit)
             .await
-            .map_err(|e: StorageError| ProtocolError::InvalidMessage {
-                reason: e.to_string(),
-            })?;
+            .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
 
-        // Mark blobs as delivered
-        for blob in &blobs {
-            let _ = self
-                .relay
-                .storage()
-                .mark_delivered(&blob.blob_id, &device_id)
-                .await;
-        }
+        // Mark blobs as delivered (batched)
+        let blob_ids: Vec<_> = blobs.iter().map(|b| b.blob_id).collect();
+        let _ = self
+            .relay
+            .storage()
+            .mark_delivered_batch(&blob_ids, &device_id)
+            .await;
 
         let has_more = blobs.len() == limit as usize;
         let max_cursor = blobs.last().map(|b| b.cursor).unwrap_or(pull.after_cursor);

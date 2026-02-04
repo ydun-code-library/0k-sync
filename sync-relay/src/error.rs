@@ -83,6 +83,30 @@ pub enum ProtocolError {
         reason: String,
     },
 
+    /// Internal server error (storage, infrastructure).
+    #[error("internal error: {0}")]
+    Internal(String),
+
+    /// Blob exceeds size limit.
+    #[error("blob too large: {size} bytes (limit: {limit} bytes)")]
+    BlobTooLarge {
+        /// Actual size of the blob.
+        size: usize,
+        /// Maximum allowed size.
+        limit: usize,
+    },
+
+    /// Group storage quota exceeded.
+    #[error("group quota exceeded: current {current} + {requested} > {limit} bytes")]
+    QuotaExceeded {
+        /// Current storage used by group.
+        current: u64,
+        /// Size of requested blob.
+        requested: usize,
+        /// Maximum allowed storage.
+        limit: usize,
+    },
+
     /// Message deserialization failed.
     #[error("message deserialization failed: {0}")]
     Deserialization(#[from] rmp_serde::decode::Error),

@@ -76,6 +76,13 @@ pub trait BlobStorage: Send + Sync {
         device_id: &DeviceId,
     ) -> Result<(), StorageError>;
 
+    /// Mark multiple blobs as delivered to a device (batched).
+    async fn mark_delivered_batch(
+        &self,
+        blob_ids: &[BlobId],
+        device_id: &DeviceId,
+    ) -> Result<(), StorageError>;
+
     /// Get count of pending (undelivered) blobs for a device in a group.
     async fn get_pending_count(
         &self,
