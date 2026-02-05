@@ -27,8 +27,8 @@ This document defines the minimum viable implementation for CashTable launch and
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Hybrid Noise handshake | Required | `clatter` with `noise_hybrid_XX` |
-| X25519 + ML-KEM-768 | Required | Quantum-resistant from day one |
+| Hybrid Noise handshake | Planned | `clatter` with `noise_hybrid_XX` — not yet implemented (F-002) |
+| X25519 + ML-KEM-768 | Planned | Quantum-resistant — not yet implemented |
 | XChaCha20-Poly1305 (Group Key) | Required | E2E blob encryption |
 | Argon2id key derivation | Required | Device-adaptive parameters |
 
@@ -165,7 +165,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 | Week | Focus | Deliverables |
 |------|-------|--------------|
 | 1 | Protocol foundation | sync-types, basic relay scaffolding |
-| 2 | Crypto layer | clatter integration, hybrid handshake |
+| 2 | Crypto layer | XChaCha20-Poly1305, Argon2id (clatter integration deferred) |
 | 3 | Client implementation | sync-client, connection management |
 | 4 | Tauri integration | tauri-plugin-sync, JS API |
 | 5 | Pairing + polish | QR/short code flows, error handling |
@@ -188,7 +188,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 
 | Risk | Mitigation |
 |------|------------|
-| Hybrid handshake issues | Test against clatter test vectors early |
+| Hybrid handshake issues | clatter integration deferred; test against test vectors when integrated |
 | Mobile lifecycle edge cases | Spec assumes worst case; ship and observe |
 | Relay scaling | Single Managed instance handles early load |
 
@@ -233,7 +233,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 
 | Dependency | Version | Risk |
 |------------|---------|------|
-| clatter | 2.1+ | Low - stable release |
+| clatter | 2.1+ | Low - stable release (integration pending) |
 | iroh | 1.0 | Low - production ready |
 | sqlx (relay) | 0.8+ | Low - mature |
 | tauri | 2.0+ | Low - Managed expertise |

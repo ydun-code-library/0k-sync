@@ -115,7 +115,7 @@ bash tests/docker-validate.sh  # 8 validation tests
 ```
 Local-First App → sync-client → iroh (QUIC) → sync-relay → SQLite
                       ↓
-               Noise Protocol (E2E encryption)
+               XChaCha20-Poly1305 (E2E encryption)
 ```
 
 **Protocol Stack:**
@@ -124,11 +124,9 @@ Application Messages (Push/Pull)
         ↓
     Envelope (routing)
         ↓
-Noise Protocol (encryption)
+XChaCha20-Poly1305 (E2E encryption)
         ↓
-    iroh (QUIC)
-        ↓
-      TLS
+    iroh (QUIC + TLS 1.3)
 ```
 
 **Security Reminders:**

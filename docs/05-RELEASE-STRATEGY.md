@@ -161,7 +161,7 @@ Core protocol works. API will change. Not for production. Published to crates.io
 | sync-types complete with round-trip tests | ✅ |
 | sync-core state machine functional | ✅ |
 | sync-client connects, pushes, pulls | ✅ |
-| Hybrid Noise handshake (clatter) working | ✅ |
+| Hybrid Noise handshake (clatter) working | ❌ Not yet implemented (F-002) |
 | E2E encryption verified | ✅ |
 | sync-cli headless testing works | ✅ |
 | API surface documented (`cargo doc`) | ✅ |
@@ -204,7 +204,7 @@ API frozen. Only bug fixes from this point. External testing invited.
 |----------|----------|
 | All RC criteria | ✅ |
 | Zero P0 bugs open | ✅ |
-| Security audit of clatter integration patterns | ✅ |
+| Security audit of clatter integration patterns | ❌ clatter not yet integrated (F-002) |
 | Migration guide from RC (if breaking changes occurred) | ✅ |
 
 ### 3.2 Timeline Alignment with MVP Roadmap
@@ -212,7 +212,7 @@ API frozen. Only bug fixes from this point. External testing invited.
 | Week | Implementation Phase | Release Milestone |
 |------|---------------------|-------------------|
 | 1–2 | sync-types + sync-core | Internal only (no publish) |
-| 3 | sync-client + clatter | **v0.1.0-alpha.1** to crates.io |
+| 3 | sync-client (clatter integration pending) | **v0.1.0-alpha.1** to crates.io |
 | 4 | tauri-plugin-sync | v0.1.0-alpha.2 (with framework bindings) |
 | 5 | Pairing + polish | v0.1.0-alpha.3 |
 | 6 | CashTable integration | **v0.1.0-beta.1** |
@@ -587,7 +587,8 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/):
 
 ### Added
 - Initial release: sync-types, sync-core, sync-client, sync-cli, sync-relay
-- Hybrid Noise handshake via clatter (ML-KEM-768 + X25519)
+- E2E encryption via XChaCha20-Poly1305 over iroh QUIC
+- Hybrid Noise handshake via clatter (ML-KEM-768 + X25519) — PLANNED, not in initial release
 - Content-addressed blob storage via iroh-blobs
 - E2E encryption with XChaCha20-Poly1305
 ```
@@ -615,7 +616,7 @@ fix(sync-types): correct MessagePack deserialization for empty vaults
 docs(readme): add quick-start guide
 chore(ci): add cross-platform build matrix
 test(sync-core): add property-based state machine tests
-security(clatter): update ML-KEM-768 parameter validation
+security(clatter): integrate ML-KEM-768 hybrid handshake (future)
 ```
 
 Scope is the crate name without the `zerok-` prefix. This feeds directly into automated changelog generation.
@@ -708,8 +709,8 @@ These dependencies require extra scrutiny. Any update must be reviewed manually,
 
 | Dependency | Role | Risk |
 |------------|------|------|
-| `clatter` | Hybrid Noise handshake | Cryptographic correctness |
-| `fips203` (via clatter) | ML-KEM-768 | Post-quantum security |
+| `clatter` (planned) | Hybrid Noise handshake | Cryptographic correctness (not yet integrated) |
+| `fips203` (via clatter, planned) | ML-KEM-768 | Post-quantum security (not yet integrated) |
 | `chacha20poly1305` | Symmetric encryption | Data confidentiality |
 | `argon2` | Key derivation | Key security |
 | `iroh` | Network transport | Connection security |
@@ -834,7 +835,7 @@ This is the de facto standard for the Rust ecosystem and maximises compatibility
 
 | Dependency Type | Strategy | Rationale |
 |----------------|----------|-----------|
-| **Security-critical** (clatter, fips203, chacha20poly1305, argon2) | Exact pin (`=X.Y.Z`) | Cryptographic code must not change without explicit review |
+| **Security-critical** (chacha20poly1305, argon2, clatter when integrated) | Exact pin (`=X.Y.Z`) | Cryptographic code must not change without explicit review |
 | **Core infrastructure** (iroh, iroh-blobs) | Compatible range (`~X.Y`) | Allow patch updates, review minor updates |
 | **Framework** (tauri) | Compatible range (`~X.Y`) | Track Tauri releases |
 | **Dev dependencies** (nextest, criterion) | Caret range (`^X.Y`) | Latest compatible, less critical |

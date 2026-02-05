@@ -145,11 +145,11 @@ Peer/Relay ──► iroh (QUIC) ──► Transport Decrypt (Noise) ──► E
 │  • E2E: XChaCha20-Poly1305 + Argon2id                       │
 │  • Envelope routing (group_id, sender_id, cursor)           │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 1: Hybrid Transport Security                         │
-│  • Noise XX handshake via clatter                           │
-│  • Curve25519 + ML-KEM-768 hybrid KEM                       │
-│  • Post-quantum compliance from day one                     │
-│  • Per-session keys, forward secrecy                        │
+│  Layer 1: Transport Security                                │
+│  • iroh QUIC (TLS 1.3) — wire encryption                   │
+│  • PLANNED: Noise XX handshake via clatter (not yet impl)   │
+│  • PLANNED: Curve25519 + ML-KEM-768 hybrid KEM              │
+│  • Forward secrecy via TLS (app-level via Noise XX planned) │
 ├─────────────────────────────────────────────────────────────┤
 │  Layer 0: iroh Transport                                    │
 │  • QUIC via Quinn (authenticated, encrypted)                │
@@ -230,9 +230,11 @@ OWASP minimum (19 MiB, 2 iterations) performs well on modern devices but hits 80
 
 **iOS Constraint:** AutoFill extension processes have ~55 MiB usable memory. Configurations above 46 MiB fail intermittently.
 
-### 4.2 Noise Protocol Configuration
+### 4.2 Noise Protocol Configuration (PLANNED — NOT YET IMPLEMENTED)
 
-**Handshake Pattern:** XX (mutual authentication)
+> **Status (2026-02-05):** The Noise Protocol layer described below is DESIGNED but NOT YET IMPLEMENTED. Current transport security is provided by iroh QUIC (TLS 1.3). The `clatter` dependency is declared in workspace Cargo.toml but has zero code usage. See audit finding F-002.
+
+**Planned Handshake Pattern:** XX (mutual authentication)
 
 ```
 XX:
@@ -241,12 +243,12 @@ XX:
   → s, se
 ```
 
-**Why XX:**
+**Why XX (when implemented):**
 - Both parties prove identity
 - Neither needs pre-shared keys
 - Forward secrecy from message 2
 
-**Cryptographic Primitives (Hybrid Post-Quantum):**
+**Planned Cryptographic Primitives (Hybrid Post-Quantum):**
 
 | Function | Algorithm | Crate |
 |----------|-----------|-------|
@@ -254,7 +256,7 @@ XX:
 | Cipher | ChaChaPoly | clatter **v2.1+** |
 | Hash | BLAKE2s | clatter **v2.1+** |
 
-> ⚠️ **Hybrid Handshake:** Uses `noise_hybrid_XX` pattern with ML-KEM-768 (NIST Level 3) for quantum resistance. The clatter crate provides verified hybrid Noise protocol implementation.
+> ⚠️ **Hybrid Handshake (planned):** Will use `noise_hybrid_XX` pattern with ML-KEM-768 (NIST Level 3) for quantum resistance. The clatter crate provides verified hybrid Noise protocol implementation. Implementation tracked as a future phase.
 
 ### 4.3 Device Identity
 
@@ -267,7 +269,7 @@ XX:
 | Threat | Mitigation |
 |--------|------------|
 | Relay reads data | E2E encryption; relay sees only ciphertext |
-| MITM attack | Noise mutual auth + TLS |
+| MITM attack | iroh TLS (Noise mutual auth planned) |
 | Replay attack | Nonces + monotonic cursors |
 | Device compromise | Per-device keys; rotate Group Key to revoke |
 | Relay compromise | No plaintext stored; temporary buffer only |
@@ -276,7 +278,7 @@ XX:
 ### 4.5 Trust Assumptions
 
 1. User's devices are not compromised
-2. Noise Protocol cryptography is sound
+2. iroh QUIC TLS is sound (Noise Protocol planned but not yet implemented)
 3. Argon2id parameters are sufficient
 4. Relay is honest-but-curious
 
@@ -1880,7 +1882,7 @@ sync-types = { path = "../sync-types" }
 sync-core = { path = "../sync-core" }
 sync-content = { path = "../sync-content" }  # Large content transfer
 tokio = { version = "1", features = ["rt", "sync", "time"] }
-clatter = "2.2"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
+# clatter = "2.2"                # Hybrid Noise protocol — PLANNED, not yet implemented
 iroh = "0.96"                    # Endpoint, connections, discovery (all tiers) - requires cargo patch
 argon2 = "0.5"
 chacha20poly1305 = "0.10"        # Supports XChaCha20
@@ -1910,7 +1912,7 @@ tracing = "0.1"
 sync-types = { path = "../sync-types" }
 tokio = { version = "1", features = ["full"] }
 iroh = "0.96"                    # Endpoint for accepting client connections (QUIC) - requires cargo patch
-clatter = "2.2"                  # Hybrid Noise protocol (ML-KEM-768 + X25519)
+# clatter = "2.2"                # Hybrid Noise protocol — PLANNED, not yet implemented
 sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "derive"] }
 axum = "0.7"                     # Health/metrics HTTP endpoints only
 tower = "0.4"

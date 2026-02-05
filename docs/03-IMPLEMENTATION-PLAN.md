@@ -216,7 +216,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # Cryptography (PINNED VERSIONS - security critical)
-clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+# clatter = "2.2"                # Hybrid Noise Protocol — PLANNED, not yet implemented
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 
@@ -928,7 +928,7 @@ pub struct MockTransport { /* ... */ }
 #### Step 1: Crypto Module
 
 > ⚠️ **Critical Version Pins:**
-> - `clatter = "2.2"` — Hybrid Noise Protocol with ML-KEM-768 + X25519
+> - `clatter = "2.2"` — Hybrid Noise Protocol (PLANNED, not yet implemented)
 > - XChaCha20-Poly1305 — 192-bit nonces (not 96-bit ChaCha20)
 > - Device-adaptive Argon2id — 12 MiB to 64 MiB based on RAM
 
@@ -1031,12 +1031,13 @@ mod tests {
     }
 
     // ===========================================
-    // Hybrid Noise Protocol Tests (clatter v2.1+)
-    // ===========================================
+    // Hybrid Noise Protocol Tests (clatter v2.1+) — NOT YET IMPLEMENTED
+    // ==================================================================
 
     #[test]
+    #[ignore] // clatter not yet integrated (F-002)
     fn noise_hybrid_xx_handshake_succeeds() {
-        // Using clatter v2.1+ for hybrid ML-KEM-768 + X25519
+        // PLANNED: Using clatter v2.1+ for hybrid ML-KEM-768 + X25519
         let initiator = NoiseSession::new_initiator();
         let responder = NoiseSession::new_responder();
 
@@ -1230,7 +1231,7 @@ git commit -m "Add sync-client library
 - SyncClient with push/pull/subscribe API
 - GroupKey E2E encryption (XChaCha20-Poly1305, 192-bit nonces)
 - Device-adaptive Argon2id key derivation (12-64 MiB)
-- Hybrid Noise Protocol XX (clatter v2.2, ML-KEM-768 + X25519)
+- Hybrid Noise Protocol XX (clatter v2.2, ML-KEM-768 + X25519) — PLANNED
 - Transport abstraction (iroh 0.96 with cargo patch)
 - Thundering herd mitigation with jitter
 - Integration test: two clients syncing

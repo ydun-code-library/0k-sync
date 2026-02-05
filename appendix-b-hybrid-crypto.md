@@ -1,7 +1,9 @@
 # Appendix B: Hybrid Cryptographic Compliance
 
-**Version:** 1.1.0  
-**Date:** 2026-01-18  
+> **IMPLEMENTATION STATUS (2026-02-05):** This appendix describes the DESIGN for hybrid post-quantum cryptography. The clatter Noise Protocol layer described here is **NOT YET IMPLEMENTED** in code. Current transport security is provided by iroh QUIC (TLS 1.3). E2E encryption uses XChaCha20-Poly1305. See security audit finding F-002.
+
+**Version:** 1.1.0
+**Date:** 2026-01-18
 **Parent Document:** 0k-Sync Specification v2.1.0
 
 ---

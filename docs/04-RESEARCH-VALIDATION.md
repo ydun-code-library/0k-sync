@@ -20,11 +20,11 @@ This document provides justification for technology choices, validates assumptio
 
 ## Executive Summary
 
-0k-Sync is **technically viable** for production. The stack (iroh + Noise Protocol) offers superior connectivity and throughput compared to alternatives. Three gates require attention before GA:
+0k-Sync is **technically viable** for production. The stack (iroh QUIC + XChaCha20-Poly1305) offers superior connectivity and throughput compared to alternatives. Three gates require attention before GA:
 
 | Gate | Status | Action Required |
 |------|--------|-----------------|
-| **Security Audit** | ✅ Resolved | Using `clatter` for hybrid Noise (ML-KEM-768 + X25519) - post-quantum ready |
+| **Security Audit** | ⏳ In Progress | Audit complete (2026-02-05). Noise Protocol (clatter) validated but not yet implemented in code. Remediation underway. |
 | **Enterprise Compliance** | ⚠️ Blocked | "FIPS Mode" fallback using AES-GCM/PBKDF2 for regulated markets |
 | **Infrastructure** | ✅ Ready | Cloudflare Tunnel validated; self-hosted iroh-relay option |
 
@@ -93,7 +93,7 @@ See PR #878 for upstream fix.
 
 **Choice:** [clatter](https://github.com/jmwample/clatter) crate with hybrid XX handshake pattern
 
-**Status:** ✅ Validated (Post-Quantum Ready)
+**Status:** ✅ Validated (design and crate selection) | ⚠️ NOT YET IMPLEMENTED in code (see audit F-002)
 
 | Factor | Evidence |
 |--------|----------|
@@ -132,7 +132,7 @@ Noise_XX_25519+Kyber768_ChaChaPoly_BLAKE2s:
 | Maintenance | Active | Active |
 | API compatibility | — | Similar to snow |
 
-**Decision (2026-02-02):** Migrated from `snow` to `clatter` for hybrid post-quantum support. This resolves the previous audit concern by providing defense-in-depth (if classical crypto breaks, PQC remains; if PQC has issues, classical remains).
+**Decision (2026-02-02):** Selected `clatter` over `snow` for hybrid post-quantum support. Design validated. **Implementation status (2026-02-05):** clatter is declared as a workspace dependency but has zero code usage. The Noise Protocol layer is designed but not yet implemented. Current transport security is iroh QUIC (TLS 1.3).
 
 **📚 References:**
 - [Noise Protocol Specification](https://noiseprotocol.org/noise.html)
@@ -567,7 +567,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 
 | Risk Area | Severity | Probability | Mitigation Strategy | Timeline |
 |-----------|----------|-------------|---------------------|----------|
-| **Post-Quantum Transition** | Low | Low | Using clatter with ML-KEM-768 hybrid (future-proof) | ✅ Resolved |
+| **Post-Quantum Transition** | Medium | Medium | clatter selected and validated but not yet implemented | ⏳ Planned |
 | **Regulatory** (FIPS gap) | Critical | 100% (in Gov) | Develop "Enterprise Build" with AES/PBKDF2 | Before Enterprise |
 | **Infrastructure** (self-hosted) | Low | Low | iroh-relay and iroh-dns-server available | ✅ Resolved |
 | **Mobile Battery** | Medium | High | Implement Wake-on-Push architecture | MVP |
@@ -635,7 +635,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 **Before MVP Release:**
 
 - [x] iroh pinned to stable version (0.96 with cargo patch)
-- [x] clatter for hybrid Noise (ML-KEM-768 + X25519)
+- [ ] clatter for hybrid Noise (ML-KEM-768 + X25519) — validated, not yet implemented
 - [ ] XChaCha20-Poly1305 implemented (not standard ChaCha20)
 - [ ] Device-adaptive Argon2id parameters implemented
 - [ ] Client-side reconnection jitter implemented
@@ -664,7 +664,9 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 
 **v2.2.0 (2026-02-03):** Marked tokio-tungstenite/WebSocket research as deferred per transport architecture simplification to iroh QUIC (all tiers). Updated architecture diagram to show iroh/QUIC.
 
-**v2.1.0 (2026-02-02):** Updated iroh to 0.96 (requires cargo patch). Migrated from snow to clatter for hybrid Noise (ML-KEM-768 + X25519).
+**v2.1.0 (2026-02-02):** Updated iroh to 0.96 (requires cargo patch). Selected clatter over snow for hybrid Noise (ML-KEM-768 + X25519). Note: crate selection only — code integration pending.
+
+**v2.3.0 (2026-02-05):** Corrected clatter status: validated (design/crate selection) but not yet implemented in code per security audit finding F-002.
 
 ---
 

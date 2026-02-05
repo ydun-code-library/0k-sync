@@ -276,7 +276,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 - tokio: 1.x
 - iroh: **0.96** (QUIC transport) — requires cargo patch for curve25519-dalek
 - iroh-blobs: **0.98** (content-addressed storage)
-- clatter: 2.2 (Hybrid Noise Protocol)
+- clatter: 2.2 (Hybrid Noise Protocol) — PLANNED, not yet implemented in code
 - chacha20poly1305: 0.10 (XChaCha20-Poly1305)
 - argon2: 0.5 (key derivation)
 - sqlx: **0.8** (SQLite only, default-features=false) — upgraded 2026-02-04

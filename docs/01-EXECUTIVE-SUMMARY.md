@@ -72,7 +72,7 @@ Three gates must be addressed before GA release:
 
 | Gate | Status | Action Required |
 |------|--------|-----------------|
-| **Security Audit** | ✅ Resolved | Using `clatter` for hybrid Noise (ML-KEM-768 + X25519) - post-quantum ready |
+| **Security Audit** | ⏳ In Progress | Audit complete (2026-02-05). Remediation in progress. Noise Protocol (clatter) planned but not yet implemented. |
 | **Enterprise Compliance** | ⚠️ Blocked | "FIPS Mode" fallback using AES-GCM/PBKDF2 for regulated markets |
 | **Infrastructure** | ✅ Ready | Cloudflare Tunnel validated; self-hosted iroh-relay option |
 
@@ -81,7 +81,8 @@ Three gates must be addressed before GA release:
 | Component | Choice | Version | Validation |
 |-----------|--------|---------|------------|
 | P2P networking | [iroh](https://github.com/n0-computer/iroh) | **0.96** | 200K+ connections, stable API |
-| Transport encryption | [clatter](https://github.com/jmwample/clatter) (Hybrid Noise XX) | **2.1+** | ML-KEM-768 + X25519, post-quantum |
+| Transport encryption | iroh QUIC (TLS 1.3) | **0.96** | Wire encryption via iroh |
+| **Planned:** Noise Protocol | [clatter](https://github.com/jmwample/clatter) | **2.2** | Hybrid ML-KEM-768 + X25519 (not yet implemented) |
 | Large content | [iroh-blobs](https://github.com/n0-computer/iroh-blobs) | **0.98** | BLAKE3/Bao verified streaming |
 | Blob encryption | XChaCha20-Poly1305 | RustCrypto | 192-bit nonces, no coordination needed |
 | Key derivation | Argon2id | RustCrypto | Device-adaptive parameters |
@@ -110,7 +111,7 @@ Three gates must be addressed before GA release:
 ├─────────────────────────────────────────┤
 │  Layer 2: Sync Protocol (0k-Sync)       │  Envelope, routing, cursor
 ├─────────────────────────────────────────┤
-│  Layer 1: Transport Security            │  Hybrid Noise XX (clatter: ML-KEM-768 + X25519)
+│  Layer 1: Transport Security            │  iroh QUIC (TLS 1.3) — Noise XX planned, not yet implemented
 ├─────────────────────────────────────────┤
 │  Layer 0: Transport                     │  iroh (QUIC), mDNS, DHT discovery
 └─────────────────────────────────────────┘
@@ -120,9 +121,8 @@ Three gates must be addressed before GA release:
 
 | Function | Algorithm | Notes |
 |----------|-----------|-------|
-| DH | Curve25519 | Via Noise Protocol |
 | Cipher | XChaCha20-Poly1305 | 192-bit nonce (not 96-bit) |
-| Hash | BLAKE2s | Noise Protocol |
+| Transport | iroh QUIC (TLS 1.3) | Wire encryption |
 | KDF | Argon2id | Device-adaptive: 12-64 MiB based on RAM |
 
 **Why XChaCha20 (not standard ChaCha20)?**
@@ -136,7 +136,7 @@ Three gates must be addressed before GA release:
 |----------|--------------|
 | **Zero-knowledge relay** | E2E encryption with Group Key; relay sees only ciphertext |
 | **No accounts** | Devices pair via QR code or short code; no email/password |
-| **Forward secrecy** | Noise Protocol XX handshake pattern |
+| **Forward secrecy** | iroh QUIC TLS (transport level). Noise Protocol XX planned for application-level forward secrecy. |
 | **Replay protection** | Monotonic cursors + nonces |
 
 ### Mobile Architecture: Wake-on-Push
@@ -216,7 +216,7 @@ From research validation:
 1. **Thundering Herd Mitigation** — Client-side exponential backoff with jitter on reconnect
 2. **Device-Adaptive Argon2** — 12 MiB (low-end) to 64 MiB (desktop) based on available RAM
 3. **XChaCha20 Nonces** — 192-bit random nonces, never 96-bit
-4. **clatter 2.2** — Hybrid Noise Protocol with ML-KEM-768 + X25519 (post-quantum)
+4. **Noise Protocol (planned)** — Hybrid clatter with ML-KEM-768 + X25519 designed but not yet implemented
 5. **iroh 0.96** — Pre-1.0 but stable, requires cargo patch (see Cargo.toml)
 
 ---
@@ -225,7 +225,7 @@ From research validation:
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Post-quantum transition | Low | clatter provides ML-KEM-768 hybrid (future-proof) |
+| Post-quantum transition | Medium | Hybrid Noise (clatter ML-KEM-768) designed but not yet implemented |
 | FIPS compliance gap | Critical (for Gov/Finance) | Feature flag for AES-GCM/PBKDF2 build |
 | iroh ecosystem maturity | Low | Using stable 0.96; self-hosted option available |
 | Mobile battery impact | Medium | Wake-on-Push architecture; quantify in beta |
@@ -241,7 +241,7 @@ From research validation:
 | Who is it for? | Local-first developers (any framework) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |
-| What's validated? | iroh 0.96 (E2E tested), clatter 2.2 (hybrid Noise), XChaCha20, Argon2id |
+| What's validated? | iroh 0.96 (E2E tested), XChaCha20-Poly1305, Argon2id. Noise Protocol (clatter) not yet implemented. |
 | What's blocked? | FIPS compliance (enterprise only) |
 
 **0k-Sync completes local-first apps: Build → Store Locally → Sync Securely.**
@@ -252,8 +252,8 @@ From research validation:
 
 - [iroh by n0-computer](https://github.com/n0-computer/iroh) — P2P networking (0.96)
 - [iroh-blobs](https://github.com/n0-computer/iroh-blobs) — Content-addressed storage (0.98)
-- [clatter crate](https://github.com/jmwample/clatter) — Hybrid Noise Protocol (2.1+)
-- [Noise Protocol](https://noiseprotocol.org/noise.html) — Encryption framework
+- [clatter crate](https://github.com/jmwample/clatter) — Hybrid Noise Protocol (planned, not yet implemented)
+- [Noise Protocol](https://noiseprotocol.org/noise.html) — Encryption framework (planned)
 - [04-RESEARCH-VALIDATION.md](./04-RESEARCH-VALIDATION.md) — Full technology validation
 
 ---

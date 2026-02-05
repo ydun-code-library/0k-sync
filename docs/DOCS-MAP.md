@@ -137,7 +137,7 @@ Dockerfile + Docker files (Containerization)
 | sync-content crate addition | 03-IMPLEMENTATION-PLAN.md | ✅ Applied |
 | mDNS local discovery | 02-SPECIFICATION.md | ✅ Applied |
 | Self-hosted infra (iroh-relay, iroh-dns-server) | 02-SPECIFICATION.md | ✅ Applied |
-| snow → clatter migration | All docs | ✅ Applied |
+| snow → clatter migration | All docs | ✅ Docs updated | ⚠️ Code not yet implemented (F-002) |
 
 **⚠️ Version Reality Check (2026-02-03):**
 

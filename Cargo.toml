@@ -37,7 +37,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Cryptography (PINNED VERSIONS - security critical)
-clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+# clatter = "2.2"                # Hybrid Noise Protocol — PLANNED, not yet implemented (see F-002)
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305 with 192-bit nonces
 argon2 = "0.5"                   # Key derivation with device-adaptive parameters
 

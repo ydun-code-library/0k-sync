@@ -26,8 +26,8 @@ Device A                     RELAY                      Device B
 ## Key Features
 
 - **Zero-Knowledge** - Relay sees only ciphertext, never plaintext
-- **Post-Quantum Ready** - Hybrid cryptography combining classical + ML-KEM-768 (NIST Level 3)
-- **E2E Encryption** - XChaCha20-Poly1305 with Noise Protocol XX hybrid handshake
+- **E2E Encryption** - XChaCha20-Poly1305 (256-bit) over iroh QUIC transport
+- **Post-Quantum Planned** - Hybrid Noise Protocol (ML-KEM-768 + X25519 via clatter) designed, not yet implemented
 - **No Accounts** - Devices pair via QR code or short code
 - **Local-First** - Apps work offline; sync is opportunistic
 - **Framework Agnostic** - Works with any Rust application
@@ -73,7 +73,7 @@ let blobs = client.pull().await?;
 | [Specification](docs/02-SPECIFICATION.md) | Detailed protocol and API specification |
 | [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) | TDD implementation approach |
 | [Research Validation](docs/04-RESEARCH-VALIDATION.md) | Technology choices and justification |
-| [Hybrid Crypto (Appendix B)](appendix-b-hybrid-crypto.md) | Post-quantum cryptography design |
+| [Hybrid Crypto (Appendix B)](appendix-b-hybrid-crypto.md) | Post-quantum cryptography design (planned) |
 | [iroh Deep Dive](docs/research/iroh-deep-dive-report.md) | iroh ecosystem audit |
 
 ## Project Structure
@@ -101,13 +101,13 @@ let blobs = client.pull().await?;
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | P2P (Tier 1) | [iroh](https://github.com/n0-computer/iroh) | Public network relay |
-| Transport Encryption | [clatter](https://github.com/jmlepisto/clatter) (Noise Protocol) | Hybrid E2E channel |
-| Post-Quantum KEM | ML-KEM-768 | Quantum-resistant key exchange |
 | E2E Encryption | XChaCha20-Poly1305 | Blob encryption (256-bit) |
 | Key Derivation | Argon2id | Passphrase to key |
 | Transport | [iroh](https://github.com/n0-computer/iroh) | QUIC P2P + relay fallback (all tiers) |
+| Transport Encryption | iroh QUIC (TLS 1.3) | Wire encryption |
+| **Planned** | [clatter](https://github.com/jmlepisto/clatter) (Noise Protocol) | Hybrid post-quantum (ML-KEM-768 + X25519) |
 
-**Why hybrid cryptography?** Classical algorithms (X25519) are vulnerable to future quantum computers. 0k-Sync combines classical + post-quantum algorithms so security holds if either is broken. See [Appendix B](appendix-b-hybrid-crypto.md) for details.
+**Post-quantum roadmap:** Hybrid Noise Protocol (ML-KEM-768 + X25519 via clatter) is designed but not yet implemented. See [Appendix B](appendix-b-hybrid-crypto.md) for the design.
 
 ## Current Status
 

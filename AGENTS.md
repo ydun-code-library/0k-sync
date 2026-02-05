@@ -23,7 +23,7 @@ CHANGELOG: See ~/templates/CHANGELOG.md for version history
 
 **Key Design Principles:**
 - **Zero Knowledge** — Relay cannot decrypt user data
-- **Open Standards** — Built on Noise Protocol, open source
+- **Open Standards** — Built on iroh QUIC, XChaCha20-Poly1305, open source
 - **Local-First** — Apps work offline; sync is opportunistic
 - **Rust Native** — Server and client libraries in Rust
 - **Simple** — Relay is a dumb pipe; intelligence lives client-side
@@ -173,7 +173,7 @@ gh issue list
 
 **Key Responsibilities:**
 - Accept iroh connections (QUIC) from local-first apps
-- Perform Noise Protocol XX handshake for E2E encryption
+- Accept HELLO/Welcome handshake for group authentication
 - Route encrypted blobs between devices in same sync group
 - Store blobs temporarily for offline devices
 - Clean up expired blobs automatically
@@ -221,7 +221,7 @@ gh issue list
 
 **sync-types/** (shared types):
 - Wire format, message structs, crypto primitives
-- Dependencies: serde, clatter, uuid
+- Dependencies: serde, uuid
 
 **sync-relay/** (server binary):
 - iroh Endpoint server, SQLite storage
@@ -229,7 +229,7 @@ gh issue list
 
 **sync-client/** (library for apps):
 - Connection management, encryption layer
-- Dependencies: tokio, clatter (hybrid Noise), argon2, iroh
+- Dependencies: tokio, chacha20poly1305, argon2, iroh
 
 **sync-content/** (large content transfer):
 - Encrypt-then-hash, iroh-blobs integration, content lifecycle
@@ -249,7 +249,7 @@ gh issue list
 Layer 4: Application Sync Logic (Push, Pull, Ack)
 Layer 3: Content Transfer (iroh-blobs, encrypt-then-hash)
 Layer 2: Sync Protocol (Envelope, routing, cursor)
-Layer 1: Transport Security (Hybrid Noise XX via clatter)
+Layer 1: Transport Security (iroh QUIC TLS 1.3) — Noise XX via clatter planned
 Layer 0: Transport (iroh QUIC, mDNS discovery, DHT)
 ```
 
@@ -257,11 +257,11 @@ Layer 0: Transport (iroh QUIC, mDNS discovery, DHT)
 
 | Function | Algorithm |
 |----------|-----------|
-| Key Exchange | Hybrid: ML-KEM-768 + X25519 (via clatter) |
-| DH Fallback | Curve25519 |
-| Cipher | XChaCha20-Poly1305 (192-bit nonces) |
-| Hash | BLAKE3 (content addressing), BLAKE2s (Noise internal) |
+| E2E Cipher | XChaCha20-Poly1305 (192-bit nonces) |
+| Transport | iroh QUIC (TLS 1.3) |
+| Hash | BLAKE3 (content addressing) |
 | KDF | HKDF-SHA256 (session keys), Argon2id (passphrase) |
+| **Planned** | Hybrid Key Exchange: ML-KEM-768 + X25519 (via clatter, not yet implemented) |
 
 ## Build & Test Commands
 
@@ -470,7 +470,7 @@ iroh = "0.96"                    # QUIC transport
 iroh-blobs = "0.98"              # Content-addressed storage
 
 # Encryption
-clatter = "2.2"                  # Hybrid Noise Protocol (ML-KEM-768 + X25519)
+# clatter = "2.2"                # Hybrid Noise Protocol — PLANNED, not yet implemented
 chacha20poly1305 = "0.10"        # XChaCha20-Poly1305
 argon2 = "0.5"                   # Key derivation
 
@@ -523,8 +523,8 @@ SYNC_GROUP_PASSPHRASE=user-provided
 
 ### Documentation
 - **Full Specification**: `docs/02-SPECIFICATION.md`
-- **Noise Protocol**: https://noiseprotocol.org/noise.html
-- **clatter Rust crate**: https://github.com/jmwample/clatter (hybrid Noise protocol)
+- **Noise Protocol**: https://noiseprotocol.org/noise.html (planned, not yet implemented)
+- **clatter Rust crate**: https://github.com/jmwample/clatter (hybrid Noise — planned)
 
 ### Related Projects
 - Syncthing BEP: https://docs.syncthing.net/specs/bep-v1.html
