@@ -75,6 +75,8 @@ sync-content = { path = "sync-content", package = "zerok-sync-content" }
 
 # Patch for curve25519-dalek digest import fix
 # See: https://github.com/dalek-cryptography/curve25519-dalek/pull/878
-# Remove when curve25519-dalek 5.0.0-pre.2+ is released
+# Tested 2026-02-05: Still needed. iroh 0.96 pins curve25519-dalek to 5.0.0-pre.1.
+# Upstream fixed in pre.2+ (PR #875) but iroh hasn't updated its dependency.
+# Remove when iroh updates to use curve25519-dalek >= 5.0.0-pre.2.
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
