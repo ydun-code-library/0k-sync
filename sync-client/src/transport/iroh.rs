@@ -34,15 +34,12 @@ impl Default for IrohTransportConfig {
     }
 }
 
-/// Active connection state including bidirectional stream.
+/// Active connection state.
 struct ActiveConnection {
     /// The QUIC connection.
-    #[allow(dead_code)]
     conn: Connection,
-    /// Send half of bidirectional stream.
-    send: iroh::endpoint::SendStream,
-    /// Receive half of bidirectional stream.
-    recv: iroh::endpoint::RecvStream,
+    /// Receive half of the current bidirectional stream (set after send).
+    current_recv: Option<iroh::endpoint::RecvStream>,
 }
 
 /// IrohTransport implements the Transport trait using iroh QUIC connections.
@@ -131,15 +128,12 @@ impl Transport for IrohTransport {
         .await
         .map_err(|_| TransportError::Timeout)??;
 
-        // Open bidirectional stream for request-response
-        let (send, recv) = conn
-            .open_bi()
-            .await
-            .map_err(|e| TransportError::ConnectionFailed(format!("Failed to open stream: {e}")))?;
-
-        // Store connection state
+        // Store connection (streams opened per request-response)
         let mut state = self.connection.lock().await;
-        *state = Some(ActiveConnection { conn, send, recv });
+        *state = Some(ActiveConnection {
+            conn,
+            current_recv: None,
+        });
 
         Ok(())
     }
@@ -155,20 +149,33 @@ impl Transport for IrohTransport {
         }
 
         let mut guard = self.connection.lock().await;
-        let conn = guard.as_mut().ok_or(TransportError::NotConnected)?;
+        let active = guard.as_mut().ok_or(TransportError::NotConnected)?;
+
+        // Open a new bi-directional stream for each request-response pair.
+        // This matches the relay's model: one stream per message exchange.
+        let (mut send, recv) = active
+            .conn
+            .open_bi()
+            .await
+            .map_err(|e| TransportError::SendFailed(format!("Failed to open stream: {e}")))?;
 
         // Length-prefixed framing (4 bytes, big-endian)
         let len = (data.len() as u32).to_be_bytes();
-        conn.send
-            .write_all(&len)
+        send.write_all(&len)
             .await
             .map_err(|e| TransportError::SendFailed(format!("Failed to write length: {e}")))?;
 
         // Write payload
-        conn.send
-            .write_all(data)
+        send.write_all(data)
             .await
             .map_err(|e| TransportError::SendFailed(format!("Failed to write data: {e}")))?;
+
+        // Signal we're done writing on this stream
+        send.finish()
+            .map_err(|e| TransportError::SendFailed(format!("Failed to finish stream: {e}")))?;
+
+        // Store recv half for the response
+        active.current_recv = Some(recv);
 
         Ok(())
     }
@@ -177,19 +184,21 @@ impl Transport for IrohTransport {
         use iroh::endpoint::ReadExactError;
 
         let mut guard = self.connection.lock().await;
-        let conn = guard.as_mut().ok_or(TransportError::NotConnected)?;
+        let active = guard.as_mut().ok_or(TransportError::NotConnected)?;
+
+        let recv = active
+            .current_recv
+            .as_mut()
+            .ok_or(TransportError::ReceiveFailed("no active stream".into()))?;
 
         // Read length prefix (4 bytes, big-endian)
         let mut len_buf = [0u8; 4];
-        conn.recv
-            .read_exact(&mut len_buf)
-            .await
-            .map_err(|e| match e {
-                ReadExactError::FinishedEarly(_) => TransportError::ConnectionClosed,
-                ReadExactError::ReadError(e) => {
-                    TransportError::ReceiveFailed(format!("Failed to read length: {e}"))
-                }
-            })?;
+        recv.read_exact(&mut len_buf).await.map_err(|e| match e {
+            ReadExactError::FinishedEarly(_) => TransportError::ConnectionClosed,
+            ReadExactError::ReadError(e) => {
+                TransportError::ReceiveFailed(format!("Failed to read length: {e}"))
+            }
+        })?;
 
         let len = u32::from_be_bytes(len_buf) as usize;
 
@@ -203,10 +212,12 @@ impl Transport for IrohTransport {
 
         // Read payload
         let mut data = vec![0u8; len];
-        conn.recv
-            .read_exact(&mut data)
-            .await
-            .map_err(|e| TransportError::ReceiveFailed(format!("Failed to read data: {e}")))?;
+        recv.read_exact(&mut data).await.map_err(|e| match e {
+            ReadExactError::FinishedEarly(_) => TransportError::ConnectionClosed,
+            ReadExactError::ReadError(e) => {
+                TransportError::ReceiveFailed(format!("Failed to read data: {e}"))
+            }
+        })?;
 
         Ok(data)
     }
@@ -219,9 +230,7 @@ impl Transport for IrohTransport {
     }
 
     async fn close(&self) -> Result<(), TransportError> {
-        if let Some(mut conn) = self.connection.lock().await.take() {
-            // Signal end of stream
-            conn.send.finish().ok();
+        if let Some(conn) = self.connection.lock().await.take() {
             // Close connection gracefully
             conn.conn.close(0u32.into(), b"closing");
         }
