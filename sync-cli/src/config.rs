@@ -46,6 +46,7 @@ impl DeviceConfig {
         tokio::fs::write(&path, contents)
             .await
             .context("Failed to save device configuration")?;
+        set_file_permissions_0600(&path).await?;
         Ok(())
     }
 
@@ -155,6 +156,7 @@ impl GroupConfig {
         tokio::fs::write(&path, contents)
             .await
             .context("Failed to save group configuration")?;
+        set_file_permissions_0600(&path).await?;
         Ok(())
     }
 
@@ -187,5 +189,103 @@ impl AppConfig {
         let device = DeviceConfig::load(data_dir).await?;
         let group = GroupConfig::load(data_dir).await.ok();
         Ok(Self { device, group })
+    }
+}
+
+/// Set file permissions to 0600 (owner read/write only) on Unix.
+/// No-op on non-Unix platforms.
+async fn set_file_permissions_0600(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .await
+            .context("Failed to set file permissions")?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
+/// Set directory permissions to 0700 (owner only) on Unix.
+/// No-op on non-Unix platforms.
+pub async fn set_dir_permissions_0700(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+            .await
+            .context("Failed to set directory permissions")?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn group_config_with_salt_roundtrip() {
+        let dir = tempdir().unwrap();
+        let config = GroupConfig::with_secret_and_salt(
+            "group-123",
+            "relay-addr",
+            &[0x42u8; 32],
+            &[0xABu8; 16],
+        );
+        config.save(dir.path()).await.unwrap();
+
+        let loaded = GroupConfig::load(dir.path()).await.unwrap();
+        assert_eq!(loaded.group_id, "group-123");
+        assert!(loaded.group_secret_hex.is_some());
+        assert!(loaded.salt_hex.is_some());
+        assert_eq!(loaded.salt_bytes().unwrap(), vec![0xABu8; 16]);
+        assert_eq!(loaded.group_secret_bytes().unwrap(), vec![0x42u8; 32]);
+    }
+
+    #[tokio::test]
+    async fn group_config_without_salt_loads() {
+        // Backwards compatibility: old config without salt_hex
+        let dir = tempdir().unwrap();
+        let config = GroupConfig::with_secret("group-old", "relay", &[1u8; 32]);
+        config.save(dir.path()).await.unwrap();
+
+        let loaded = GroupConfig::load(dir.path()).await.unwrap();
+        assert!(loaded.salt_hex.is_none());
+        assert!(loaded.salt_bytes().is_none());
+        assert!(loaded.group_secret_bytes().is_some());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn group_config_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempdir().unwrap();
+        let config = GroupConfig::with_secret("test", "relay", &[0u8; 32]);
+        config.save(dir.path()).await.unwrap();
+
+        let path = dir.path().join("group.json");
+        let perms = tokio::fs::metadata(&path).await.unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o600, "file should be 0600");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn data_dir_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempdir().unwrap();
+        let data_dir = dir.path().join("test-data");
+        tokio::fs::create_dir_all(&data_dir).await.unwrap();
+        set_dir_permissions_0700(&data_dir).await.unwrap();
+
+        let perms = tokio::fs::metadata(&data_dir).await.unwrap().permissions();
+        assert_eq!(perms.mode() & 0o777, 0o700, "dir should be 0700");
     }
 }

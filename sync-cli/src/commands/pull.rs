@@ -18,17 +18,14 @@ pub async fn run(data_dir: &Path, after_cursor: Option<u64>, use_mock: bool) -> 
     let cursor = after_cursor.unwrap_or(group.cursor);
     println!("Pulling data after cursor {}...", cursor);
 
-    // Create sync client config from stored secret or fallback
-    let config = match group.group_secret_bytes() {
-        Some(secret_bytes) if secret_bytes.len() == 32 => {
-            let bytes: [u8; 32] = secret_bytes.try_into().unwrap();
-            SyncConfig::from_secret_bytes(&bytes, &group.relay_address)
-                .with_device_name(&device.device_name)
-        }
-        // TODO(F-003): Remove placeholder fallback — Sprint 5
-        _ => SyncConfig::new_with_salt("placeholder-passphrase", b"placeholder-salt", &group.relay_address)
-            .with_device_name(&device.device_name),
-    };
+    // Create sync client config from stored secret (F-003: no placeholder fallback)
+    let secret_bytes = group
+        .group_secret_bytes()
+        .filter(|b| b.len() == 32)
+        .ok_or_else(|| anyhow::anyhow!("Group secret not found. Run 'sync-cli pair' first."))?;
+    let bytes: [u8; 32] = secret_bytes.try_into().unwrap();
+    let config = SyncConfig::from_secret_bytes(&bytes, &group.relay_address)
+        .with_device_name(&device.device_name);
 
     // Create transport and client based on mode
     if use_mock {
@@ -182,6 +179,14 @@ mod tests {
         let device = DeviceConfig::new("Test Device");
         device.save(dir).await.unwrap();
 
+        let group = GroupConfig::with_secret("test-group-id", "test-relay", &[0x42u8; 32]);
+        group.save(dir).await.unwrap();
+    }
+
+    async fn setup_device_and_group_no_secret(dir: &Path) {
+        let device = DeviceConfig::new("Test Device");
+        device.save(dir).await.unwrap();
+
         let group = GroupConfig::new("test-group-id", "test-relay");
         group.save(dir).await.unwrap();
     }
@@ -212,5 +217,17 @@ mod tests {
 
         let result = run(dir.path(), Some(100), true).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn pull_fails_without_secret() {
+        // F-003: no placeholder fallback — missing secret must error
+        let dir = tempdir().unwrap();
+        setup_device_and_group_no_secret(dir.path()).await;
+
+        let result = run(dir.path(), None, true).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Group secret not found"), "got: {}", err);
     }
 }

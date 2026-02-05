@@ -172,24 +172,23 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
     let _ = (&passphrase, code); // Suppress unused warnings
     anyhow::bail!(
         "Short code lookup not yet implemented. Use EndpointId directly:\n  \
-         sync-cli pair --join <endpoint-id> --passphrase <passphrase>\n\n\
+         sync-cli pair --join <endpoint-id>\n\n\
          Get the EndpointId from the server running 'sync-cli serve'"
     );
 }
 
-/// Prompt for passphrase input.
+/// Prompt for passphrase input with echo suppression.
 fn prompt_passphrase(prompt: &str) -> Result<String> {
-    // In a real implementation, use rpassword for secure input
-    // For now, just read from stdin
-    print!("{}", prompt);
-    std::io::Write::flush(&mut std::io::stdout())?;
-
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
+    let passphrase = rpassword::prompt_password(prompt)
         .context("Failed to read passphrase")?;
 
-    Ok(input.trim().to_string())
+    // F-035: Reject empty or too-short passphrases
+    let trimmed = passphrase.trim().to_string();
+    if trimmed.len() < 8 {
+        anyhow::bail!("Passphrase must be at least 8 characters");
+    }
+
+    Ok(trimmed)
 }
 
 #[cfg(test)]

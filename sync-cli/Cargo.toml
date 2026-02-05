@@ -38,6 +38,9 @@ hex = "0.4"
 thiserror = { workspace = true }
 anyhow = "1"
 
+# Secure passphrase input (no echo)
+rpassword = "7"
+
 # Directories
 directories = "5"
 

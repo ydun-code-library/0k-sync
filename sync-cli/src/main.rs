@@ -73,10 +73,6 @@ enum Commands {
         /// Join an existing sync group with invite code
         #[arg(long, conflicts_with = "create")]
         join: Option<String>,
-
-        /// Passphrase for the sync group (will prompt if not provided)
-        #[arg(long, short)]
-        passphrase: Option<String>,
     },
 
     /// Push data to the sync group
@@ -104,11 +100,7 @@ enum Commands {
     Status,
 
     /// Start a sync server (accepts connections from other devices)
-    Serve {
-        /// Passphrase for the sync group
-        #[arg(long, short)]
-        passphrase: Option<String>,
-    },
+    Serve,
 }
 
 #[tokio::main]
@@ -121,24 +113,21 @@ async fn main() -> Result<()> {
         None => default_data_dir()?,
     };
 
-    // Ensure data directory exists
+    // Ensure data directory exists with secure permissions
     tokio::fs::create_dir_all(&data_dir)
         .await
         .context("Failed to create data directory")?;
+    config::set_dir_permissions_0700(&data_dir).await?;
 
     match cli.command {
         Commands::Init { name } => {
             init::run(&data_dir, &name).await?;
         }
-        Commands::Pair {
-            create,
-            join,
-            passphrase,
-        } => {
+        Commands::Pair { create, join } => {
             if create {
-                pair::create(&data_dir, passphrase.as_deref()).await?;
+                pair::create(&data_dir, None).await?;
             } else if let Some(code) = join {
-                pair::join(&data_dir, &code, passphrase.as_deref()).await?;
+                pair::join(&data_dir, &code, None).await?;
             } else {
                 anyhow::bail!("Must specify either --create or --join");
             }
@@ -164,8 +153,8 @@ async fn main() -> Result<()> {
         Commands::Status => {
             status::run(&data_dir).await?;
         }
-        Commands::Serve { passphrase } => {
-            serve::run(&data_dir, passphrase.as_deref()).await?;
+        Commands::Serve => {
+            serve::run(&data_dir, None).await?;
         }
     }
 
