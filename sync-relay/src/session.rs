@@ -281,11 +281,15 @@ impl Session {
             .register_connection(&hello.group_id, &device_id, self.connection.clone())
             .await;
 
+        // F-012: Truncate device name to configured limit
+        let max_name_len = self.relay.config().limits.max_device_name_len;
+        let device_name = truncate_device_name(&hello.device_name, max_name_len);
+
         // Update state
         self.state = SessionState::Active {
             group_id: hello.group_id,
             device_id,
-            device_name: hello.device_name,
+            device_name,
             last_cursor: hello.last_cursor,
         };
 
@@ -385,7 +389,9 @@ impl Session {
     async fn handle_pull(&self, pull: sync_types::Pull) -> ProtocolResult<Message> {
         let (group_id, device_id) = self.get_active_state()?;
 
-        let limit = if pull.limit == 0 { 100 } else { pull.limit };
+        // F-013: Clamp pull limit to configured maximum
+        let max_pull = self.relay.config().limits.max_pull_limit;
+        let limit = clamp_pull_limit(pull.limit, max_pull);
 
         let blobs: Vec<StoredBlob> = self
             .relay
@@ -460,6 +466,24 @@ impl Session {
     }
 }
 
+/// Truncate a device name to a maximum character length.
+///
+/// Uses char boundaries to avoid splitting multi-byte UTF-8.
+fn truncate_device_name(name: &str, max_chars: usize) -> String {
+    if name.chars().count() <= max_chars {
+        name.to_string()
+    } else {
+        name.chars().take(max_chars).collect()
+    }
+}
+
+/// Clamp a pull limit to the configured range.
+///
+/// Zero is treated as "use default" (100). Values above max are clamped down.
+fn clamp_pull_limit(limit: u32, max: u32) -> u32 {
+    if limit == 0 { 100 } else { limit.min(max) }
+}
+
 fn current_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -484,6 +508,43 @@ mod tests {
             last_cursor: Cursor::zero(),
         };
         assert!(matches!(active, SessionState::Active { .. }));
+    }
+
+    #[test]
+    fn device_name_truncated_at_limit() {
+        // F-012: Oversized device names must be truncated
+        let long_name = "a".repeat(500);
+        let truncated = truncate_device_name(&long_name, 256);
+        assert_eq!(truncated.len(), 256);
+
+        // Short names pass through unchanged
+        let short = truncate_device_name("My Phone", 256);
+        assert_eq!(short, "My Phone");
+
+        // Exact boundary
+        let exact = "x".repeat(256);
+        let result = truncate_device_name(&exact, 256);
+        assert_eq!(result.len(), 256);
+    }
+
+    #[test]
+    fn device_name_truncation_respects_utf8() {
+        // F-012: Must not split multi-byte characters
+        // "日本語" is 3 chars, 9 bytes
+        let name = "日本語デバイス"; // 7 chars
+        let truncated = truncate_device_name(name, 3);
+        assert_eq!(truncated, "日本語");
+        assert_eq!(truncated.chars().count(), 3);
+    }
+
+    #[test]
+    fn pull_limit_clamped_to_max() {
+        // F-013: Excessive pull limits must be clamped
+        assert_eq!(clamp_pull_limit(0, 1000), 100, "zero should use default");
+        assert_eq!(clamp_pull_limit(50, 1000), 50, "within range passes through");
+        assert_eq!(clamp_pull_limit(1000, 1000), 1000, "exact boundary passes");
+        assert_eq!(clamp_pull_limit(999999, 1000), 1000, "exceeds max gets clamped");
+        assert_eq!(clamp_pull_limit(u32::MAX, 1000), 1000, "u32::MAX gets clamped");
     }
 
     #[test]

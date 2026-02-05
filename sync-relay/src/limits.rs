@@ -157,6 +157,9 @@ mod tests {
             connections_per_ip: 5,
             messages_per_minute: 10,
             hello_timeout_secs: 10,
+            max_concurrent_sessions: 10_000,
+            max_device_name_len: 256,
+            max_pull_limit: 1000,
         }
     }
 
@@ -173,6 +176,9 @@ mod tests {
             connections_per_ip: 5,
             messages_per_minute: 100,
             hello_timeout_secs: 10,
+            max_concurrent_sessions: 10_000,
+            max_device_name_len: 256,
+            max_pull_limit: 1000,
         };
         let limits = RateLimits::new(&config);
         let endpoint_id = [1u8; 32];
@@ -195,6 +201,9 @@ mod tests {
             connections_per_ip: 100,
             messages_per_minute: 5,
             hello_timeout_secs: 10,
+            max_concurrent_sessions: 10_000,
+            max_device_name_len: 256,
+            max_pull_limit: 1000,
         };
         let limits = RateLimits::new(&config);
         let device_id = [2u8; 32];
@@ -217,6 +226,9 @@ mod tests {
             connections_per_ip: 2,
             messages_per_minute: 2,
             hello_timeout_secs: 10,
+            max_concurrent_sessions: 10_000,
+            max_device_name_len: 256,
+            max_pull_limit: 1000,
         };
         let limits = RateLimits::new(&config);
 

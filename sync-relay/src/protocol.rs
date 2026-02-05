@@ -47,6 +47,19 @@ impl ProtocolHandler for SyncProtocol {
                 return Ok(());
             }
 
+            // F-007: Reject if at session capacity
+            let max_sessions = relay.config().limits.max_concurrent_sessions;
+            if relay.total_sessions() >= max_sessions {
+                tracing::warn!(
+                    "Session limit reached ({}/{}), rejecting {}",
+                    relay.total_sessions(),
+                    max_sessions,
+                    remote_id
+                );
+                connection.close(2u32.into(), b"too many sessions");
+                return Ok(());
+            }
+
             let session = Session::new(relay, connection);
             // Spawn session handler - don't block the accept loop
             tokio::spawn(async move {
