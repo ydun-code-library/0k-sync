@@ -191,6 +191,10 @@ Dockerfile + Docker files (Containerization)
 - `STATUS.md` — Progress tracking
 - `NEXT-SESSION-START-HERE.md` — Session continuity
 
+### Review Documents (docs/reviews/)
+- `2026-02-05-security-audit-report.md` — Security audit v1 (41 findings, 21 fixed)
+- `2026-02-05-security-audit-v2-report.md` — Security audit v2 post-remediation (35 findings, 4 MEDIUM fixed)
+
 ### Handoff Documents (docs/handoffs/)
 - `P2-MONEY-Q-0k-sync-implementation-handoff.md` — Q's implementation handoff from Moneypenny
 
@@ -225,6 +229,6 @@ Dockerfile + Docker files (Containerization)
 
 ---
 
-**Navigation Index Version**: 1.4
-**Active Documents**: 26 (excludes archive/ and reference/; includes Docker files)
+**Navigation Index Version**: 1.5
+**Active Documents**: 28 (excludes archive/ and reference/; includes Docker files + audit reports)
 **Last Audit**: 2026-02-05

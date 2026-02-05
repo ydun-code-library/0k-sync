@@ -87,12 +87,12 @@ let blobs = client.pull().await?;
 │   ├── 04-RESEARCH-VALIDATION.md
 │   ├── 05-RELEASE-STRATEGY.md
 │   └── 06-CHAOS-TESTING-STRATEGY.md
-├── sync-types/               # Wire format types (Phase 1) ✅ 32 tests
-├── sync-core/                # Pure logic, no I/O (Phase 2) ✅ 60 tests
-├── sync-client/              # Client library (Phase 3) ✅ 55 tests
-├── sync-content/             # Encrypt-then-hash (Phase 3.5) ✅ 23 tests
-├── sync-cli/                 # Testing tool (Phase 4) ✅ 20 tests
-├── sync-relay/               # Relay server (Phase 6) 🟡 30 tests (MVP)
+├── sync-types/               # Wire format types (Phase 1) ✅ 33 tests
+├── sync-core/                # Pure logic, no I/O (Phase 2) ✅ 65 tests
+├── sync-client/              # Client library (Phase 3) ✅ 59 tests
+├── sync-content/             # Encrypt-then-hash (Phase 3.5) ✅ 24 tests
+├── sync-cli/                 # Testing tool (Phase 4) ✅ 27 tests
+├── sync-relay/               # Relay server (Phase 6) ✅ 51 tests
 └── tests/chaos/              # Chaos testing harness (50 passing, 28 stubs)
 ```
 
@@ -111,25 +111,29 @@ let blobs = client.pull().await?;
 
 ## Current Status
 
-**Phase: Implementation In Progress (99% Complete)**
+**Phase: Implementation COMPLETE (Phase 6 done — 2026-02-05)**
 
 - [x] Architecture design
 - [x] Protocol specification
 - [x] Documentation
-- [x] sync-types crate (32 tests) - wire format types + Welcome message
-- [x] sync-core crate (60 tests) - pure logic, zero I/O
-- [x] sync-client crate (55 tests) - E2E encryption, transport abstraction
-- [x] sync-content crate (23 tests) - encrypt-then-hash content transfer
-- [x] sync-cli tool (20 tests) - CLI with 6 commands
+- [x] sync-types crate (33 tests) - wire format types + Welcome message
+- [x] sync-core crate (65 tests) - pure logic, zero I/O
+- [x] sync-client crate (59 tests) - E2E encryption, transport abstraction
+- [x] sync-content crate (24 tests) - encrypt-then-hash content transfer
+- [x] sync-cli tool (27 tests) - CLI with 6 commands
 - [x] IrohTransport (Phase 5) - E2E verified over iroh QUIC
 - [x] Chaos scenarios (50 passing, 28 stubs for relay integration)
-- [x] **sync-relay server (Phase 6 MVP - 30 tests)**
+- [x] **sync-relay server (Phase 6 — 51 tests)**
   - SQLite storage with WAL mode
   - Protocol handler on ALPN /0k-sync/1
   - Session management (HELLO→WELCOME, PUSH→PUSH_ACK, PULL→PULL_RESPONSE)
   - HTTP endpoints (/health, /metrics)
   - Background cleanup task
-- [ ] Rate limiting, Dockerfile, integration tests (Phase 6 completion)
+  - Rate limiting (governor crate — per-device + global)
+  - notify_group (server-push via uni streams)
+  - Docker containerization (8/8 validation tests)
+  - Cross-machine E2E verified (Q ↔ Beast over Tailscale)
+- [x] Security audit v1 + v2 remediation (35 findings, 0 critical/high remaining)
 
 ## Development
 

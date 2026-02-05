@@ -20,7 +20,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 **Project Type:** Rust Cargo Workspace (Server + Client Library)
 **Primary Goal:** E2E encrypted sync infrastructure for local-first applications
 **Target Deployment:** Beast (home server) via Docker + Cloudflare Tunnel
-**Status:** Architecture defined, awaiting implementation
+**Status:** Phase 6 COMPLETE — E2E encrypted relay with security audit remediation (2026-02-05)
 
 ---
 
@@ -246,8 +246,8 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ### Code Metrics
 - **Total Lines of Code:** ~7,500+ (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay, chaos-tests)
-- **Test Count:** 318 tests (32 sync-types + 60 sync-core + 56 sync-client + 23 sync-content + 20 sync-cli + 43 sync-relay + 78 chaos-tests + 6 ignored)
-- **Passing:** 284 | **Ignored:** 34 (28 chaos stubs need harness, 5 sync-client E2E, 1 doc test)
+- **Test Count:** 343 tests (33 sync-types + 65 sync-core + 59 sync-client + 24 sync-content + 27 sync-cli + 51 sync-relay + 50 chaos-passing + 5 doc-tests + 34 ignored)
+- **Passing:** 309 | **Ignored:** 34 (28 chaos stubs need harness, 5 doc tests, 1 sync-client E2E)
 - **Test Coverage:** 100% for public APIs
 - **Crates:** 6 of 7 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay complete)
 

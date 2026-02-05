@@ -269,7 +269,7 @@ bollard = "0.16"                 # Docker API client for topology management
 │  Phase 3.5: sync-content    ◄──────────────────────────┘  ✅ Complete   │
 │  (iroh-blobs, encrypt-then-hash)                       │                 │
 │                                                        ▼                 │
-│  Phase 6: sync-relay        ◄──────────────────────────┘  ⬅️ NEXT       │
+│  Phase 6: sync-relay        ◄──────────────────────────┘  ✅ Complete   │
 │  (custom relay + full topology chaos)                  │                 │
 │                                                        ▼                 │
 │  Phase 7: tauri-plugin      ◄──────────────────────────┘  ⚪ Optional   │
@@ -1721,7 +1721,7 @@ git tag v0.1.0-phase5
 
 Build custom relay for self-hosted deployments (Tiers 2-6).
 
-**Status:** Deferred. MVP uses iroh public network.
+**Status:** COMPLETE (2026-02-05). 51 tests. SQLite/WAL, rate limiting (governor), notify_group, Docker, cross-machine E2E (Q ↔ Beast). Security audit v1 + v2 remediation applied.
 
 ### 9.2 When to Implement
 

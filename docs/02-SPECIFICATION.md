@@ -109,12 +109,12 @@
                     PUSH FLOW
                     ─────────
 App Data ──► Serialize ──► Encrypt (Group Key) ──► Envelope ──►
-         ──► Transport Encrypt (Noise) ──► iroh (QUIC) ──► Peer/Relay ──►
+         ──► iroh (QUIC/TLS 1.3) ──► Peer/Relay ──►
          ──► Forward to online peers ──► Buffer for offline peers
 
                     PULL FLOW
                     ─────────
-Peer/Relay ──► iroh (QUIC) ──► Transport Decrypt (Noise) ──► Envelope ──►
+Peer/Relay ──► iroh (QUIC/TLS 1.3) ──► Envelope ──►
            ──► Decrypt (Group Key) ──► Deserialize ──► App Data
 ```
 
@@ -223,10 +223,11 @@ OWASP minimum (19 MiB, 2 iterations) performs well on modern devices but hits 80
 
 | Device Class | Detection Signal | Memory | Iterations | Target Time |
 |--------------|------------------|--------|------------|-------------|
-| Low-end mobile | RAM < 2GB | 12 MiB | 3 | 300-500ms |
-| Mid-range mobile | RAM 2-4GB | 19 MiB | 2 | 200-400ms |
-| High-end mobile | RAM > 4GB | 46 MiB | 1 | 200-400ms |
-| Desktop | Always | 64 MiB | 3 | 200-500ms |
+| Low-end / mid-range mobile | RAM < 4GB | 19 MiB | 2 | 200-400ms |
+| High-end mobile | RAM 4-8GB | 46 MiB | 1 | 200-400ms |
+| Desktop | RAM >= 8GB | 64 MiB | 3 | 200-500ms |
+
+> **CL-001 (2026-02-05):** Lowest tier raised from 12 MiB / 3 iter to OWASP minimum (19 MiB / 2 iter). No device class falls below OWASP floor.
 
 **iOS Constraint:** AutoFill extension processes have ~55 MiB usable memory. Configurations above 46 MiB fail intermittently.
 
@@ -424,55 +425,60 @@ pub struct Error {
 
 #### CONTENT_REF (Large Content Transfer)
 ```rust
-/// Reference to large content stored via iroh-blobs
+/// Reference to large content stored via iroh-blobs.
 /// The actual encrypted content is transferred P2P via iroh-blobs,
 /// only this small metadata blob goes through the sync relay.
 pub struct ContentRef {
-    /// Client-generated UUID (our protocol's ID)
-    pub blob_id: [u8; 16],
-
     /// BLAKE3 hash of CIPHERTEXT (iroh-blobs content address)
     /// This is the hash of encrypted bytes, not plaintext
     pub content_hash: [u8; 32],
 
-    /// XChaCha20-Poly1305 nonce used for encryption
+    /// XChaCha20-Poly1305 nonce used for encryption (24 bytes)
     pub encryption_nonce: [u8; 24],
 
     /// Original plaintext size in bytes
     pub content_size: u64,
 
-    /// Ciphertext size in bytes
+    /// Ciphertext size in bytes (content_size + 16 byte auth tag)
     pub encrypted_size: u64,
-
-    /// MIME type ("image/jpeg", "audio/opus", "application/pdf")
-    pub mime_type: String,
-
-    /// Optional thumbnail hash (also encrypted, for preview)
-    pub thumbnail_hash: Option<[u8; 32]>,
-
-    /// Thumbnail nonce (if thumbnail present)
-    pub thumbnail_nonce: Option<[u8; 24]>,
 }
 ```
+
+> **Note:** `ContentRef` uses encrypt-then-hash: content key is derived via HKDF from `GroupSecret + blob_id`, making `blob_id` a derivation input rather than a struct field. Debug output redacts `content_hash` and `encryption_nonce` (F-016).
 
 #### CONTENT_ACK
 ```rust
 /// Acknowledge successful content transfer
 pub struct ContentAck {
-    /// Reference to the content that was transferred
-    pub blob_id: [u8; 16],
-
-    /// Hash that was successfully received and verified
+    /// BLAKE3 hash of the acknowledged content
     pub content_hash: [u8; 32],
-
-    /// Timestamp of successful transfer
-    pub timestamp: u64,
 }
 ```
 
 > **Note:** Content transfers bypass the sync relay entirely. The relay only sees the small ContentRef metadata blob. Actual encrypted content is transferred device-to-device via iroh-blobs (QUIC/P2P). See Section 17: Large Content Transfer Protocol.
 
-### 5.4 Cursor vs Timestamp
+### 5.4 Security Audit Remediation Features (2026-02-05)
+
+The following hardening measures were applied during security audit v1 + v2 remediation:
+
+| ID | Feature | Implementation |
+|----|---------|----------------|
+| F-001 | Random Argon2id salt | 16-byte salt via `getrandom` (not fixed/empty) |
+| F-004 | File permissions | Config files written with mode 0600 (Unix) |
+| F-005 | Echo suppression | `rpassword` hides passphrase input on terminal |
+| F-006 | HELLO timeout | Configurable timeout on handshake (default 10s) |
+| F-007 | Session limits | `max_concurrent_sessions` caps relay connections |
+| F-012 | Device name truncation | UTF-8 aware truncation in Hello message |
+| F-013 | Pull limit clamping | Server clamps client-requested pull limit |
+| F-015/F-016 | Debug redaction | `GroupSecret`, `GroupKey`, `ContentRef` redact sensitive fields in Debug output |
+| F-017 | Content size limit | `MAX_CONTENT_SIZE` = 100 MiB |
+| F-019 | Cursor gap cap | Maximum cursor gap = 10,000 blobs per pull |
+| SR-001 | Global rate limiter | Aggregate rate limit across all clients (governor crate) |
+| CL-001 | OWASP Argon2id floor | Lowest tier raised to 19 MiB / 2 iter |
+| ST-001 | Message size limit | `MAX_MESSAGE_SIZE` (1 MB) enforced at transport layer before deserialization |
+| XC-001 | Zeroize key material | `GroupSecret`, `GroupKey`, `ContentTransfer` zeroize on drop |
+
+### 5.5 Cursor vs Timestamp
 
 **Why cursors instead of timestamps?**
 
@@ -615,14 +621,12 @@ plaintext
     → serialize (MessagePack)
     → encrypt (XChaCha20-Poly1305 with Group Key + random 192-bit nonce)
     → wrap in Envelope
-    → encrypt (Noise session key)
-    → send
+    → send via iroh (QUIC/TLS 1.3)
 ```
 
 **Decrypt (after pull):**
 ```
-receive
-    → decrypt (Noise session key)
+receive via iroh (QUIC/TLS 1.3)
     → unwrap Envelope
     → decrypt (XChaCha20-Poly1305 with Group Key + nonce from envelope)
     → deserialize (MessagePack)

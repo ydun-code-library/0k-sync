@@ -75,7 +75,7 @@ iroh 1.0 has not yet shipped. The current stable release is 0.96.
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dalek", branch = "fix/digest-import-5.0.0-pre.1" }
 ```
-See PR #878 for upstream fix.
+See PR #875 (upstream, merged). Our patch may be removable when iroh updates to a version using the fixed curve25519-dalek.
 
 **Key Features Used:**
 - `iroh::Endpoint` — Connection management
@@ -573,7 +573,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 | **Mobile Battery** | Medium | High | Implement Wake-on-Push architecture | MVP |
 | **Mobile Performance** (Argon2id) | Medium | High | Dynamic parameter tuning | MVP |
 | **API Stability** (iroh) | Low | Medium | Using iroh 0.96 (pre-1.0, minor API changes possible) | ⚠️ Monitoring |
-| **Dependency** (curve25519-dalek) | Low | Low | Cargo patch for build fix (PR #878 upstream) | ✅ Resolved |
+| **Dependency** (curve25519-dalek) | Low | Low | Cargo patch for build fix (PR #875 upstream, merged) | ✅ Resolved |
 | **Thundering Herd** | Medium | Medium | Client-side exponential backoff with jitter | MVP |
 | **Relay SPOF** | High | Low | Deploy redundant relays | Beta |
 
@@ -610,7 +610,7 @@ fips-mode = ["aes-gcm", "p256", "pbkdf2"]
 | Hybrid Noise | clatter provides ML-KEM-768 + X25519 (post-quantum + classical) |
 | snow migration | Migrated from snow to clatter (2026-02-02) for PQC support |
 | iroh stability | Using iroh 0.96 (latest crates.io); 1.0 not yet released |
-| curve25519-dalek | Requires cargo patch for digest 0.11 compatibility (PR #878) |
+| curve25519-dalek | Requires cargo patch for digest 0.11 compatibility (PR #875, merged upstream) |
 
 ### 9.4 Related Projects & Inspiration
 

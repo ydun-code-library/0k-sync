@@ -209,7 +209,7 @@ For future 0k-Sync adopters requiring enterprise compliance. Not CashTable scope
 - [ ] Two devices can pair via QR code
 - [ ] Blobs sync within 5 seconds when both online
 - [ ] No data loss when app closed mid-sync
-- [ ] Hybrid handshake completes successfully
+- [ ] ~~Hybrid handshake completes successfully~~ *(Deferred: Noise Protocol designed in Appendix B but not yet implemented — F-002)*
 - [ ] Relay handles 100 concurrent connections
 
 ### 30 Days Post-Launch

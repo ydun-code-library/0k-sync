@@ -193,26 +193,28 @@ gh issue list
 ## Current Status
 
 <!-- PROJECT_SPECIFIC START: CURRENT_STATUS -->
-✅ **Phases 1-6 MVP Complete** - 99%
+✅ **Phases 1-6 COMPLETE** (2026-02-05)
 
-- ✅ Phase 1: sync-types (32 tests) - wire format + Welcome message
-- ✅ Phase 2: sync-core (60 tests) - pure logic
-- ✅ Phase 3: sync-client (55 tests) - E2E encryption
-- ✅ Phase 3.5: sync-content (23 tests) - encrypt-then-hash
-- ✅ Phase 4: sync-cli (20 tests) - CLI tool
+- ✅ Phase 1: sync-types (33 tests) - wire format + Welcome message
+- ✅ Phase 2: sync-core (65 tests) - pure logic
+- ✅ Phase 3: sync-client (59 tests) - E2E encryption
+- ✅ Phase 3.5: sync-content (24 tests) - encrypt-then-hash
+- ✅ Phase 4: sync-cli (27 tests) - CLI tool
 - ✅ Phase 5: IrohTransport + chaos scenarios (50 passing, 28 stubs)
-- 🟡 **Phase 6: sync-relay server (39 tests)**
+- ✅ **Phase 6: sync-relay server (51 tests)**
   - ✅ SQLite storage with WAL mode
   - ✅ Protocol handler (ALPN /0k-sync/1)
   - ✅ Session management (HELLO, PUSH, PULL)
   - ✅ HTTP endpoints (/health, /metrics)
   - ✅ Background cleanup task
-  - ✅ Rate limiting (governor crate)
+  - ✅ Rate limiting (governor crate — per-device + global)
   - ✅ Docker containerization (8/8 validation tests)
-  - ⬅️ Integration tests, notify_group, chaos stubs
+  - ✅ notify_group (server-push via uni streams)
+  - ✅ Cross-machine E2E (Q ↔ Beast over Tailscale)
+  - ✅ Security audit v1 + v2 remediation complete
 - ⚪ Phase 7: framework integrations (optional)
 
-**Total: 279 tests passing, 34 ignored**
+**Total: 309 tests passing, 34 ignored**
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 
 ## Technology Stack

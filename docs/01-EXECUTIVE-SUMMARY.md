@@ -123,7 +123,7 @@ Three gates must be addressed before GA release:
 |----------|-----------|-------|
 | Cipher | XChaCha20-Poly1305 | 192-bit nonce (not 96-bit) |
 | Transport | iroh QUIC (TLS 1.3) | Wire encryption |
-| KDF | Argon2id | Device-adaptive: 12-64 MiB based on RAM |
+| KDF | Argon2id | Device-adaptive: 19-64 MiB based on RAM (OWASP minimum: 19 MiB) |
 
 **Why XChaCha20 (not standard ChaCha20)?**
 - 192-bit nonces eliminate collision risk (safe threshold: 2^80 vs 2^32)
