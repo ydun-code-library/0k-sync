@@ -1,15 +1,35 @@
 # Dockerfile for sync-cli chaos testing
-# Stub - will be populated when sync-cli is implemented (Phase 4)
+# Build context: ../.. (workspace root)
 
-FROM rust:1.75-slim as builder
+# ---- Builder ----
+FROM rust:1-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY . .
+RUN cargo build -p zerok-sync-cli --release
 
-# For now, just create a placeholder
-RUN echo '#!/bin/sh\necho "sync-cli stub - not yet implemented"\nsleep infinity' > /entrypoint.sh && chmod +x /entrypoint.sh
-
+# ---- Runtime ----
 FROM debian:bookworm-slim
 
-COPY --from=builder /entrypoint.sh /entrypoint.sh
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-CMD ["/entrypoint.sh"]
+RUN groupadd --system synccli && useradd --system --gid synccli --home-dir /data --shell /usr/sbin/nologin synccli
+RUN mkdir -p /data && chown synccli:synccli /data
+
+COPY --from=builder /app/target/release/sync-cli /usr/local/bin/sync-cli
+
+USER synccli
+VOLUME /data
+
+ENV RUST_LOG=sync_cli=info
+
+ENTRYPOINT ["sync-cli"]
+CMD ["--help"]

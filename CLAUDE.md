@@ -83,6 +83,11 @@ cargo run -p sync-relay -- --config relay.toml
 cargo run -p sync-cli -- push "message"
 cargo run -p sync-cli -- pull --after-cursor 0
 cargo run -p sync-cli -- pair --create
+
+# Docker
+docker build -t 0k-sync-relay .
+docker run -d -p 8080:8080 -v relay-data:/data 0k-sync-relay
+bash tests/docker-validate.sh  # 8 validation tests
 ```
 
 ### Project-Specific Notes
@@ -93,10 +98,10 @@ cargo run -p sync-cli -- pair --create
 3. `sync-client` - Library for local-first apps - 55 tests
 4. `sync-content` - Encrypt-then-hash content transfer - 23 tests
 5. `sync-cli` - Testing/verification tool - 20 tests
-6. `sync-relay` - **MVP FUNCTIONAL** (30 tests) - relay server with SQLite, HTTP endpoints
+6. `sync-relay` - **MVP FUNCTIONAL** (39 tests) - relay server with SQLite, HTTP endpoints, rate limiting
 7. Framework integrations - Optional wrappers (e.g., tauri-plugin-sync)
 
-**Current Phase:** Phase 6 MVP complete (270 tests passing, 34 ignored)
+**Current Phase:** Phase 6 (Docker complete, integration tests next) — 279 tests passing, 34 ignored
 
 **Key Files:**
 - `docs/DOCS-MAP.md` - Navigation index (start here)
@@ -178,5 +183,5 @@ mcp__crypto-rag__crypto_protocols_search("Noise Protocol XX handshake")
 
 ---
 
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-05*
 *Template Version: 1.7.0*

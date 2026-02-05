@@ -1,7 +1,7 @@
 # Sync-Relay Documentation Map
 
-**Version**: 1.3
-**Last Updated**: 2026-02-03
+**Version**: 1.4
+**Last Updated**: 2026-02-05
 **Purpose**: Navigation index for humans and AI assistants
 
 ---
@@ -39,10 +39,12 @@
 | `../AGENTS.md` | AI assistant guidelines, principles | Every session start |
 | `../CLAUDE.md` | Quick reference, commands | Need specific commands |
 | `../STATUS.md` | Current progress, blockers | Check what's done/pending |
-| `../NEXT-SESSION-START-HERE.md` | Session continuity | Starting new session |
+| `../NEXT-SESSION-START-HERE.md` | Session continuity, Docker gotchas | Starting new session |
 | `../JIMMYS-WORKFLOW.md` | Workflow system v2.1 | Before implementing anything |
 | `../sync-mvp-roadmap.md` | Product tier roadmap | Understanding deployment strategy |
 | `../appendix-b-hybrid-crypto.md` | Post-quantum crypto design | Security/crypto decisions |
+| `../Dockerfile` | Production relay image (multi-stage) | Docker builds, deployment |
+| `../.dockerignore` | Docker build context exclusions | Modifying Docker build |
 
 ### Core Documentation (docs/)
 
@@ -113,6 +115,14 @@ research/tactical-mesh-profile-appendix-d.md
 ├── defines → Test environment (The Beast)
 ├── integrates with → CI/CD pipeline (smoke chaos in PRs)
 └── phased with → 03-IMPLEMENTATION-PLAN.md (chaos per impl phase)
+
+Dockerfile + Docker files (Containerization)
+├── builds → sync-relay binary (multi-stage)
+├── config → sync-relay/relay.docker.toml (database at /data/relay.db)
+├── tested by → tests/docker-validate.sh (8 validation tests)
+├── chaos infra → tests/chaos/docker-compose.chaos.yml
+├── gotchas documented in → NEXT-SESSION-START-HERE.md (Docker Gotchas table)
+└── build lessons in → AGENTS.md (Docker Build Notes section)
 ```
 
 ---
@@ -164,6 +174,16 @@ research/tactical-mesh-profile-appendix-d.md
 - `05-RELEASE-STRATEGY.md` — Versioning, publishing, CI/CD, quality gates
 - `06-CHAOS-TESTING-STRATEGY.md` — Chaos testing, 68 failure scenarios
 
+### Docker & Deployment Files
+- `../Dockerfile` — Production relay image (multi-stage build)
+- `../.dockerignore` — Build context exclusions
+- `../sync-relay/relay.docker.toml` — Docker config (database at /data/relay.db)
+- `../sync-relay/relay.toml.example` — Config template for local development
+- `../tests/docker-validate.sh` — Docker validation tests (8 tests)
+- `../tests/chaos/Dockerfile.relay` — Relay image for chaos testing
+- `../tests/chaos/Dockerfile.cli` — CLI image for chaos testing
+- `../tests/chaos/docker-compose.chaos.yml` — Chaos testing topology (toxiproxy)
+
 ### Workflow Documents
 - `AGENTS.md` — AI guidelines
 - `CLAUDE.md` — Quick reference
@@ -205,6 +225,6 @@ research/tactical-mesh-profile-appendix-d.md
 
 ---
 
-**Navigation Index Version**: 1.3
-**Active Documents**: 18 (excludes archive/ and reference/)
-**Last Audit**: 2026-02-03
+**Navigation Index Version**: 1.4
+**Active Documents**: 26 (excludes archive/ and reference/; includes Docker files)
+**Last Audit**: 2026-02-05

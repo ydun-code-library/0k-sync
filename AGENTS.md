@@ -9,7 +9,7 @@ AUTO_SYNC: Run ~/templates/tools/sync-templates.sh to update (preserves your cus
 CHANGELOG: See ~/templates/CHANGELOG.md for version history
 -->
 
-**STATUS: IN DEVELOPMENT** - Last Updated: 2026-02-02
+**STATUS: IN DEVELOPMENT** - Last Updated: 2026-02-05
 
 ## Repository Information
 - **GitHub Repository**: https://github.com/ydun-code-library/0k-sync
@@ -201,16 +201,18 @@ gh issue list
 - ✅ Phase 3.5: sync-content (23 tests) - encrypt-then-hash
 - ✅ Phase 4: sync-cli (20 tests) - CLI tool
 - ✅ Phase 5: IrohTransport + chaos scenarios (50 passing, 28 stubs)
-- 🟡 **Phase 6: sync-relay server (MVP FUNCTIONAL - 30 tests)**
+- 🟡 **Phase 6: sync-relay server (39 tests)**
   - ✅ SQLite storage with WAL mode
   - ✅ Protocol handler (ALPN /0k-sync/1)
   - ✅ Session management (HELLO, PUSH, PULL)
   - ✅ HTTP endpoints (/health, /metrics)
   - ✅ Background cleanup task
-  - ⬅️ Rate limiting, Dockerfile, Integration tests
+  - ✅ Rate limiting (governor crate)
+  - ✅ Docker containerization (8/8 validation tests)
+  - ⬅️ Integration tests, notify_group, chaos stubs
 - ⚪ Phase 7: framework integrations (optional)
 
-**Total: 270 tests passing, 34 ignored**
+**Total: 279 tests passing, 34 ignored**
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 
 ## Technology Stack
@@ -290,6 +292,24 @@ cargo run -p sync-cli -- push "test message"
 cargo run -p sync-cli -- pull --after-cursor 0
 ```
 
+### Docker
+```bash
+# Build relay image
+docker build -t 0k-sync-relay .
+
+# Run relay container
+docker run -d -p 8080:8080 -v relay-data:/data 0k-sync-relay
+
+# Health check
+curl http://localhost:8080/health
+
+# Run Docker validation tests (8 tests)
+bash tests/docker-validate.sh
+
+# Chaos testing topology
+cd tests/chaos && docker compose -f docker-compose.chaos.yml up --build
+```
+
 ## Repository Structure
 
 ```
@@ -329,7 +349,16 @@ cargo run -p sync-cli -- pull --after-cursor 0
 │   └── src/lib.rs
 ├── sync-relay/                # Custom relay (Phase 6)
 │   ├── Cargo.toml
-│   └── Dockerfile
+│   ├── relay.toml.example     # Config template
+│   └── relay.docker.toml      # Docker-specific config (/data/relay.db)
+├── Dockerfile                 # Production relay image (multi-stage)
+├── .dockerignore              # Docker build context exclusions
+├── tests/
+│   ├── docker-validate.sh     # Docker validation tests (8 tests)
+│   └── chaos/
+│       ├── Dockerfile.relay   # Relay image for chaos testing
+│       ├── Dockerfile.cli     # CLI image for chaos testing
+│       └── docker-compose.chaos.yml  # Chaos topology (toxiproxy)
 ├── AGENTS.md                  # This file
 ├── CLAUDE.md                  # AI assistant quick reference
 ├── STATUS.md                  # Project status
@@ -361,14 +390,20 @@ None
 
 ### 🟡 Important Issues
 1. **iroh 0.96** requires cargo patch for curve25519-dalek (configured in Cargo.toml)
+2. **Cargo.lock not in git** — Non-reproducible builds (Docker and CI). Should be committed for binary crates.
+3. **QUIC port is ephemeral** — `config.server.bind_address` is logged but never passed to `Endpoint::builder().bind()`. Cannot expose fixed UDP port in Docker.
+4. **SIGINT only** — `tokio::signal::ctrl_c()` catches SIGINT, not SIGTERM. Docker workaround: `STOPSIGNAL SIGINT`.
 
 ### ✅ Resolved Issues
 1. **curve25519-dalek build failure** — Fixed with cargo patch (PR #878 upstream)
 2. **Stream acknowledgment race** — Fixed with `send.stopped().await`
 3. **pair --join EndpointId** — Now properly saves EndpointId as relay_address
+4. **curve25519-dalek fork visibility** — Fork was accidentally private, blocking Docker builds. Made public 2026-02-05.
 
 ### 📝 Technical Debt
 1. iroh 0.96 is pre-1.0 — minor API changes possible
+2. **curve25519-dalek patch may be droppable** — Upstream merged PR #875 ("Update digest and sha2 deps") and released pre.2–pre.6. Our PR #878 still open. Test removing `[patch.crates-io]` when iroh updates.
+3. **Toxiproxy can't chaos QUIC** — UDP not supported. HTTP path (8080) can still be chaosed.
 <!-- PROJECT_SPECIFIC END: KNOWN_ISSUES -->
 
 ## Project-Specific Guidelines
@@ -395,6 +430,25 @@ None
 - Target deployment: Beast (home server) with Docker
 - Cloudflare Tunnel for public access
 - SQLite for storage (simple, file-based)
+
+### Docker Build Notes (Lessons Learned 2026-02-05)
+
+**Builder stage requirements:**
+- `git` — curve25519-dalek `[patch.crates-io]` clones from GitHub fork
+- `build-essential` — `cc` crate compiles libsqlite3-sys, ring, blake3
+- `pkg-config` — libsqlite3-sys probes for system SQLite
+- `libssl-dev` NOT needed — iroh uses rustls, not OpenSSL
+
+**Runtime stage requirements:**
+- `ca-certificates` — iroh relay discovery uses HTTPS
+- `curl` — Docker HEALTHCHECK
+- No `libsqlite3` needed at runtime (statically compiled)
+
+**Key gotchas:**
+- Use `STOPSIGNAL SIGINT` (not SIGTERM) — binary only handles SIGINT
+- QUIC port is ephemeral — only EXPOSE 8080 (HTTP)
+- Fork `ydun-code-library/curve25519-dalek` must be PUBLIC
+- Bash `((VAR++))` returns exit code 1 when VAR=0 with `set -e`
 <!-- PROJECT_SPECIFIC END: PROJECT_SPECIFIC_GUIDELINES -->
 
 ## Dependencies & Integration
@@ -494,4 +548,4 @@ SYNC_GROUP_PASSPHRASE=user-provided
 **This document follows the [agents.md](https://agents.md/) standard for AI coding assistants.**
 
 **Template Version**: 1.7.0
-**Last Updated**: 2026-02-02
+**Last Updated**: 2026-02-05

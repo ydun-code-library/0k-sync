@@ -1,9 +1,13 @@
 # Chaos Testing Docker Compose Configuration
-# Version: 1.0
+# Version: 1.1
 #
 # Topologies:
 # - Pair: 1 relay, 2 clients (default)
 # - Swarm: 1 relay, N clients (for resource exhaustion tests)
+#
+# NOTE: Toxiproxy only supports TCP. The iroh QUIC transport uses UDP,
+# so toxiproxy cannot inject chaos into the QUIC path. The HTTP
+# health/metrics endpoint (port 8080) can still be chaosed via TCP.
 
 services:
   # Toxiproxy for network chaos injection
@@ -11,7 +15,7 @@ services:
     image: ghcr.io/shopify/toxiproxy:latest
     ports:
       - "8474:8474"   # API port
-      - "19000:19000" # Relay proxy port
+      - "19000:19000" # Relay proxy port (TCP only)
     networks:
       - chaos-net
     healthcheck:
@@ -20,23 +24,27 @@ services:
       timeout: 3s
       retries: 3
 
-  # Sync relay server (stub - populated when sync-relay is built)
+  # Sync relay server
   relay:
     build:
       context: ../..
       dockerfile: tests/chaos/Dockerfile.relay
     ports:
       - "8080:8080"
+    stop_signal: SIGINT
     networks:
       - chaos-net
+    volumes:
+      - relay-data:/data
     depends_on:
       toxiproxy:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "true"]  # Stub - real health check when relay is implemented
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 5s
       timeout: 3s
-      retries: 3
+      retries: 5
+      start_period: 10s
 
   # Client A
   client-a:
@@ -49,7 +57,8 @@ services:
       relay:
         condition: service_healthy
     environment:
-      - RELAY_URL=ws://toxiproxy:19000
+      # iroh uses NodeId-based discovery, not URL connections.
+      # Chaos test harness passes relay NodeId via command args.
       - CLIENT_NAME=client-a
       - DATA_DIR=/data
     volumes:
@@ -66,7 +75,6 @@ services:
       relay:
         condition: service_healthy
     environment:
-      - RELAY_URL=ws://toxiproxy:19000
       - CLIENT_NAME=client-b
       - DATA_DIR=/data
     volumes:
@@ -78,5 +86,6 @@ networks:
     internal: true  # Isolated from external network
 
 volumes:
+  relay-data:
   client-a-data:
   client-b-data:

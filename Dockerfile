@@ -1,6 +1,5 @@
-# Dockerfile for sync-relay chaos testing
-# Build context: ../.. (workspace root)
-# Same as root Dockerfile — diverge if chaos needs debug builds
+# 0k-sync relay server
+# Multi-stage build: compile in Rust image, run in minimal Debian
 
 # ---- Builder ----
 FROM rust:1-slim-bookworm AS builder
@@ -35,6 +34,7 @@ EXPOSE 8080
 
 ENV RUST_LOG=sync_relay=info,iroh=warn
 
+# Binary handles SIGINT (tokio::signal::ctrl_c), not SIGTERM
 STOPSIGNAL SIGINT
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=5s \

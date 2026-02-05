@@ -1,0 +1,24 @@
+# Build artifacts
+target/
+
+# Version control
+.git/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.local
+*.log
+
+# AI / dev tooling
+.claude/

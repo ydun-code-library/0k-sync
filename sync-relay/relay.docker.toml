@@ -1,0 +1,23 @@
+# Docker-specific sync-relay configuration
+# Override by bind-mounting your own file to /etc/0k-sync/relay.toml
+
+[server]
+bind_address = "0.0.0.0:4433"
+
+[storage]
+database = "/data/relay.db"
+max_blob_size = 1048576
+max_group_storage = 104857600
+default_ttl = 604800
+
+[limits]
+connections_per_ip = 10
+messages_per_minute = 100
+
+[http]
+bind_address = "0.0.0.0:8080"
+metrics_enabled = true
+
+[cleanup]
+interval_secs = 3600
+enabled = true

@@ -7,11 +7,62 @@ LAST_SYNC: 2026-01-12
 PURPOSE: Provide quick context and continuity between development sessions
 -->
 
-**Last Updated:** 2026-02-04
-**Last Session:** Rate Limiting Implementation (Q)
-**Current Phase:** PHASE 6 IN PROGRESS (Rate limiting complete, Docker next)
+**Last Updated:** 2026-02-05
+**Last Session:** Docker Containerization (Q)
+**Current Phase:** PHASE 6 IN PROGRESS (Docker complete, integration tests next)
 **Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (Phase 6: Docker, Integration tests)
+**Next Handler:** Q (Phase 6: Integration tests, notify_group, chaos stubs)
+
+---
+
+## ✅ DOCKER CONTAINERIZATION COMPLETE (2026-02-05)
+
+**Files Created:**
+- `Dockerfile` — Production multi-stage build for sync-relay
+- `.dockerignore` — Excludes target/, .git/, .claude/, docs/, IDE files
+- `sync-relay/relay.docker.toml` — Docker config with `database = "/data/relay.db"`
+- `tests/docker-validate.sh` — TDD validation script (8 tests)
+
+**Files Updated:**
+- `tests/chaos/Dockerfile.relay` — Replaced stub with real multi-stage build
+- `tests/chaos/Dockerfile.cli` — Replaced stub with real CLI build
+- `tests/chaos/docker-compose.chaos.yml` — Real healthchecks, volumes, fixed stale WebSocket refs
+
+**Validation:** 8/8 Docker tests pass, 279/279 Rust tests pass
+
+**Docker Image Details:**
+- Builder: `rust:1-slim-bookworm` + git, build-essential, pkg-config
+- Runtime: `debian:bookworm-slim` + ca-certificates, curl
+- Non-root user: `relay`
+- Ports: 8080/tcp (HTTP health/metrics). QUIC port is ephemeral (see gotchas below).
+- Volume: `/data` (SQLite DB)
+- Config: `/etc/0k-sync/relay.toml` (override via bind mount)
+
+**Docker Commands:**
+```bash
+# Build relay image
+docker build -t 0k-sync-relay .
+
+# Run relay
+docker run -d -p 8080:8080 -v relay-data:/data 0k-sync-relay
+
+# Check health
+curl http://localhost:8080/health
+
+# Run validation tests
+bash tests/docker-validate.sh
+```
+
+### Docker Gotchas (Lessons Learned)
+
+| Gotcha | Detail | Solution |
+|--------|--------|----------|
+| **SIGINT vs SIGTERM** | `tokio::signal::ctrl_c()` catches SIGINT only. Docker sends SIGTERM by default. | `STOPSIGNAL SIGINT` in Dockerfile, `stop_signal: SIGINT` in compose |
+| **Ephemeral QUIC port** | `Endpoint::builder().bind()` ignores `config.server.bind_address`. Cannot EXPOSE fixed UDP port. | Relay is discovered via iroh NodeId/Pkarr, not direct port |
+| **sqlx sqlite (no bundled)** | libsqlite3-sys compiles SQLite from C source. Needs `build-essential` + `pkg-config` in builder. No runtime lib needed. | Install build deps in builder stage |
+| **curve25519-dalek patch** | `[patch.crates-io]` points to git fork. Fork must be PUBLIC. Builder needs `git`. | Fork at `ydun-code-library/curve25519-dalek` set to public (was accidentally private) |
+| **Toxiproxy + QUIC** | Toxiproxy only supports TCP. iroh QUIC uses UDP. Cannot chaos-test QUIC path. | HTTP endpoint (8080) can still be chaosed |
+| **Cargo.lock not in git** | Non-reproducible Docker builds. Different dep versions each build. | Should be committed (separate task) |
 
 ---
 
@@ -175,10 +226,11 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 **Next Up:**
 - [x] Rate limiting (connections per IP, messages per minute) ✅
-- [ ] Docker containerization (Dockerfile) ⬅️ START HERE
-- [ ] Integration tests (two CLI instances through relay)
+- [x] Docker containerization ✅ (8/8 validation tests)
+- [ ] Integration tests (two CLI instances through relay) ⬅️ START HERE
 - [ ] Issue #5: Implement `notify_group` (1-2 hrs)
 - [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
+- [ ] Commit Cargo.lock to git (reproducible builds)
 
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 6 details
 **Reference:** See `docs/06-CHAOS-TESTING-STRATEGY.md` for chaos scenarios
@@ -215,16 +267,31 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ---
 
-### Step 2: Docker + Chaos Integration ⭐ START HERE
+### Step 2: Docker ✅ COMPLETE
 
-**Prerequisites:** Code review fixes complete
+**Completed:** 2026-02-05
+
+- [x] Root Dockerfile (multi-stage, non-root, HEALTHCHECK)
+- [x] .dockerignore
+- [x] relay.docker.toml (database = /data/relay.db)
+- [x] tests/chaos/Dockerfile.relay (replaced stub)
+- [x] tests/chaos/Dockerfile.cli (replaced stub)
+- [x] docker-compose.chaos.yml (real healthchecks, volumes, fixed stale refs)
+- [x] tests/docker-validate.sh (8/8 passing)
+
+**Note:** QUIC port is ephemeral (iroh binds randomly). Only HTTP 8080 is exposed. See Docker Gotchas above.
+
+---
+
+### Step 3: Integration Tests + Chaos ⭐ START HERE
+
+**Prerequisites:** Docker complete
 
 **Tasks:**
-- [ ] Docker containerization (Dockerfile)
-- [ ] Expose QUIC UDP port (4433) + HTTP (8080)
-- [ ] docker-compose.chaos.yml topology
+- [ ] Integration tests (two sync-cli instances through relay)
+- [ ] Issue #5: Implement notify_group (1-2 hrs)
 - [ ] Implement 28 ignored chaos stubs
-- [ ] Integration tests (two sync-cli through relay)
+- [ ] Commit Cargo.lock to git
 
 ---
 
@@ -276,13 +343,31 @@ cargo run -p sync-relay
 cargo run -p sync-cli -- push "test"
 ```
 
+### Docker
+```bash
+# Build relay image
+docker build -t 0k-sync-relay .
+
+# Run relay (local)
+docker run -d -p 8080:8080 -v relay-data:/data --name relay 0k-sync-relay
+
+# Health check
+curl http://localhost:8080/health
+
+# Run Docker validation tests (8 tests)
+bash tests/docker-validate.sh
+
+# Chaos testing topology
+cd tests/chaos && docker compose -f docker-compose.chaos.yml up --build
+```
+
 ### Deployment (Beast)
 ```bash
 # SSH to Beast
 ssh jamesb@192.168.68.100
 
-# Docker (after containerization)
-docker-compose up -d
+# Docker
+docker run -d -p 8080:8080 -v relay-data:/data --name relay 0k-sync-relay
 ```
 
 ---
@@ -310,9 +395,9 @@ docker-compose up -d
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ✅ → Docker ⬅️ NOW → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ✅ → Docker ✅ → Integration tests ⬅️ NOW → tauri-plugin
 ```
-Phase 6: MVP + code review + rate limiting complete (39 tests). Next: Docker.
+Phase 6: MVP + code review + rate limiting + Docker complete (39 tests). Next: Integration tests.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -346,13 +431,13 @@ cd /Users/ydun.io/Projects/Personal/0k-sync
 # 1. Verify green state
 cargo test --workspace
 cargo audit
+bash tests/docker-validate.sh
 
-# 2. Start Docker containerization
-# Create sync-relay/Dockerfile
-# Multi-stage build for minimal image size
+# 2. Start integration tests
+# Two sync-cli instances communicating through relay
 ```
 
-**Then:** Docker → Integration tests → Chaos stubs
+**Then:** Integration tests → notify_group → Chaos stubs
 
 **Good luck!**
 
@@ -399,9 +484,11 @@ All quick-win code review issues addressed + sqlx security upgrade:
 
 **Phase 6 Remaining:**
 - [x] Rate limiting (limits.rs) ✅
-- [ ] Docker containerization ⬅️ START HERE
-- [ ] Integration tests (CLI through relay)
+- [x] Docker containerization ✅ (8/8 validation tests, 2026-02-05)
+- [ ] Integration tests (CLI through relay) ⬅️ START HERE
+- [ ] Issue #5: notify_group (1-2 hrs)
 - [ ] Activate 28 chaos test stubs
+- [ ] Commit Cargo.lock to git
 
 **Test Summary:**
 - sync-relay: 39 tests (+7 from limits.rs)
@@ -409,12 +496,19 @@ All quick-win code review issues addressed + sqlx security upgrade:
 - Workspace total: 279 passing, 34 ignored
 
 **Key Commits:**
+- `c2fcb11` - Rate limiting with governor crate
 - `531e225` - sqlx 0.8 upgrade + docs
 - `05db253` - Code review fixes
 - `87926fc` - Final documentation update
 - `d5089ff` - Cleanup task
 - `724b205` - HTTP + main
 - `caf1d8e` - Protocol + session
+
+**curve25519-dalek Patch:**
+- Fork: `ydun-code-library/curve25519-dalek` (PUBLIC, was accidentally private)
+- Our PR #878: still open upstream
+- Upstream PR #875 merged: may make our patch redundant
+- Pre-releases pre.2–pre.6 exist; test removing patch when iroh updates
 
 **MCP Servers:**
 - `mcp__iroh-rag__iroh_ecosystem_search` - iroh server patterns
