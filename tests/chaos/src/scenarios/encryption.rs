@@ -241,13 +241,13 @@ mod tests {
         assert_ne!(key1.auth_key(), key2.auth_key());
     }
 
-    /// E-PQ-03: Low memory (<2GB) uses 12 MiB Argon2 params.
+    /// E-PQ-03: Low memory (<4GB) uses OWASP minimum (19 MiB, 2 iter) after CL-001.
     #[tokio::test]
     async fn e_pq_03_argon2_params_low_memory() {
-        let params = Argon2Params::for_ram_mb(1500); // < 2000 MB
+        let params = Argon2Params::for_ram_mb(1500); // < 4000 MB
 
-        assert_eq!(params.memory_mib(), 12);
-        assert_eq!(params.iterations(), 3);
+        assert_eq!(params.memory_mib(), 19);
+        assert_eq!(params.iterations(), 2);
     }
 
     /// E-PQ-04: High memory (>=8GB) uses 64 MiB Argon2 params.

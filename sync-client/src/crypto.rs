@@ -63,21 +63,13 @@ pub struct Argon2Params {
 impl Argon2Params {
     /// Create parameters based on available RAM in MB.
     ///
-    /// Scaling:
-    /// - < 2000 MB: 12 MiB, 3 iterations (low-end mobile)
-    /// - < 4000 MB: 19 MiB, 2 iterations (mid-range mobile)
+    /// Scaling (CL-001: lowest tier meets OWASP minimum of 19 MiB):
+    /// - < 4000 MB: 19 MiB, 2 iterations (low-end / mid-range mobile)
     /// - < 8000 MB: 46 MiB, 1 iteration (high-end mobile)
     /// - >= 8000 MB: 64 MiB, 3 iterations (desktop)
     pub fn for_ram_mb(ram_mb: u64) -> Self {
-        if ram_mb < 2000 {
-            // Low-end mobile: 12 MiB, 3 iterations
-            Self {
-                memory_mib: 12,
-                iterations: 3,
-                parallelism: 1,
-            }
-        } else if ram_mb < 4000 {
-            // Mid-range mobile: 19 MiB, 2 iterations
+        if ram_mb < 4000 {
+            // Low-end / mid-range mobile: 19 MiB, 2 iterations (OWASP minimum)
             Self {
                 memory_mib: 19,
                 iterations: 2,
@@ -320,12 +312,13 @@ mod tests {
 
     #[test]
     fn argon2_parameters_scale_with_ram() {
-        // Low-end mobile: 12 MiB
+        // CL-001: Lowest tier now meets OWASP minimum (19 MiB / 2 iter)
+        // Low-end mobile: 19 MiB (was 12 MiB before CL-001 fix)
         let params_low = Argon2Params::for_ram_mb(1500);
-        assert_eq!(params_low.memory_mib(), 12);
-        assert_eq!(params_low.iterations(), 3);
+        assert_eq!(params_low.memory_mib(), 19);
+        assert_eq!(params_low.iterations(), 2);
 
-        // Mid-range mobile: 19 MiB
+        // Mid-range mobile: 19 MiB (same tier after CL-001 merge)
         let params_mid = Argon2Params::for_ram_mb(3000);
         assert_eq!(params_mid.memory_mib(), 19);
         assert_eq!(params_mid.iterations(), 2);
@@ -343,7 +336,7 @@ mod tests {
 
     #[test]
     fn group_key_derivation_uses_device_adaptive_argon2() {
-        // Use low-end params for faster test
+        // Use lowest-tier params for faster test (19 MiB after CL-001)
         let params = Argon2Params::for_ram_mb(1500);
 
         // Time the Argon2 derivation (GroupSecret creation), not HKDF (GroupKey derivation)

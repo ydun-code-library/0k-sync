@@ -60,6 +60,7 @@ pub use error::ContentError;
 pub use store::{BlobStore, MemoryStore};
 
 use sync_types::ContentRef;
+use zeroize::Zeroize;
 
 /// Handler for content transfer operations.
 ///
@@ -177,6 +178,13 @@ impl<S: BlobStore> ContentTransfer<S> {
     /// Get a reference to the underlying store.
     pub fn store(&self) -> &S {
         &self.store
+    }
+}
+
+/// XC-001: Zeroize group_secret on drop to prevent key material lingering in freed memory.
+impl<S: BlobStore> Drop for ContentTransfer<S> {
+    fn drop(&mut self) {
+        self.group_secret.zeroize();
     }
 }
 

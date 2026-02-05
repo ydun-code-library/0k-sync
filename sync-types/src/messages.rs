@@ -43,6 +43,16 @@ impl Message {
     }
 
     /// Deserialize from MessagePack bytes.
+    ///
+    /// # Size Limits (ST-001)
+    ///
+    /// rmp_serde deserializes from the provided slice only — it cannot read
+    /// beyond the slice boundary. Callers must ensure the slice is bounded:
+    /// - Relay: `session.rs` enforces `MAX_MESSAGE_SIZE` (1 MB) on read
+    /// - Client: `IrohTransport` enforces the same limit on recv
+    ///
+    /// A malformed MessagePack header declaring more elements than the slice
+    /// contains will fail with a deserialization error, not an allocation bomb.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SyncError> {
         rmp_serde::from_slice(bytes).map_err(SyncError::Deserialization)
     }

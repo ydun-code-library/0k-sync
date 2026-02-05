@@ -124,6 +124,13 @@ impl Session {
         // BYE is not rate limited (we always allow graceful disconnect)
         if let SessionState::Active { device_id, .. } = &self.state {
             if matches!(message, Message::Push(_) | Message::Pull(_)) {
+                // SR-001: Global rate limit check (aggregate across all clients)
+                if let Err(e) = self.relay.rate_limits().check_global() {
+                    tracing::warn!("Global rate limit exceeded: {}", e);
+                    return Err(ProtocolError::RateLimited {
+                        reason: e.to_string(),
+                    });
+                }
                 if let Err(e) = self.relay.rate_limits().check_message(device_id.as_bytes()) {
                     tracing::warn!("Message rate limited for device {:?}: {}", device_id, e);
                     return Err(ProtocolError::RateLimited {

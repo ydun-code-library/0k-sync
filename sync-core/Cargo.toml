@@ -26,4 +26,7 @@ getrandom = "0.2"
 # Thiserror for clean error types
 thiserror = { workspace = true }
 
+# Memory safety for key material (XC-001)
+zeroize = { workspace = true }
+
 [dev-dependencies]

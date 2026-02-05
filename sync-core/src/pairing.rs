@@ -15,6 +15,7 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 use zerok_sync_types::GroupId;
 
 /// Default invite TTL (10 minutes).
@@ -84,7 +85,7 @@ impl std::fmt::Display for RelayNodeId {
 /// Used for:
 /// - Content encryption key derivation (via HKDF)
 /// - Group membership proof
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct GroupSecret([u8; 32]);
 
 impl GroupSecret {
