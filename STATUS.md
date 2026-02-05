@@ -7,11 +7,11 @@ LAST_SYNC: 2026-01-12
 PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-05
 **Project Phase:** PHASE 6 IN PROGRESS
-**Completion:** 99% (Phases 1-5 + 3.5 complete; Phase 6 MVP + code review fixes)
+**Completion:** 99% (Phases 1-5 + 3.5 complete; Phase 6 MVP + Docker + E2E integration)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync
-**Current Focus:** Phase 6 (sync-relay) - Code review fixes complete, rate limiting next
+**Current Focus:** Phase 6 (sync-relay) - E2E integration verified, chaos stubs + notify_group remaining
 
 ---
 
@@ -195,8 +195,8 @@ PURPOSE: Track project progress, status, and metrics across development sessions
   - [x] 7 new unit tests
 
 **Remaining Tasks:**
-- [ ] Docker containerization
-- [ ] Integration tests (two CLI instances through relay)
+- [x] Docker containerization ✅ (8/8 validation tests, 2026-02-05)
+- [x] Integration tests (two CLI instances through relay) ✅ (2026-02-05)
 - [ ] Activate 28 chaos test stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
 - [ ] Issue #5: notify_group implementation (1-2 hrs)
 
@@ -217,23 +217,20 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Current Sprint/Session Status
 
 ### Active Tasks (Current Session)
-- ✅ Phase 2 (sync-core): 60 tests, pure logic, zero I/O
-- ✅ Phase 3 (sync-client): E2E encryption, transport abstraction, 42 tests
-- ✅ Phase 4 (sync-cli): Full CLI with 5 commands, 15 tests
-- ✅ All phases committed and tagged
+- ✅ E2E integration: bidirectional push/pull through real relay on Beast
+- ✅ 3 protocol gaps found and fixed via TDD
+- ✅ Cargo.lock committed for reproducible builds
+- ✅ Beast server setup and validated
 
-### Completed This Session (2026-02-04)
-- [x] Code review fixes (Issues #1, #2, #3, #4, #7)
-- [x] sqlx 0.7 → 0.8 upgrade (security fix)
-- [x] Excluded sqlx-mysql (removed rsa vulnerability)
-- [x] Updated 7 documentation files with sqlx 0.8
-- [x] Rate limiting implementation (`governor` crate)
-  - [x] `limits.rs` module with keyed rate limiters
-  - [x] Connection rate check in `protocol.rs`
-  - [x] Message rate check in `session.rs`
-  - [x] 7 new tests
-- [x] All tests pass (279 passing, 34 ignored), clippy clean
-- [x] 0 vulnerabilities (was 2)
+### Completed This Session (2026-02-05)
+- [x] Committed Cargo.lock (was gitignored, now tracked for reproducible builds)
+- [x] Cloned and built workspace on Beast (279 tests passing)
+- [x] Discovered and fixed 3 protocol gaps via TDD (Jimmy's Workflow):
+  - [x] HELLO/Welcome handshake missing from `SyncClient::connect()`
+  - [x] Hardcoded "placeholder-passphrase" in CLI push/pull (now uses stored group secret)
+  - [x] QUIC stream model mismatch: client reused one stream, relay expects one-per-request
+- [x] E2E integration test on Beast: two CLI instances syncing through real relay
+- [x] All tests pass (280 passing, 34 ignored), clippy clean
 
 ### Blockers
 - None at this time
@@ -249,8 +246,8 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ### Code Metrics
 - **Total Lines of Code:** ~7,500+ (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay, chaos-tests)
-- **Test Count:** 313 tests (32 sync-types + 60 sync-core + 55 sync-client + 23 sync-content + 20 sync-cli + 39 sync-relay + 78 chaos-tests + 6 ignored)
-- **Passing:** 279 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
+- **Test Count:** 314 tests (32 sync-types + 60 sync-core + 56 sync-client + 23 sync-content + 20 sync-cli + 39 sync-relay + 78 chaos-tests + 6 ignored)
+- **Passing:** 280 | **Ignored:** 34 (28 chaos stubs for Phase 6, 5 sync-client E2E, 1 doc test)
 - **Test Coverage:** 100% for public APIs
 - **Crates:** 6 of 7 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay complete)
 
@@ -319,10 +316,13 @@ None
 ### 🟡 Important Issues
 None
 
-### ✅ Resolved Issues (2026-02-03)
+### ✅ Resolved Issues (2026-02-05)
 1. **curve25519-dalek build failure** — iroh 0.96 pulls curve25519-dalek 5.0.0-pre.1 which has incompatible digest import. Fixed with cargo patch pointing to fork with PR #878.
 2. **Stream acknowledgment race** — Server response not reaching client due to connection cleanup before QUIC transmission. Fixed by adding `send.stopped().await` after `finish()`.
 3. **pair --join EndpointId** — Command now properly handles 64-char hex EndpointId strings, saving them directly as relay_address.
+4. **HELLO/Welcome handshake missing** — SyncClient::connect() didn't perform handshake. Relay rejected all subsequent messages. Fixed by sending HELLO with GroupId and receiving Welcome.
+5. **QUIC stream model mismatch** — Client reused one bi-stream; relay expects one stream per request-response. Fixed by opening new bi-stream per send().
+6. **Hardcoded passphrase in CLI** — push/pull used "placeholder-passphrase". Fixed by storing and reading group_secret_hex in GroupConfig.
 
 ### 📝 Technical Debt
 1. iroh version (0.96) is pre-1.0 — minor API changes possible before stable release
@@ -375,6 +375,20 @@ None
 ---
 
 ## Session History
+
+### Session 16: 2026-02-05 (E2E Integration + Protocol Fixes - Q)
+- Committed Cargo.lock for reproducible builds across Q/Beast/Docker
+- Cloned repo on Beast via SSH, built workspace (29s), 279 tests passing
+- **Discovered 3 protocol gaps** (all 279 mock tests passed but real transport failed):
+  1. **HELLO/Welcome handshake missing:** `SyncClient::connect()` didn't send HELLO — relay rejected all messages with `NotAuthenticated`. Fixed: client sends `Message::Hello` with `GroupId` derived from secret, receives `Welcome` before Push/Pull.
+  2. **Hardcoded passphrase in CLI:** push/pull used `"placeholder-passphrase"` instead of real group secret. Fixed: `GroupConfig` stores `group_secret_hex`, `pair --join` saves it, push/pull read it. Added `SyncConfig::from_secret_bytes()` and `GroupSecret::from_raw()`.
+  3. **QUIC stream model mismatch:** `IrohTransport` reused one persistent bi-stream. Relay expects one stream per request-response. After relay called `send.finish()`, client's next write failed ("stopped by peer"). Fixed: `send()` opens new bi-stream each time.
+- **E2E integration verified on Beast:** bidirectional push/pull between two CLI instances through real relay with real iroh QUIC, real encryption, real SQLite storage
+- Added 1 new test (`connect_sends_hello_with_group_id`), updated all mock tests for handshake
+- **Key lesson:** All 279 unit tests passed with mocks but real protocol had never been tested E2E. Mocks hid the stream-per-request pattern and missing handshake.
+- **Tests:** 280 passing, 34 ignored, clippy clean
+- **Commits:** `chore: commit Cargo.lock`, `feat: add HELLO/Welcome handshake and wire passphrase through CLI`, `fix: open new QUIC stream per request-response pair`
+- **Output:** E2E integration working, 3 protocol bugs fixed
 
 ### Session 15: 2026-02-04 (Rate Limiting Implementation - Q)
 - Implemented rate limiting using `governor` crate
@@ -598,18 +612,19 @@ None
 1. ✅ sync-relay MVP complete (39 tests)
 2. ✅ Code review fixes complete
 3. ✅ Rate limiting complete
-4. Docker containerization (Dockerfile)
-5. Integration tests (two CLI instances through relay)
+4. ✅ Docker containerization (8/8 validation tests)
+5. ✅ E2E integration tests (bidirectional push/pull on Beast)
+6. Docker build on Beast (test containerized relay)
+7. Issue #5: notify_group implementation (1-2 hrs)
 
 ### Short Term (Next 2-3 Sessions) - Phase 6 Finalization
 1. Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
 2. Full topology chaos testing (Docker + Toxiproxy)
-3. Issue #5: notify_group implementation
+3. Cross-machine E2E testing (Q ↔ Beast over Tailscale)
 
 ### Medium Term (Next 1-2 Weeks)
-1. End-to-end testing with real relay
-2. tauri-plugin-sync wrapper
-3. Performance optimization
+1. tauri-plugin-sync wrapper
+2. Performance optimization
 
 ### Long Term (Next Month)
 1. CashTable integration
@@ -620,6 +635,6 @@ None
 
 **This is the source of truth for Sync Relay status.**
 
-**Last Updated:** 2026-02-04
-**Next Update:** After Docker containerization
-**Next Handler:** Q (Phase 6 completion: Docker, integration tests)
+**Last Updated:** 2026-02-05
+**Next Update:** After chaos stubs implementation
+**Next Handler:** Q (Phase 6 completion: Docker on Beast, notify_group, chaos stubs)

@@ -5205,6 +5205,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "directories",
+ "hex",
  "iroh",
  "n0-error",
  "predicates",

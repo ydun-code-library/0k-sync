@@ -8,10 +8,39 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-05
-**Last Session:** Docker Containerization (Q)
-**Current Phase:** PHASE 6 IN PROGRESS (Docker complete, integration tests next)
-**Session Summary:** See STATUS.md for complete details
-**Next Handler:** Q (Phase 6: Integration tests, notify_group, chaos stubs)
+**Last Session:** E2E Integration + Protocol Fixes (Q)
+**Current Phase:** PHASE 6 IN PROGRESS (Docker + E2E integration complete, chaos stubs next)
+**Session Summary:** See STATUS.md Session 16 for complete details
+**Next Handler:** Q (Phase 6: Docker on Beast, notify_group, chaos stubs)
+
+---
+
+## ✅ E2E INTEGRATION COMPLETE (2026-02-05)
+
+**First real end-to-end test passed.** Two CLI instances syncing bidirectionally through the real relay on Beast.
+
+**Three protocol gaps discovered and fixed via TDD:**
+
+| # | Bug | Root Cause | Fix |
+|---|-----|-----------|-----|
+| 1 | **HELLO/Welcome handshake missing** | `SyncClient::connect()` skipped handshake — relay rejected all messages with `NotAuthenticated` | Client now sends `Message::Hello` with `GroupId` derived from secret, receives `Welcome` before Push/Pull |
+| 2 | **Hardcoded passphrase** | CLI push/pull used `"placeholder-passphrase"` instead of real group secret | `GroupConfig` stores `group_secret_hex`, `pair --join` saves it, push/pull read it. Added `SyncConfig::from_secret_bytes()` and `GroupSecret::from_raw()` |
+| 3 | **QUIC stream model mismatch** | `IrohTransport` reused one persistent bi-stream; relay expects one stream per request-response | `send()` now opens new bi-stream each time, stores recv half for paired `recv()` call |
+
+**Key lesson:** All 279 unit tests passed with mocks, but the real protocol had never been tested E2E. MockTransport hid the stream-per-request pattern and missing handshake.
+
+**Files Modified:**
+- `sync-client/src/client.rs` — HELLO handshake in connect(), `SyncConfig::from_secret_bytes()`
+- `sync-client/src/crypto.rs` — `GroupSecret::from_raw()`
+- `sync-client/src/transport/iroh.rs` — Stream-per-request model
+- `sync-cli/src/commands/push.rs` — Welcome mock, real passphrase from config
+- `sync-cli/src/commands/pull.rs` — Welcome mock, real passphrase from config
+- `sync-cli/src/commands/pair.rs` — Store group_secret_hex on join
+- `sync-cli/src/config.rs` — `group_secret_hex` field, `with_secret()`, `group_secret_bytes()`
+
+**Tests:** 280 passing (+1 new: `connect_sends_hello_with_group_id`), 34 ignored
+
+**Also this session:** Cargo.lock committed (was gitignored), Beast repo cloned and building.
 
 ---
 
@@ -62,7 +91,7 @@ bash tests/docker-validate.sh
 | **sqlx sqlite (no bundled)** | libsqlite3-sys compiles SQLite from C source. Needs `build-essential` + `pkg-config` in builder. No runtime lib needed. | Install build deps in builder stage |
 | **curve25519-dalek patch** | `[patch.crates-io]` points to git fork. Fork must be PUBLIC. Builder needs `git`. | Fork at `ydun-code-library/curve25519-dalek` set to public (was accidentally private) |
 | **Toxiproxy + QUIC** | Toxiproxy only supports TCP. iroh QUIC uses UDP. Cannot chaos-test QUIC path. | HTTP endpoint (8080) can still be chaosed |
-| **Cargo.lock not in git** | Non-reproducible Docker builds. Different dep versions each build. | Should be committed (separate task) |
+| **Cargo.lock not in git** | Non-reproducible Docker builds. Different dep versions each build. | ✅ Committed (2026-02-05) |
 
 ---
 
@@ -144,7 +173,7 @@ This handoff from Moneypenny contains:
 - ✅ Phase 5: IrohTransport (E2E verified Mac Mini ↔ Beast)
 - ✅ Chaos scenarios (78 tests: 50 passing, 28 stubs for Phase 6)
 - 🟡 **Phase 6: sync-relay (39 tests) - MVP + code review + rate limiting complete**
-- ✅ 279 tests total (279 passing, 34 ignored)
+- ✅ 280 tests total (280 passing, 34 ignored)
 - ✅ **0 vulnerabilities** (sqlx 0.8, no mysql)
 - ✅ GitHub repository: https://github.com/ydun-code-library/0k-sync
 
@@ -227,10 +256,12 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 **Next Up:**
 - [x] Rate limiting (connections per IP, messages per minute) ✅
 - [x] Docker containerization ✅ (8/8 validation tests)
-- [ ] Integration tests (two CLI instances through relay) ⬅️ START HERE
+- [x] Integration tests (two CLI instances through relay) ✅ (bidirectional push/pull on Beast)
+- [x] Commit Cargo.lock to git ✅ (reproducible builds)
+- [ ] Docker build on Beast (test containerized relay) ⬅️ START HERE
 - [ ] Issue #5: Implement `notify_group` (1-2 hrs)
 - [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
-- [ ] Commit Cargo.lock to git (reproducible builds)
+- [ ] Cross-machine E2E (Q ↔ Beast over Tailscale)
 
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 6 details
 **Reference:** See `docs/06-CHAOS-TESTING-STRATEGY.md` for chaos scenarios
@@ -283,15 +314,27 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ---
 
-### Step 3: Integration Tests + Chaos ⭐ START HERE
+### Step 3: Integration Tests ✅ COMPLETE
 
-**Prerequisites:** Docker complete
+**Completed:** 2026-02-05
+
+- [x] Cargo.lock committed for reproducible builds
+- [x] Repo cloned and built on Beast (279 tests passing)
+- [x] 3 protocol gaps found and fixed via TDD (see E2E INTEGRATION section above)
+- [x] Bidirectional push/pull verified through real relay on Beast
+- [x] 280 tests passing (+1 new: `connect_sends_hello_with_group_id`)
+
+---
+
+### Step 4: Docker on Beast + Chaos ⭐ START HERE
+
+**Prerequisites:** Integration tests complete
 
 **Tasks:**
-- [ ] Integration tests (two sync-cli instances through relay)
+- [ ] Docker build on Beast (test containerized relay with real QUIC clients)
 - [ ] Issue #5: Implement notify_group (1-2 hrs)
 - [ ] Implement 28 ignored chaos stubs
-- [ ] Commit Cargo.lock to git
+- [ ] Cross-machine E2E (Q ↔ Beast over Tailscale)
 
 ---
 
@@ -363,10 +406,16 @@ cd tests/chaos && docker compose -f docker-compose.chaos.yml up --build
 
 ### Deployment (Beast)
 ```bash
-# SSH to Beast
-ssh jamesb@192.168.68.100
+# SSH to Beast (use Tailscale IP — hostname "beast" doesn't resolve via SSH)
+ssh jimmyb@100.71.79.25
 
-# Docker
+# Rust not on PATH for non-interactive SSH — prefix commands:
+export PATH=$HOME/.cargo/bin:$PATH
+
+# Repo location
+cd ~/0k-sync
+
+# Docker (port 8080 may be in use — use 8090 if needed)
 docker run -d -p 8080:8080 -v relay-data:/data --name relay 0k-sync-relay
 ```
 
@@ -395,9 +444,9 @@ docker run -d -p 8080:8080 -v relay-data:/data --name relay 0k-sync-relay
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ✅ → Docker ✅ → Integration tests ⬅️ NOW → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ✅ → Docker ✅ → E2E Integration ✅ → Docker on Beast ⬅️ NOW → notify_group → chaos stubs → tauri-plugin
 ```
-Phase 6: MVP + code review + rate limiting + Docker complete (39 tests). Next: Integration tests.
+Phase 6: MVP + code review + rate limiting + Docker + E2E integration complete (39 relay tests, 280 total). Next: Docker build on Beast, notify_group, chaos stubs.
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -431,13 +480,17 @@ cd /Users/ydun.io/Projects/Personal/0k-sync
 # 1. Verify green state
 cargo test --workspace
 cargo audit
-bash tests/docker-validate.sh
 
-# 2. Start integration tests
-# Two sync-cli instances communicating through relay
+# 2. Docker build on Beast
+ssh jimmyb@100.71.79.25
+export PATH=$HOME/.cargo/bin:$PATH
+cd ~/0k-sync && git pull
+docker build -t 0k-sync-relay .
+
+# 3. Test containerized relay with CLI clients
 ```
 
-**Then:** Integration tests → notify_group → Chaos stubs
+**Then:** Docker on Beast → notify_group → Chaos stubs
 
 **Good luck!**
 
@@ -445,9 +498,9 @@ bash tests/docker-validate.sh
 
 **This file is updated at the end of each session for continuity.**
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-05
 **Template Version:** 1.0.0
-**Next Handler:** Q (implementation phase)
+**Next Handler:** Q (Phase 6: Docker on Beast, notify_group, chaos stubs)
 
 ---
 
@@ -485,24 +538,26 @@ All quick-win code review issues addressed + sqlx security upgrade:
 **Phase 6 Remaining:**
 - [x] Rate limiting (limits.rs) ✅
 - [x] Docker containerization ✅ (8/8 validation tests, 2026-02-05)
-- [ ] Integration tests (CLI through relay) ⬅️ START HERE
+- [x] Integration tests (CLI through relay) ✅ (bidirectional push/pull on Beast, 2026-02-05)
+- [x] Commit Cargo.lock to git ✅ (2026-02-05)
+- [ ] Docker build on Beast (test containerized relay) ⬅️ START HERE
 - [ ] Issue #5: notify_group (1-2 hrs)
 - [ ] Activate 28 chaos test stubs
-- [ ] Commit Cargo.lock to git
+- [ ] Cross-machine E2E (Q ↔ Beast over Tailscale)
 
 **Test Summary:**
 - sync-relay: 39 tests (+7 from limits.rs)
+- sync-client: 56 tests (+1 from HELLO handshake)
 - sync-types: 32 tests
-- Workspace total: 279 passing, 34 ignored
+- Workspace total: 280 passing, 34 ignored
 
-**Key Commits:**
+**Key Commits (Recent First):**
+- `9fe34db` - curve25519-dalek patch comment update
+- `0643db9` - Docker containerization with TDD validation
 - `c2fcb11` - Rate limiting with governor crate
 - `531e225` - sqlx 0.8 upgrade + docs
 - `05db253` - Code review fixes
-- `87926fc` - Final documentation update
-- `d5089ff` - Cleanup task
-- `724b205` - HTTP + main
-- `caf1d8e` - Protocol + session
+- Plus 3 commits from this session: Cargo.lock, HELLO handshake, stream-per-request fix
 
 **curve25519-dalek Patch:**
 - Fork: `ydun-code-library/curve25519-dalek` (PUBLIC, was accidentally private)
