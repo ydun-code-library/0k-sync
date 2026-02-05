@@ -68,14 +68,13 @@ async fn main() -> anyhow::Result<()> {
         .accept(ALPN, protocol)
         .spawn();
 
-    tracing::info!("iroh router started, accepting connections on ALPN {:?}",
-        std::str::from_utf8(ALPN).unwrap_or("?"));
+    tracing::info!(
+        "iroh router started, accepting connections on ALPN {:?}",
+        std::str::from_utf8(ALPN).unwrap_or("?")
+    );
 
     // Start cleanup task
-    let cleanup_handle = cleanup::spawn_cleanup_task(
-        relay.storage_arc(),
-        config.cleanup.clone(),
-    );
+    let cleanup_handle = cleanup::spawn_cleanup_task(relay.storage_arc(), config.cleanup.clone());
 
     // Start HTTP server
     let http_addr: SocketAddr = config.http.bind_address.parse()?;
@@ -85,9 +84,8 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("HTTP server listening on {}", http_addr);
 
     // Run HTTP server in background
-    let mut http_handle = tokio::spawn(async move {
-        axum::serve(http_listener, http_router).await
-    });
+    let mut http_handle =
+        tokio::spawn(async move { axum::serve(http_listener, http_router).await });
 
     // Print connection info
     println!();

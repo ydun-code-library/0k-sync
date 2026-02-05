@@ -47,7 +47,12 @@ mod tests {
         let app = build_router(relay);
 
         let response = app
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -60,7 +65,12 @@ mod tests {
         let app = build_router(relay);
 
         let response = app
-            .oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

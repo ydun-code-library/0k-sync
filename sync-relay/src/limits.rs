@@ -28,7 +28,6 @@ type KeyedLimiter<K> = RateLimiter<
 >;
 
 /// Type alias for a direct (non-keyed) rate limiter.
-#[allow(dead_code)]
 type DirectLimiter = RateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 
 /// Rate limiters for the relay server.
@@ -44,6 +43,11 @@ pub struct RateLimits {
     ///
     /// Configured via `limits.messages_per_minute`.
     message_limiter: Arc<KeyedLimiter<[u8; 32]>>,
+
+    /// Global rate limiter across all clients (F-014).
+    ///
+    /// Prevents aggregate overload even if individual clients are within limits.
+    global_limiter: Arc<DirectLimiter>,
 }
 
 impl std::fmt::Debug for RateLimits {
@@ -51,6 +55,7 @@ impl std::fmt::Debug for RateLimits {
         f.debug_struct("RateLimits")
             .field("connection_limiter", &"KeyedLimiter<[u8;32]>")
             .field("message_limiter", &"KeyedLimiter<[u8;32]>")
+            .field("global_limiter", &"DirectLimiter")
             .finish()
     }
 }
@@ -68,8 +73,8 @@ impl RateLimits {
     pub fn new(config: &LimitsConfig) -> Self {
         // Connection rate: allow `connections_per_ip` per minute
         // (e.g., 10 connections/minute = 1 every 6 seconds)
-        let connections_per_minute =
-            NonZeroU32::new(config.connections_per_ip as u32).expect("connections_per_ip must be > 0");
+        let connections_per_minute = NonZeroU32::new(config.connections_per_ip as u32)
+            .expect("connections_per_ip must be > 0");
         let connection_quota = Quota::per_minute(connections_per_minute);
 
         // Message rate: allow `messages_per_minute` per minute
@@ -77,9 +82,15 @@ impl RateLimits {
             NonZeroU32::new(config.messages_per_minute).expect("messages_per_minute must be > 0");
         let message_quota = Quota::per_minute(messages_per_minute);
 
+        // Global rate: allow `global_requests_per_second` per second across all clients
+        let global_rps = NonZeroU32::new(config.global_requests_per_second)
+            .expect("global_requests_per_second must be > 0");
+        let global_quota = Quota::per_second(global_rps);
+
         Self {
             connection_limiter: Arc::new(RateLimiter::keyed(connection_quota)),
             message_limiter: Arc::new(RateLimiter::keyed(message_quota)),
+            global_limiter: Arc::new(RateLimiter::direct(global_quota)),
         }
     }
 
@@ -113,6 +124,16 @@ impl RateLimits {
             .map_err(|_| RateLimitError::MessageLimitExceeded)
     }
 
+    /// Check if the global request rate is within limits.
+    ///
+    /// This is a server-wide rate limit that caps aggregate throughput
+    /// regardless of individual client limits.
+    pub fn check_global(&self) -> Result<(), RateLimitError> {
+        self.global_limiter
+            .check()
+            .map_err(|_| RateLimitError::GlobalLimitExceeded)
+    }
+
     /// Get the number of tracked connection keys (for metrics).
     pub fn connection_keys_count(&self) -> usize {
         self.connection_limiter.len()
@@ -121,6 +142,16 @@ impl RateLimits {
     /// Get the number of tracked message keys (for metrics).
     pub fn message_keys_count(&self) -> usize {
         self.message_limiter.len()
+    }
+
+    /// Evict stale entries from the keyed rate limiter DashMaps (F-015).
+    ///
+    /// Over time, disconnected clients leave entries in the DashMap.
+    /// `retain_recent()` removes entries whose rate limit cells have fully
+    /// recharged (i.e., idle clients). Call periodically from cleanup task.
+    pub fn shrink(&self) {
+        self.connection_limiter.retain_recent();
+        self.message_limiter.retain_recent();
     }
 }
 
@@ -131,6 +162,8 @@ pub enum RateLimitError {
     ConnectionLimitExceeded,
     /// Too many messages from this device.
     MessageLimitExceeded,
+    /// Global request rate exceeded across all clients (F-014).
+    GlobalLimitExceeded,
 }
 
 impl std::fmt::Display for RateLimitError {
@@ -141,6 +174,9 @@ impl std::fmt::Display for RateLimitError {
             }
             Self::MessageLimitExceeded => {
                 write!(f, "message rate limit exceeded")
+            }
+            Self::GlobalLimitExceeded => {
+                write!(f, "global rate limit exceeded")
             }
         }
     }
@@ -160,6 +196,7 @@ mod tests {
             max_concurrent_sessions: 10_000,
             max_device_name_len: 256,
             max_pull_limit: 1000,
+            global_requests_per_second: 1000,
         }
     }
 
@@ -179,6 +216,7 @@ mod tests {
             max_concurrent_sessions: 10_000,
             max_device_name_len: 256,
             max_pull_limit: 1000,
+            global_requests_per_second: 1000,
         };
         let limits = RateLimits::new(&config);
         let endpoint_id = [1u8; 32];
@@ -204,6 +242,7 @@ mod tests {
             max_concurrent_sessions: 10_000,
             max_device_name_len: 256,
             max_pull_limit: 1000,
+            global_requests_per_second: 1000,
         };
         let limits = RateLimits::new(&config);
         let device_id = [2u8; 32];
@@ -229,6 +268,7 @@ mod tests {
             max_concurrent_sessions: 10_000,
             max_device_name_len: 256,
             max_pull_limit: 1000,
+            global_requests_per_second: 1000,
         };
         let limits = RateLimits::new(&config);
 
@@ -269,5 +309,56 @@ mod tests {
             RateLimitError::MessageLimitExceeded.to_string(),
             "message rate limit exceeded"
         );
+        assert_eq!(
+            RateLimitError::GlobalLimitExceeded.to_string(),
+            "global rate limit exceeded"
+        );
+    }
+
+    #[test]
+    fn global_rate_limiter_rejects_excess() {
+        // F-014: Global rate limiter must cap aggregate throughput
+        let config = LimitsConfig {
+            connections_per_ip: 100,
+            messages_per_minute: 100,
+            hello_timeout_secs: 10,
+            max_concurrent_sessions: 10_000,
+            max_device_name_len: 256,
+            max_pull_limit: 1000,
+            global_requests_per_second: 5,
+        };
+        let limits = RateLimits::new(&config);
+
+        // First 5 should succeed
+        for _ in 0..5 {
+            assert!(limits.check_global().is_ok());
+        }
+
+        // 6th should fail
+        assert_eq!(
+            limits.check_global(),
+            Err(RateLimitError::GlobalLimitExceeded)
+        );
+    }
+
+    #[test]
+    fn shrink_does_not_panic() {
+        // F-015: Shrink via retain_recent() must be callable without error.
+        // retain_recent() evicts entries whose rate limit cells have fully
+        // recharged (idle clients). Freshly-used entries are kept.
+        let limits = RateLimits::new(&test_config());
+
+        // Create some entries
+        let endpoint_a = [1u8; 32];
+        let endpoint_b = [2u8; 32];
+        let _ = limits.check_connection(&endpoint_a);
+        let _ = limits.check_connection(&endpoint_b);
+        let _ = limits.check_message(&endpoint_a);
+
+        assert!(limits.connection_keys_count() > 0);
+
+        // Shrink should not panic — freshly used entries may or may not
+        // be evicted depending on timing, so we only assert no panic
+        limits.shrink();
     }
 }

@@ -210,8 +210,10 @@ mod tests {
         // Use fixed params for reproducibility
         let params = Argon2Params::for_ram_mb(1000); // Low-end params
 
-        let secret1 = GroupSecret::from_passphrase_with_params(passphrase, b"test-salt-00000!", params);
-        let secret2 = GroupSecret::from_passphrase_with_params(passphrase, b"test-salt-00000!", params);
+        let secret1 =
+            GroupSecret::from_passphrase_with_params(passphrase, b"test-salt-00000!", params);
+        let secret2 =
+            GroupSecret::from_passphrase_with_params(passphrase, b"test-salt-00000!", params);
 
         let key1 = GroupKey::derive(&secret1);
         let key2 = GroupKey::derive(&secret2);
@@ -226,8 +228,10 @@ mod tests {
     async fn e_pq_02_key_derivation_different() {
         let params = Argon2Params::for_ram_mb(1000);
 
-        let secret1 = GroupSecret::from_passphrase_with_params("passphrase-one", b"test-salt-00000!", params);
-        let secret2 = GroupSecret::from_passphrase_with_params("passphrase-two", b"test-salt-00000!", params);
+        let secret1 =
+            GroupSecret::from_passphrase_with_params("passphrase-one", b"test-salt-00000!", params);
+        let secret2 =
+            GroupSecret::from_passphrase_with_params("passphrase-two", b"test-salt-00000!", params);
 
         let key1 = GroupKey::derive(&secret1);
         let key2 = GroupKey::derive(&secret2);
@@ -258,7 +262,8 @@ mod tests {
     /// E-PQ-05: HKDF domain separation produces different subkeys.
     #[tokio::test]
     async fn e_pq_05_hkdf_domain_separation() {
-        let secret = GroupSecret::from_passphrase_with_salt("domain-separation-test", b"test-salt-00000!");
+        let secret =
+            GroupSecret::from_passphrase_with_salt("domain-separation-test", b"test-salt-00000!");
         let key = GroupKey::derive(&secret);
 
         // Encryption and auth keys must be different

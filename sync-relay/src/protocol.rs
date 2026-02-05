@@ -37,11 +37,7 @@ impl ProtocolHandler for SyncProtocol {
             // Rate limit check: prevent connection flooding from single device
             let remote_id = connection.remote_id();
             if let Err(e) = relay.rate_limits().check_connection(remote_id.as_bytes()) {
-                tracing::warn!(
-                    "Connection rate limited for {}: {}",
-                    remote_id,
-                    e
-                );
+                tracing::warn!("Connection rate limited for {}: {}", remote_id, e);
                 // Close connection immediately
                 connection.close(1u32.into(), b"rate limited");
                 return Ok(());

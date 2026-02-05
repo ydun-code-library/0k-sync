@@ -1,7 +1,7 @@
 //! Prometheus metrics endpoint.
 
 use crate::server::SyncRelay;
-use axum::{Extension, http::header::CONTENT_TYPE, response::IntoResponse};
+use axum::{http::header::CONTENT_TYPE, response::IntoResponse, Extension};
 use std::sync::Arc;
 
 /// Prometheus metrics handler.

@@ -69,6 +69,9 @@ pub struct LimitsConfig {
     /// Maximum pull limit per request (default: 1000).
     #[serde(default = "default_max_pull_limit")]
     pub max_pull_limit: u32,
+    /// Global requests per second across all clients (default: 1000).
+    #[serde(default = "default_global_rps")]
+    pub global_requests_per_second: u32,
 }
 
 /// HTTP endpoints configuration.
@@ -138,6 +141,10 @@ fn default_max_pull_limit() -> u32 {
     1000
 }
 
+fn default_global_rps() -> u32 {
+    1000
+}
+
 fn default_http_bind() -> String {
     "0.0.0.0:8080".to_string()
 }
@@ -174,6 +181,7 @@ impl Default for Config {
                 max_concurrent_sessions: default_max_concurrent_sessions(),
                 max_device_name_len: default_max_device_name_len(),
                 max_pull_limit: default_max_pull_limit(),
+                global_requests_per_second: default_global_rps(),
             },
             http: HttpConfig {
                 bind_address: default_http_bind(),
@@ -292,11 +300,12 @@ hello_timeout_secs = 30
 
     #[test]
     fn session_limits_have_defaults() {
-        // F-007, F-012, F-013: New limit fields must have sensible defaults
+        // F-007, F-012, F-013, F-014: New limit fields must have sensible defaults
         let config = Config::default();
         assert_eq!(config.limits.max_concurrent_sessions, 10_000);
         assert_eq!(config.limits.max_device_name_len, 256);
         assert_eq!(config.limits.max_pull_limit, 1000);
+        assert_eq!(config.limits.global_requests_per_second, 1000);
     }
 
     #[test]

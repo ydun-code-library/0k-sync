@@ -146,7 +146,7 @@ pub struct Bye {
 /// Small sync messages (<64KB) go through the relay directly.
 /// Large content (photos, documents, audio) is stored in iroh-blobs
 /// and only the ContentRef is sent through the relay.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentRef {
     /// BLAKE3 hash of ciphertext (content address for iroh-blobs)
     pub content_hash: [u8; 32],
@@ -156,6 +156,17 @@ pub struct ContentRef {
     pub content_size: u64,
     /// Ciphertext size in bytes (content_size + 16 byte auth tag)
     pub encrypted_size: u64,
+}
+
+impl std::fmt::Debug for ContentRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContentRef")
+            .field("content_hash", &"[REDACTED]")
+            .field("encryption_nonce", &"[REDACTED]")
+            .field("content_size", &self.content_size)
+            .field("encrypted_size", &self.encrypted_size)
+            .finish()
+    }
 }
 
 /// Acknowledge that content transfer is complete.
@@ -326,7 +337,7 @@ mod tests {
         let content_ref = ContentRef {
             content_hash: [0xAB; 32],
             encryption_nonce: [0xCD; 24],
-            content_size: 1024 * 1024, // 1MB
+            content_size: 1024 * 1024,        // 1MB
             encrypted_size: 1024 * 1024 + 16, // + auth tag
         };
 
@@ -364,5 +375,24 @@ mod tests {
         let restored = Message::from_bytes(&bytes).unwrap();
 
         assert!(matches!(restored, Message::ContentRef(_)));
+    }
+
+    #[test]
+    fn content_ref_debug_redacts_sensitive_fields() {
+        // F-016: ContentRef Debug must not leak content_hash or encryption_nonce
+        let content_ref = ContentRef {
+            content_hash: [0xAB; 32],
+            encryption_nonce: [0xCD; 24],
+            content_size: 1024,
+            encrypted_size: 1040,
+        };
+        let debug = format!("{:?}", content_ref);
+        assert!(
+            debug.contains("REDACTED"),
+            "hash and nonce should be redacted"
+        );
+        assert!(!debug.contains("171"), "raw byte values must not appear"); // 0xAB = 171
+                                                                            // Size fields are fine to display (metadata, not secrets)
+        assert!(debug.contains("1024"), "content_size should be visible");
     }
 }

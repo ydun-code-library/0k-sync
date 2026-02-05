@@ -137,8 +137,14 @@ impl ConnectionState {
                 (Self::Disconnected, vec![Action::CancelReconnect])
             }
 
-            // Invalid transitions - stay in current state
-            (state, _) => (state, vec![]),
+            // Invalid transitions - stay in current state but emit diagnostic
+            (state, event) => {
+                let actions = vec![Action::EmitEvent(SyncEvent::InvalidTransition {
+                    state: format!("{:?}", state),
+                    event: format!("{:?}", event),
+                })];
+                (state, actions)
+            }
         }
     }
 
@@ -288,6 +294,13 @@ pub enum SyncEvent {
         attempt: u32,
         /// Error message describing the failure.
         error: String,
+    },
+    /// Invalid state transition attempted (diagnostic).
+    InvalidTransition {
+        /// Description of the state when the invalid event occurred.
+        state: String,
+        /// Description of the event that was rejected.
+        event: String,
     },
 }
 
@@ -590,5 +603,27 @@ mod tests {
             a,
             Action::EmitEvent(SyncEvent::Disconnected { last_cursor, .. }) if *last_cursor == Cursor::new(100)
         )));
+    }
+
+    #[test]
+    fn invalid_transition_emits_diagnostic() {
+        // F-018: Invalid transitions must emit diagnostic event, not silently swallow
+        let state = ConnectionState::Disconnected;
+        // Sending MessageReceived while Disconnected is invalid
+        let (new_state, actions) = state.on_event(Event::MessageReceived {
+            message: ReceivedMessage::Other,
+        });
+
+        // State should be preserved
+        assert!(matches!(new_state, ConnectionState::Disconnected));
+
+        // Should emit InvalidTransition diagnostic
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, Action::EmitEvent(SyncEvent::InvalidTransition { .. }))),
+            "invalid transition must emit diagnostic event, got: {:?}",
+            actions
+        );
     }
 }

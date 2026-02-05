@@ -33,7 +33,9 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
 use zerok_sync_core::{ConnectionState, CursorTracker, Event};
-use zerok_sync_types::{BlobId, Cursor, GroupId, Hello, Message, Pull, PullResponse, Push, PushAck};
+use zerok_sync_types::{
+    BlobId, Cursor, GroupId, Hello, Message, Pull, PullResponse, Push, PushAck,
+};
 
 use crate::crypto::{CryptoError, GroupKey, GroupSecret};
 use crate::transport::{Transport, TransportError};
@@ -133,7 +135,7 @@ impl SyncConfig {
 }
 
 /// A received blob from the sync group.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ReceivedBlob {
     /// The blob identifier.
     pub blob_id: BlobId,
@@ -143,6 +145,20 @@ pub struct ReceivedBlob {
     pub cursor: Cursor,
     /// Original timestamp.
     pub timestamp: u64,
+}
+
+impl std::fmt::Debug for ReceivedBlob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReceivedBlob")
+            .field("blob_id", &self.blob_id)
+            .field(
+                "payload",
+                &format!("[{} bytes REDACTED]", self.payload.len()),
+            )
+            .field("cursor", &self.cursor)
+            .field("timestamp", &self.timestamp)
+            .finish()
+    }
 }
 
 /// The main sync client.
@@ -767,5 +783,29 @@ mod tests {
 
         // Can access transport for test verification
         assert!(!client.transport().is_connected());
+    }
+
+    // ===========================================
+    // Debug Redaction Tests (F-011)
+    // ===========================================
+
+    #[test]
+    fn received_blob_debug_redacts_payload() {
+        let blob = ReceivedBlob {
+            blob_id: BlobId::new(),
+            payload: vec![0xDE, 0xAD, 0xBE, 0xEF],
+            cursor: Cursor::new(42),
+            timestamp: 1705000000,
+        };
+        let debug = format!("{:?}", blob);
+        assert!(
+            debug.contains("[4 bytes REDACTED]"),
+            "payload should be redacted, got: {}",
+            debug
+        );
+        assert!(
+            !debug.contains("DEAD") && !debug.contains("dead"),
+            "payload bytes must not appear in Debug output"
+        );
     }
 }

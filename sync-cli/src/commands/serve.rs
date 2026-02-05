@@ -121,7 +121,10 @@ impl ProtocolHandler for SyncProtocol {
 
         // F-009: Guard against unbounded allocation from malicious length prefix
         if len > MAX_MESSAGE_SIZE {
-            println!("  Rejected oversized message: {} bytes (max {})", len, MAX_MESSAGE_SIZE);
+            println!(
+                "  Rejected oversized message: {} bytes (max {})",
+                len, MAX_MESSAGE_SIZE
+            );
             return Ok(());
         }
 
@@ -294,10 +297,17 @@ mod tests {
     #[test]
     fn max_message_size_guards_allocation() {
         // F-009: Verify the allocation guard constant matches the relay protocol limit
-        assert_eq!(MAX_MESSAGE_SIZE, 1024 * 1024, "must match relay protocol limit");
+        assert_eq!(
+            MAX_MESSAGE_SIZE,
+            1024 * 1024,
+            "must match relay protocol limit"
+        );
 
         // Verify the boundary conditions
-        assert!(MAX_MESSAGE_SIZE < u32::MAX as usize, "guard must reject u32::MAX");
+        assert!(
+            MAX_MESSAGE_SIZE < u32::MAX as usize,
+            "guard must reject u32::MAX"
+        );
         // A u32 length prefix can express up to 4GB — we cap at 1MB
         let malicious_len = u32::MAX as usize;
         assert!(malicious_len > MAX_MESSAGE_SIZE);

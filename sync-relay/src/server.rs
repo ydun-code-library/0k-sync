@@ -120,8 +120,7 @@ impl SyncRelay {
         }
 
         // Remove connection for notification delivery
-        self.notify_connections
-            .remove(&(*group_id, *device_id));
+        self.notify_connections.remove(&(*group_id, *device_id));
     }
 
     /// Get online device IDs for a group (excluding sender).

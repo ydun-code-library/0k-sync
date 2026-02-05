@@ -107,12 +107,10 @@ impl SqliteStorage {
         .map_err(StorageError::Database)?;
 
         // Create indexes
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_blobs_group_cursor ON blobs(group_id, cursor)",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(StorageError::Database)?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_blobs_group_cursor ON blobs(group_id, cursor)")
+            .execute(&self.pool)
+            .await
+            .map_err(StorageError::Database)?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_blobs_expires ON blobs(expires_at)")
             .execute(&self.pool)
@@ -575,14 +573,20 @@ mod tests {
         storage.store_blob(req).await.unwrap();
 
         // Initially pending for receiver
-        let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
+        let pending = storage
+            .get_pending_count(&group_id, &receiver)
+            .await
+            .unwrap();
         assert_eq!(pending, 1);
 
         // Mark as delivered
         storage.mark_delivered(&blob_id, &receiver).await.unwrap();
 
         // No longer pending
-        let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
+        let pending = storage
+            .get_pending_count(&group_id, &receiver)
+            .await
+            .unwrap();
         assert_eq!(pending, 0);
     }
 
@@ -607,7 +611,10 @@ mod tests {
         storage.store_blob(req3).await.unwrap();
 
         // Initially 3 pending for receiver
-        let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
+        let pending = storage
+            .get_pending_count(&group_id, &receiver)
+            .await
+            .unwrap();
         assert_eq!(pending, 3);
 
         // Batch mark as delivered
@@ -617,7 +624,10 @@ mod tests {
             .unwrap();
 
         // No longer pending
-        let pending = storage.get_pending_count(&group_id, &receiver).await.unwrap();
+        let pending = storage
+            .get_pending_count(&group_id, &receiver)
+            .await
+            .unwrap();
         assert_eq!(pending, 0);
     }
 
@@ -644,11 +654,17 @@ mod tests {
             .unwrap();
 
         // Device A doesn't see its own blob as pending
-        let pending_a = storage.get_pending_count(&group_id, &device_a).await.unwrap();
+        let pending_a = storage
+            .get_pending_count(&group_id, &device_a)
+            .await
+            .unwrap();
         assert_eq!(pending_a, 0);
 
         // Device B sees it as pending
-        let pending_b = storage.get_pending_count(&group_id, &device_b).await.unwrap();
+        let pending_b = storage
+            .get_pending_count(&group_id, &device_b)
+            .await
+            .unwrap();
         assert_eq!(pending_b, 1);
     }
 

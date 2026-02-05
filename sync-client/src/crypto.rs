@@ -19,6 +19,7 @@ use chacha20poly1305::{
 use hkdf::Hkdf;
 use sha2::Sha256;
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Nonce size for XChaCha20-Poly1305 (192 bits = 24 bytes).
 pub const NONCE_SIZE: usize = 24;
@@ -134,10 +135,16 @@ pub fn detect_available_ram_mb() -> u64 {
     sys.total_memory() / (1024 * 1024) // Convert bytes to MB
 }
 
-/// A group secret derived from a passphrase.
+/// A group secret derived from a passphrase via Argon2id.
 ///
 /// This is the root secret shared between all devices in a sync group.
-#[derive(Clone)]
+///
+/// Note (F-021): `sync-core::pairing::GroupSecret` is a separate type holding
+/// raw 32-byte secrets for the pairing/invite layer. This type adds Argon2id
+/// key derivation and Zeroize. They are intentionally separate — different
+/// layers, different responsibilities. Do not consolidate without careful
+/// review of the dependency graph.
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct GroupSecret([u8; KEY_SIZE]);
 
 impl GroupSecret {
@@ -161,7 +168,11 @@ impl GroupSecret {
     }
 
     /// Create a GroupSecret with custom Argon2 parameters and explicit salt.
-    pub fn from_passphrase_with_params(passphrase: &str, salt: &[u8], params: Argon2Params) -> Self {
+    pub fn from_passphrase_with_params(
+        passphrase: &str,
+        salt: &[u8],
+        params: Argon2Params,
+    ) -> Self {
         let argon2_params = params
             .to_argon2_params()
             .expect("invalid argon2 parameters");
@@ -204,7 +215,7 @@ impl std::fmt::Debug for GroupSecret {
 ///
 /// Contains separate subkeys for encryption and authentication,
 /// derived from the GroupSecret via HKDF-SHA256.
-#[derive(Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct GroupKey {
     encryption_key: [u8; KEY_SIZE],
     auth_key: [u8; KEY_SIZE],
@@ -243,6 +254,10 @@ impl GroupKey {
     }
 
     /// Get the authentication subkey.
+    ///
+    /// Reserved for future HMAC message authentication (F-020).
+    /// Derived alongside encryption_key for cryptographic separation.
+    /// Currently unused in production paths but tested and ready.
     pub fn auth_key(&self) -> &[u8; KEY_SIZE] {
         &self.auth_key
     }
@@ -333,7 +348,11 @@ mod tests {
 
         // Time the Argon2 derivation (GroupSecret creation), not HKDF (GroupKey derivation)
         let start = std::time::Instant::now();
-        let secret = GroupSecret::from_passphrase_with_params("my-secure-passphrase", b"test-salt-00000!", params);
+        let secret = GroupSecret::from_passphrase_with_params(
+            "my-secure-passphrase",
+            b"test-salt-00000!",
+            params,
+        );
         let elapsed = start.elapsed();
 
         let key = GroupKey::derive_with_ram(&secret, 1500);
@@ -465,8 +484,16 @@ mod tests {
     #[test]
     fn different_salts_different_secrets() {
         let params = Argon2Params::for_ram_mb(1500);
-        let secret1 = GroupSecret::from_passphrase_with_params("same-passphrase", b"salt-aaaaaaaaaa!", params);
-        let secret2 = GroupSecret::from_passphrase_with_params("same-passphrase", b"salt-bbbbbbbbbb!", params);
+        let secret1 = GroupSecret::from_passphrase_with_params(
+            "same-passphrase",
+            b"salt-aaaaaaaaaa!",
+            params,
+        );
+        let secret2 = GroupSecret::from_passphrase_with_params(
+            "same-passphrase",
+            b"salt-bbbbbbbbbb!",
+            params,
+        );
 
         assert_ne!(secret1.as_bytes(), secret2.as_bytes());
     }

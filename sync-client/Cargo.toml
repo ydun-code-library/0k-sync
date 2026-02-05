@@ -29,6 +29,9 @@ sha2 = "0.10"
 # Random number generation
 getrandom = "0.2"
 
+# Memory safety for key material
+zeroize = { workspace = true }
+
 # Error handling
 thiserror = { workspace = true }
 

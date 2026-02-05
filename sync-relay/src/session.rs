@@ -71,11 +71,7 @@ impl Session {
                         break;
                     }
                     Err(_) => {
-                        tracing::warn!(
-                            "HELLO timeout ({}s) for {}",
-                            timeout_secs,
-                            remote_id
-                        );
+                        tracing::warn!("HELLO timeout ({}s) for {}", timeout_secs, remote_id);
                         break;
                     }
                 }
@@ -129,11 +125,7 @@ impl Session {
         if let SessionState::Active { device_id, .. } = &self.state {
             if matches!(message, Message::Push(_) | Message::Pull(_)) {
                 if let Err(e) = self.relay.rate_limits().check_message(device_id.as_bytes()) {
-                    tracing::warn!(
-                        "Message rate limited for device {:?}: {}",
-                        device_id,
-                        e
-                    );
+                    tracing::warn!("Message rate limited for device {:?}: {}", device_id, e);
                     return Err(ProtocolError::RateLimited {
                         reason: e.to_string(),
                     });
@@ -175,17 +167,14 @@ impl Session {
         self.write_message(&mut send, &response).await?;
 
         // Signal end of response
-        send.finish().map_err(|e| ProtocolError::Stream(e.to_string()))?;
+        send.finish()
+            .map_err(|e| ProtocolError::Stream(e.to_string()))?;
 
         Ok(())
     }
 
     /// Read a length-prefixed message from the stream.
-    async fn read_message(
-        &self,
-        recv: &mut iroh::endpoint::RecvStream,
-    ) -> ProtocolResult<Message> {
-
+    async fn read_message(&self, recv: &mut iroh::endpoint::RecvStream) -> ProtocolResult<Message> {
         // Read 4-byte length prefix (big-endian)
         let mut len_buf = [0u8; 4];
         recv.read_exact(&mut len_buf)
@@ -218,10 +207,11 @@ impl Session {
         send: &mut iroh::endpoint::SendStream,
         message: &Message,
     ) -> ProtocolResult<()> {
-
-        let bytes = message.to_bytes().map_err(|e| ProtocolError::InvalidMessage {
-            reason: e.to_string(),
-        })?;
+        let bytes = message
+            .to_bytes()
+            .map_err(|e| ProtocolError::InvalidMessage {
+                reason: e.to_string(),
+            })?;
 
         // Write 4-byte length prefix
         let len = bytes.len() as u32;
@@ -481,7 +471,11 @@ fn truncate_device_name(name: &str, max_chars: usize) -> String {
 ///
 /// Zero is treated as "use default" (100). Values above max are clamped down.
 fn clamp_pull_limit(limit: u32, max: u32) -> u32 {
-    if limit == 0 { 100 } else { limit.min(max) }
+    if limit == 0 {
+        100
+    } else {
+        limit.min(max)
+    }
 }
 
 fn current_timestamp() -> i64 {
@@ -541,10 +535,22 @@ mod tests {
     fn pull_limit_clamped_to_max() {
         // F-013: Excessive pull limits must be clamped
         assert_eq!(clamp_pull_limit(0, 1000), 100, "zero should use default");
-        assert_eq!(clamp_pull_limit(50, 1000), 50, "within range passes through");
+        assert_eq!(
+            clamp_pull_limit(50, 1000),
+            50,
+            "within range passes through"
+        );
         assert_eq!(clamp_pull_limit(1000, 1000), 1000, "exact boundary passes");
-        assert_eq!(clamp_pull_limit(999999, 1000), 1000, "exceeds max gets clamped");
-        assert_eq!(clamp_pull_limit(u32::MAX, 1000), 1000, "u32::MAX gets clamped");
+        assert_eq!(
+            clamp_pull_limit(999999, 1000),
+            1000,
+            "exceeds max gets clamped"
+        );
+        assert_eq!(
+            clamp_pull_limit(u32::MAX, 1000),
+            1000,
+            "u32::MAX gets clamped"
+        );
     }
 
     #[test]

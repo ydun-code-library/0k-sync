@@ -80,16 +80,27 @@ impl CursorTracker {
         !self.received.is_empty()
     }
 
+    /// Maximum gap size before we stop enumerating missing cursors.
+    /// Prevents OOM if a malicious relay reports a huge cursor jump (F-019).
+    const MAX_GAP: u64 = 10_000;
+
     /// Get the list of missing cursors (gaps in the sequence).
     ///
     /// Returns cursors between the contiguous point and the highest received
-    /// that have not been received.
+    /// that have not been received. Returns empty if the gap exceeds `MAX_GAP`.
     pub fn missing(&self) -> Vec<Cursor> {
         if self.received.is_empty() {
             return Vec::new();
         }
 
         let max_received = *self.received.last().unwrap();
+        let gap = max_received.saturating_sub(self.contiguous);
+
+        // F-019: Cap gap enumeration to prevent OOM
+        if gap > Self::MAX_GAP {
+            return Vec::new();
+        }
+
         let mut missing = Vec::new();
 
         for cursor in (self.contiguous + 1)..=max_received {
@@ -300,5 +311,23 @@ mod tests {
 
         assert!(!tracker.has_gaps());
         assert_eq!(tracker.last_cursor(), Cursor::new(100));
+    }
+
+    #[test]
+    fn cursor_gap_cap_prevents_oom() {
+        // F-019: Gaps larger than MAX_GAP must not enumerate missing cursors
+        let mut tracker = CursorTracker::new();
+        tracker.received(Cursor::new(1));
+        // Create a gap larger than MAX_GAP (10_000)
+        tracker.received(Cursor::new(20_000));
+
+        assert!(tracker.has_gaps());
+        // missing() should return empty to prevent OOM allocation
+        let missing = tracker.missing();
+        assert!(
+            missing.is_empty(),
+            "gaps > MAX_GAP should return empty vec, got {} entries",
+            missing.len()
+        );
     }
 }

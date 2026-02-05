@@ -147,7 +147,13 @@ impl Invite {
         group_secret: GroupSecret,
         salt: Vec<u8>,
     ) -> Self {
-        Self::create_with_ttl(relay_node_id, group_id, group_secret, salt, DEFAULT_INVITE_TTL)
+        Self::create_with_ttl(
+            relay_node_id,
+            group_id,
+            group_secret,
+            salt,
+            DEFAULT_INVITE_TTL,
+        )
     }
 
     /// Create a new invite with custom TTL.

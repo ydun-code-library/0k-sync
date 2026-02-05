@@ -179,8 +179,7 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
 
 /// Prompt for passphrase input with echo suppression.
 fn prompt_passphrase(prompt: &str) -> Result<String> {
-    let passphrase = rpassword::prompt_password(prompt)
-        .context("Failed to read passphrase")?;
+    let passphrase = rpassword::prompt_password(prompt).context("Failed to read passphrase")?;
 
     // F-035: Reject empty or too-short passphrases
     let trimmed = passphrase.trim().to_string();
@@ -270,7 +269,9 @@ mod tests {
         let passphrase = "test-passphrase";
 
         // Join with EndpointId
-        join(dir.path(), endpoint_id, Some(passphrase)).await.unwrap();
+        join(dir.path(), endpoint_id, Some(passphrase))
+            .await
+            .unwrap();
 
         // Verify group.json was created with correct relay_address
         let config = GroupConfig::load(dir.path()).await.unwrap();
@@ -286,6 +287,9 @@ mod tests {
         // Short codes are not yet implemented
         let result = join(dir.path(), "ABCD-EFGH", Some("test")).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Short code lookup not yet implemented"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Short code lookup not yet implemented"));
     }
 }

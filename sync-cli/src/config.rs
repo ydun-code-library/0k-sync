@@ -135,9 +135,7 @@ impl GroupConfig {
 
     /// Get the salt bytes, if stored.
     pub fn salt_bytes(&self) -> Option<Vec<u8>> {
-        self.salt_hex
-            .as_ref()
-            .and_then(|h| hex::decode(h).ok())
+        self.salt_hex.as_ref().and_then(|h| hex::decode(h).ok())
     }
 
     /// Load group configuration from a directory.

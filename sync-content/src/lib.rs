@@ -315,7 +315,11 @@ mod tests {
 
         // We can't verify exact ciphertext due to random nonce, but we can verify
         // the hash in content_ref matches what's stored
-        let ciphertext = transfer.store().get(&content_ref.content_hash).await.unwrap();
+        let ciphertext = transfer
+            .store()
+            .get(&content_ref.content_hash)
+            .await
+            .unwrap();
         let expected_hash = *blake3::hash(&ciphertext).as_bytes();
 
         assert_eq!(content_ref.content_hash, expected_hash);
