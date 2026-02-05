@@ -57,6 +57,7 @@
 | `04-RESEARCH-VALIDATION.md` | 652 | Technology choices | Understanding "why" decisions |
 | `05-RELEASE-STRATEGY.md` | 930 | Versioning, publishing, CI/CD | Before release activities |
 | `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 scenarios | Building chaos test harness |
+| `E2E-TESTING-GUIDE.md` | ~150 | Manual E2E testing Q ↔ Beast | Running integration tests |
 
 ### Reference Documents (docs/reference/)
 
