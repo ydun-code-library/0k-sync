@@ -164,6 +164,11 @@ impl GroupSecret {
         Self(output)
     }
 
+    /// Create a GroupSecret from raw bytes (pre-derived).
+    pub fn from_raw(bytes: [u8; KEY_SIZE]) -> Self {
+        Self(bytes)
+    }
+
     /// Create a random GroupSecret (for testing).
     pub fn random() -> Self {
         let mut bytes = [0u8; KEY_SIZE];

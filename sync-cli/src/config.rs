@@ -66,6 +66,9 @@ pub struct GroupConfig {
     pub joined_at: u64,
     /// Current sync cursor.
     pub cursor: u64,
+    /// Hex-encoded group secret for encryption (derived from passphrase).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_secret_hex: Option<String>,
 }
 
 impl GroupConfig {
@@ -79,7 +82,29 @@ impl GroupConfig {
                 .unwrap()
                 .as_secs(),
             cursor: 0,
+            group_secret_hex: None,
         }
+    }
+
+    /// Create a new group configuration with secret.
+    pub fn with_secret(group_id: &str, relay_address: &str, secret_bytes: &[u8]) -> Self {
+        Self {
+            group_id: group_id.to_string(),
+            relay_address: relay_address.to_string(),
+            joined_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            cursor: 0,
+            group_secret_hex: Some(hex::encode(secret_bytes)),
+        }
+    }
+
+    /// Get the group secret bytes, if stored.
+    pub fn group_secret_bytes(&self) -> Option<Vec<u8>> {
+        self.group_secret_hex
+            .as_ref()
+            .and_then(|h| hex::decode(h).ok())
     }
 
     /// Load group configuration from a directory.

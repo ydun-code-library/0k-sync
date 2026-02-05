@@ -43,8 +43,12 @@ pub async fn create(data_dir: &Path, passphrase: Option<&str>) -> Result<()> {
     let short_code = invite.to_short_code();
     let qr_payload = invite.to_qr_payload();
 
-    // Save group configuration
-    let group_config = GroupConfig::new(&group_id.to_string(), &relay_node_id.to_string());
+    // Save group configuration with secret for encryption
+    let group_config = GroupConfig::with_secret(
+        &group_id.to_string(),
+        &relay_node_id.to_string(),
+        client_secret.as_bytes(),
+    );
     group_config.save(data_dir).await?;
 
     println!("Sync group created!");
@@ -126,8 +130,9 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
         let group_secret = GroupSecret::from_bytes(*client_secret.as_bytes());
         let group_id = group_secret.derive_group_id();
 
-        // Use the provided EndpointId as the relay address
-        let group_config = GroupConfig::new(&group_id.to_string(), code);
+        // Use the provided EndpointId as the relay address, store secret for encryption
+        let group_config =
+            GroupConfig::with_secret(&group_id.to_string(), code, client_secret.as_bytes());
         group_config.save(data_dir).await?;
 
         println!("Joined sync group successfully!");

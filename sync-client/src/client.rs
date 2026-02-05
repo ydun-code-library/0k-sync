@@ -33,7 +33,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
 use zerok_sync_core::{ConnectionState, CursorTracker, Event};
-use zerok_sync_types::{BlobId, Cursor, Message, Pull, PullResponse, Push, PushAck};
+use zerok_sync_types::{BlobId, Cursor, GroupId, Hello, Message, Pull, PullResponse, Push, PushAck};
 
 use crate::crypto::{CryptoError, GroupKey, GroupSecret};
 use crate::transport::{Transport, TransportError};
@@ -90,6 +90,18 @@ impl SyncConfig {
         }
     }
 
+    /// Create a configuration from pre-derived secret bytes.
+    pub fn from_secret_bytes(secret_bytes: &[u8; 32], relay_address: &str) -> Self {
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(secret_bytes);
+        Self {
+            group_secret: GroupSecret::from_raw(bytes),
+            relay_address: relay_address.to_string(),
+            device_name: "0k-sync device".to_string(),
+            default_ttl: 0,
+        }
+    }
+
     /// Set the device name.
     pub fn with_device_name(mut self, name: &str) -> Self {
         self.device_name = name.to_string();
@@ -140,7 +152,7 @@ impl<T: Transport> SyncClient<T> {
         }
     }
 
-    /// Connect to the relay.
+    /// Connect to the relay and perform HELLO/Welcome handshake.
     pub async fn connect(&self) -> Result<(), ClientError> {
         // Update state machine
         {
@@ -159,11 +171,38 @@ impl<T: Transport> SyncClient<T> {
         {
             let mut state = self.state.lock().await;
             let (new_state, _actions) = state.clone().on_event(Event::ConnectSucceeded);
+            *state = new_state;
+        }
 
-            // Skip handshake for now (will be added with Noise protocol)
-            // Transition directly to connected
-            let (final_state, _actions) = new_state.on_event(Event::HandshakeCompleted {
-                cursor: Cursor::zero(),
+        // Send HELLO with group identity
+        let group_id = GroupId::from_secret(self.config.group_secret.as_bytes());
+        let last_cursor = self.cursor.lock().await.last_cursor();
+        let hello = Message::Hello(Hello {
+            version: 1,
+            device_name: self.config.device_name.clone(),
+            group_id,
+            last_cursor,
+        });
+        let hello_bytes = hello
+            .to_bytes()
+            .map_err(|e| ClientError::Serialization(e.to_string()))?;
+        self.transport.send(&hello_bytes).await?;
+
+        // Receive Welcome response
+        let welcome_bytes = self.transport.recv().await?;
+        let welcome = Message::from_bytes(&welcome_bytes)
+            .map_err(|e| ClientError::Serialization(e.to_string()))?;
+
+        let server_cursor = match welcome {
+            Message::Welcome(w) => w.max_cursor,
+            _ => return Err(ClientError::Protocol("expected Welcome response".into())),
+        };
+
+        // Complete handshake
+        {
+            let mut state = self.state.lock().await;
+            let (final_state, _actions) = state.clone().on_event(Event::HandshakeCompleted {
+                cursor: server_cursor,
             });
             *state = final_state;
         }
@@ -344,7 +383,7 @@ impl<T: Transport> SyncClient<T> {
 mod tests {
     use super::*;
     use crate::transport::MockTransport;
-    use zerok_sync_types::PullBlob;
+    use zerok_sync_types::{GroupId, PullBlob, Welcome};
 
     fn test_config() -> SyncConfig {
         SyncConfig::new("test-passphrase", "test-node")
@@ -379,9 +418,22 @@ mod tests {
     // Connection Tests
     // ===========================================
 
+    /// Create a mock Welcome response for connect handshake.
+    fn mock_welcome(max_cursor: u64, pending_count: u32) -> Vec<u8> {
+        Message::Welcome(Welcome {
+            version: 1,
+            max_cursor: Cursor::new(max_cursor),
+            pending_count,
+        })
+        .to_bytes()
+        .unwrap()
+    }
+
     #[tokio::test]
     async fn client_connects_via_transport() {
         let transport = MockTransport::new();
+        // Queue Welcome response for HELLO handshake
+        transport.queue_response(mock_welcome(0, 0));
         let client = SyncClient::new(test_config(), transport.clone());
 
         assert!(!client.is_connected().await);
@@ -393,8 +445,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connect_sends_hello_with_group_id() {
+        let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
+        let config = test_config();
+        let expected_group_id = GroupId::from_secret(config.group_secret.as_bytes());
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+
+        // Verify HELLO was sent
+        let sent = transport.sent_messages();
+        assert_eq!(sent.len(), 1);
+        let msg = Message::from_bytes(&sent[0]).unwrap();
+        match msg {
+            Message::Hello(hello) => {
+                assert_eq!(hello.version, 1);
+                assert_eq!(hello.group_id, expected_group_id);
+                assert_eq!(hello.device_name, "0k-sync device");
+                assert_eq!(hello.last_cursor, Cursor::zero());
+            }
+            other => panic!("Expected Hello, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
     async fn client_disconnects() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let client = SyncClient::new(test_config(), transport.clone());
 
         client.connect().await.unwrap();
@@ -432,6 +510,7 @@ mod tests {
     #[tokio::test]
     async fn push_encrypts_and_sends() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let client = SyncClient::new(test_config(), transport.clone());
         client.connect().await.unwrap();
 
@@ -449,18 +528,19 @@ mod tests {
         // The push will fail because mock returns wrong blob_id
         assert!(result.is_err());
 
-        // But verify we sent something
+        // Verify we sent HELLO + Push (2 messages)
         let sent = transport.sent_messages();
-        assert_eq!(sent.len(), 1);
+        assert_eq!(sent.len(), 2);
 
-        // Verify it's a valid Push message
-        let msg = Message::from_bytes(&sent[0]).unwrap();
+        // First message is HELLO, second is Push
+        let msg = Message::from_bytes(&sent[1]).unwrap();
         assert!(matches!(msg, Message::Push(_)));
     }
 
     #[tokio::test]
     async fn push_payload_is_encrypted() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let config = test_config();
         let key = GroupKey::derive(&config.group_secret);
         let client = SyncClient::new(config, transport.clone());
@@ -476,7 +556,8 @@ mod tests {
         let _ = client.push(plaintext).await; // Ignore result
 
         let sent = transport.sent_messages();
-        let msg = Message::from_bytes(&sent[0]).unwrap();
+        // sent[0] is HELLO, sent[1] is Push
+        let msg = Message::from_bytes(&sent[1]).unwrap();
 
         if let Message::Push(push) = msg {
             // Payload should be nonce + ciphertext
@@ -511,6 +592,7 @@ mod tests {
     #[tokio::test]
     async fn pull_decrypts_received_blobs() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let config = test_config();
         let key = GroupKey::derive(&config.group_secret);
         let client = SyncClient::new(config, transport.clone());
@@ -546,6 +628,7 @@ mod tests {
     #[tokio::test]
     async fn pull_updates_cursor() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let config = test_config();
         let key = GroupKey::derive(&config.group_secret);
         let client = SyncClient::new(config, transport.clone());
@@ -579,6 +662,7 @@ mod tests {
     #[tokio::test]
     async fn pull_skips_undecryptable_blobs() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let config = test_config();
         let key = GroupKey::derive(&config.group_secret);
         let client = SyncClient::new(config, transport.clone());
@@ -627,6 +711,7 @@ mod tests {
     #[tokio::test]
     async fn pull_after_specific_cursor() {
         let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
         let client = SyncClient::new(test_config(), transport.clone());
         client.connect().await.unwrap();
 
@@ -642,7 +727,8 @@ mod tests {
 
         // Verify the Pull request had the right cursor
         let sent = transport.sent_messages();
-        let msg = Message::from_bytes(&sent[0]).unwrap();
+        // sent[0] is HELLO, sent[1] is Pull
+        let msg = Message::from_bytes(&sent[1]).unwrap();
 
         if let Message::Pull(pull) = msg {
             assert_eq!(pull.after_cursor, Cursor::new(50));

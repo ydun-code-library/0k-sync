@@ -18,9 +18,16 @@ pub async fn run(data_dir: &Path, after_cursor: Option<u64>, use_mock: bool) -> 
     let cursor = after_cursor.unwrap_or(group.cursor);
     println!("Pulling data after cursor {}...", cursor);
 
-    // Create sync client config
-    let config = SyncConfig::new("placeholder-passphrase", &group.relay_address)
-        .with_device_name(&device.device_name);
+    // Create sync client config from stored secret or fallback
+    let config = match group.group_secret_bytes() {
+        Some(secret_bytes) if secret_bytes.len() == 32 => {
+            let bytes: [u8; 32] = secret_bytes.try_into().unwrap();
+            SyncConfig::from_secret_bytes(&bytes, &group.relay_address)
+                .with_device_name(&device.device_name)
+        }
+        _ => SyncConfig::new("placeholder-passphrase", &group.relay_address)
+            .with_device_name(&device.device_name),
+    };
 
     // Create transport and client based on mode
     if use_mock {
@@ -38,6 +45,9 @@ async fn run_with_mock(
     cursor: u64,
 ) -> Result<()> {
     let transport = MockTransport::new();
+
+    // Queue Welcome response for HELLO handshake
+    transport.queue_response(create_mock_welcome());
 
     // Queue a mock PullResponse
     let mock_response = create_mock_pull_response(&config);
@@ -117,6 +127,18 @@ async fn do_pull<T: Transport>(
     }
 
     Ok(())
+}
+
+/// Create a mock Welcome response for HELLO handshake.
+fn create_mock_welcome() -> Vec<u8> {
+    use zerok_sync_types::{Cursor, Message, Welcome};
+    Message::Welcome(Welcome {
+        version: 1,
+        max_cursor: Cursor::zero(),
+        pending_count: 0,
+    })
+    .to_bytes()
+    .unwrap_or_default()
 }
 
 /// Create a mock PullResponse for testing.
