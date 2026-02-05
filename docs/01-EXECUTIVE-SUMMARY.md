@@ -72,7 +72,7 @@ Three gates must be addressed before GA release:
 
 | Gate | Status | Action Required |
 |------|--------|-----------------|
-| **Security Audit** | ⏳ In Progress | Audit complete (2026-02-05). Remediation in progress. Noise Protocol (clatter) planned but not yet implemented. |
+| **Security Audit** | ✅ Complete | Two audits complete (2026-02-05). 35 findings, 0 critical/high remaining. Noise Protocol (clatter) designed but not yet implemented. |
 | **Enterprise Compliance** | ⚠️ Blocked | "FIPS Mode" fallback using AES-GCM/PBKDF2 for regulated markets |
 | **Infrastructure** | ✅ Ready | Cloudflare Tunnel validated; self-hosted iroh-relay option |
 

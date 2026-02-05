@@ -1,180 +1,333 @@
 # 0k-Sync
 
-**Zero-knowledge sync protocol for local-first applications**
+**Zero-knowledge sync for local-first apps.**
 
-> **0k** = Zero Knowledge — the relay never sees your data
+The relay never sees your data. Not encrypted-at-rest-but-we-have-the-keys. Actually zero knowledge. The relay is a dumb pipe that routes ciphertext between your devices.
 
-[![Status](https://img.shields.io/badge/status-implementation-green)]()
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)]()
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   Device A                        RELAY                        Device B    │
+│   ┌───────┐                    ┌─────────┐                    ┌───────┐    │
+│   │ App   │                    │ Routes  │                    │ App   │    │
+│   │ Data  │──► Encrypt ──────► │ Opaque  │ ──────────────────►│ Data  │    │
+│   │       │   (your key)       │ Blobs   │      Decrypt ◄─────│       │    │
+│   └───────┘                    │         │     (your key)     └───────┘    │
+│                                │ Sees:   │                                 │
+│                                │ Nothing │                                 │
+│                                └─────────┘                                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Overview
+## Why?
 
-0k-Sync is a secure, E2E encrypted synchronization protocol for local-first applications. The relay never sees plaintext data - it's a zero-knowledge pass-through that routes encrypted blobs between devices.
+Most "encrypted sync" services hold your keys. They pinky-promise not to look. 0k-Sync takes a different approach: **the relay can't look, even if compromised.**
 
-```
-Device A                     RELAY                      Device B
-    │                          │                           │
-    │── encrypted blob ───────►│                           │
-    │                          │── encrypted blob ────────►│
-    │                          │                           │
-    │                          │◄───── ACK ────────────────│
-    │                          │   (blob deleted)          │
-```
+- **No accounts.** Devices pair via passphrase or QR code.
+- **No key escrow.** Keys derive from your passphrase via Argon2id. We never see them.
+- **Minimal metadata.** The relay sees blob sizes and timing, but never content, file names, or structure.
+- **No trust required.** Run your own relay. Or use ours. The cryptography is the same.
+- **Runs anywhere.** Pure Rust, no runtime. Designed for edge hardware, slow networks, and battery-constrained devices.
 
-## Key Features
+---
 
-- **Zero-Knowledge** - Relay sees only ciphertext, never plaintext
-- **E2E Encryption** - XChaCha20-Poly1305 (256-bit) over iroh QUIC transport
-- **Post-Quantum Planned** - Hybrid Noise Protocol (ML-KEM-768 + X25519 via clatter) designed, not yet implemented
-- **No Accounts** - Devices pair via QR code or short code
-- **Local-First** - Apps work offline; sync is opportunistic
-- **Framework Agnostic** - Works with any Rust application
-- **100% Open Source** - MIT/Apache-2.0 dual licensed
+## The Vision
 
-## Deployment Tiers
+We're building for a world where edge AI runs on edge chips — and those devices need a reliable, secure sync protocol to deliver context updates in seconds, not minutes.
 
-| Tier | Name | Infrastructure | Cost |
-|------|------|----------------|------|
-| 1 | Hobbyist | iroh public network | Free |
-| 2 | Self-Hosted | Docker on your server | Electricity |
-| 3 | PaaS | Railway, Fly.io, etc. | ~$5-50/mo |
-| 4 | Managed | Shared relay cluster | Free-$5/mo |
-| 5 | Dedicated | Dedicated relay instance | Usage-based |
-| 6 | Enterprise | Customer infrastructure | License |
+**Edge AI scenarios:**
+- Autonomous agents on long missions, maintaining shared context even when far from base
+- Drone swarms that need to sync state without a central server seeing the mission
+- Field sensors pushing readings back to your infrastructure, not someone else's cloud
 
-**Key insight:** The client library stays constant. Only the relay tier changes.
+**Personal privacy scenarios:**
+- Sync your health data across devices without Google knowing your weight or running route
+- Family photo sharing that doesn't train someone else's AI model
+- Personal journals, financial tracking, medical records — yours, not theirs
+
+**Not just messages — large files too.** Photos, video, sensor dumps, AI model checkpoints. Content is encrypted locally, chunked, and transferred with content-addressed hashing (BLAKE3). The relay never sees what's inside.
+
+The relay doesn't care what you're syncing. It just moves ciphertext. That's the point.
+
+---
+
+## Built With Rust
+
+No garbage collector. No runtime. No Electron. Just compiled machine code.
+
+- **Lightweight footprint** — small relay binary, minimal client library overhead
+- **Memory-adaptive** — Argon2id scales to available RAM (19-64 MiB)
+- **Instant startup** — no VM warmup, no JIT compilation
+- **Edge-ready** — designed for resource-constrained, bandwidth-limited environments
+
+---
+
+## Transport Layer
+
+Built on [iroh](https://github.com/n0-computer/iroh) — a Rust networking stack with QUIC transport. MIT licensed, running on hundreds of thousands of devices.
+
+**Our priority: Resilient relay infrastructure, not P2P.**
+
+iroh supports P2P hole-punching, and we get that for free. But our focus is **multi-relay failover** — the ability to run multiple relays and fail over seamlessly when one goes down. Single relay = single point of failure. That's not acceptable for production workloads.
+
+**Why relay-first:**
+- QUIC-based (UDP, not TCP) — works through NATs, handles packet loss gracefully
+- [iroh's own docs](https://docs.iroh.computer/concepts/relays) say: *"For production, use dedicated relays"* — we agree
+- Multi-relay with automatic failover is on our near-term roadmap
+- P2P is a nice-to-have optimization, not the core architecture
+
+**What if iroh disappears?**
+
+The sync protocol is transport-agnostic. `sync-types` and `sync-core` have zero iroh dependencies — pure Rust, no networking code. The transport layer (`IrohTransport`) is a ~500 line adapter. If iroh vanished tomorrow:
+- Fork it (MIT license)
+- Or swap in another QUIC stack (quinn, etc.)
+- The encryption and sync logic don't change
+
+**Post-quantum:** iroh uses TLS 1.3. They've [stated](https://github.com/n0-computer/iroh/discussions) they're not prioritizing hybrid PQ crypto. We are — that's why our [Appendix B](appendix-b-hybrid-crypto.md) design uses clatter (Noise + ML-KEM-768) at the *application layer*, independent of transport.
+
+---
+
+## Who's This For?
+
+**For defense & industrial:**
+You need context sync for autonomous systems operating in contested environments. Drones, sensors, field units — they need to share state reliably, even when comms are degraded. You need multi-relay failover so one downed node doesn't break the mission. You need zero-knowledge so captured hardware reveals nothing about the network. This is that.
+
+**For privacy-conscious individuals:**
+You want to sync your health data, personal journals, family photos — without feeding Google's ad machine or training someone else's AI. No accounts. No cloud provider reading your files "to improve services." Just your devices, your keys, your data.
+
+**For the nerds:**
+You care about the crypto. Good. So do we.
+
+| Layer | Algorithm | Why |
+|-------|-----------|-----|
+| Blob encryption | XChaCha20-Poly1305 | 256-bit key, 192-bit nonce — no nonce reuse risk even at scale |
+| Key derivation | Argon2id | 19-64 MiB memory-hard — OWASP minimum enforced, adapts to device |
+| Transport | QUIC (TLS 1.3) | UDP-based, handles packet loss, NAT traversal |
+| Content addressing | BLAKE3 | Encrypt-then-hash — fast, parallelizable, collision-resistant |
+
+**Post-quantum?** Hybrid Noise Protocol (ML-KEM-768 + X25519) is [designed](appendix-b-hybrid-crypto.md) but not yet implemented. We're building it at the application layer so we don't depend on transport upgrades.
+
+**Security audits:** Two internal audits completed (2026-02-05). 35 findings, 0 critical/high remaining. Reports in `docs/reviews/`.
+
+---
 
 ## Quick Start
 
+### Self-Hosted Relay (Docker)
+
+```bash
+# Build from source (not yet published to container registry)
+git clone https://github.com/ydun-code-library/0k-sync.git
+cd 0k-sync
+docker build -t 0k-sync-relay .
+docker run -d -p 8080:8080 -v relay-data:/data --name 0k-relay 0k-sync-relay
+
+# Health check
+curl http://localhost:8080/health
+```
+
+### CLI (for testing)
+
+```bash
+# Build from source (not yet published to crates.io)
+git clone https://github.com/ydun-code-library/0k-sync.git
+cd 0k-sync
+cargo build --release -p zerok-sync-cli
+
+# Initialize device
+./target/release/sync-cli init --name "my-laptop"
+
+# Create a sync group (generates passphrase)
+./target/release/sync-cli pair --create
+
+# On second device: join with the passphrase
+./target/release/sync-cli pair --join --passphrase "correct-horse-battery-staple"
+
+# Sync
+./target/release/sync-cli push "Hello from laptop"
+./target/release/sync-cli pull
+```
+
+### Library (for your app)
+
+```toml
+# Cargo.toml (not yet on crates.io — use git dependency)
+[dependencies]
+sync-client = { git = "https://github.com/ydun-code-library/0k-sync.git" }
+```
+
 ```rust
-use sync_client::SyncClient;
+use sync_client::{SyncClient, SyncConfig, GroupSecret};
 
-// Connect to relay
-let client = SyncClient::new(SyncConfig::default()).await?;
+// Derive group key from passphrase
+let secret = GroupSecret::from_passphrase("correct-horse-battery-staple");
+let config = SyncConfig::new(secret, relay_node_id);
 
-// Pair devices (one-time)
-let invite = client.create_invite().await?;
-// Share invite code with other device...
-
-// Push encrypted data
-client.push(encrypted_blob).await?;
-
-// Pull new data
+// Connect and sync
+let client = SyncClient::connect(config).await?;
+client.push(b"encrypted by the time it leaves your device").await?;
 let blobs = client.pull().await?;
 ```
 
-## Documentation
+---
 
-| Document | Purpose |
-|----------|---------|
-| [Executive Summary](docs/01-EXECUTIVE-SUMMARY.md) | Technical overview for decision makers |
-| [Specification](docs/02-SPECIFICATION.md) | Detailed protocol and API specification |
-| [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) | TDD implementation approach |
-| [Research Validation](docs/04-RESEARCH-VALIDATION.md) | Technology choices and justification |
-| [Hybrid Crypto (Appendix B)](appendix-b-hybrid-crypto.md) | Post-quantum cryptography design (planned) |
-| [iroh Deep Dive](docs/research/iroh-deep-dive-report.md) | iroh ecosystem audit |
-
-## Project Structure
+## Architecture
 
 ```
-0k-sync/
-├── docs/                     # Documentation
-│   ├── 01-EXECUTIVE-SUMMARY.md
-│   ├── 02-SPECIFICATION.md
-│   ├── 03-IMPLEMENTATION-PLAN.md
-│   ├── 04-RESEARCH-VALIDATION.md
-│   ├── 05-RELEASE-STRATEGY.md
-│   └── 06-CHAOS-TESTING-STRATEGY.md
-├── sync-types/               # Wire format types (Phase 1) ✅ 33 tests
-├── sync-core/                # Pure logic, no I/O (Phase 2) ✅ 65 tests
-├── sync-client/              # Client library (Phase 3) ✅ 59 tests
-├── sync-content/             # Encrypt-then-hash (Phase 3.5) ✅ 24 tests
-├── sync-cli/                 # Testing tool (Phase 4) ✅ 27 tests
-├── sync-relay/               # Relay server (Phase 6) ✅ 51 tests
-└── tests/chaos/              # Chaos testing harness (50 passing, 28 stubs)
+┌────────────────────────────────────────────────────────────────┐
+│                        Your Application                         │
+├────────────────────────────────────────────────────────────────┤
+│  sync-client         │ E2E encryption, transport, cursors      │
+├──────────────────────┼─────────────────────────────────────────┤
+│  sync-core           │ State machine, buffer logic (no I/O)    │
+├──────────────────────┼─────────────────────────────────────────┤
+│  sync-types          │ Wire format (MessagePack)               │
+├────────────────────────────────────────────────────────────────┤
+│  iroh QUIC           │ Relay-first transport (P2P optional)    │
+└────────────────────────────────────────────────────────────────┘
+
+                              ▼
+
+┌────────────────────────────────────────────────────────────────┐
+│                         sync-relay                              │
+├────────────────────────────────────────────────────────────────┤
+│  • Routes opaque blobs between paired devices                  │
+│  • SQLite storage (WAL mode) for offline buffering             │
+│  • Rate limiting (per-device + global)                         │
+│  • Zero plaintext, zero metadata logging                       │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-## Technology Stack
+**Crate breakdown:**
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| P2P (Tier 1) | [iroh](https://github.com/n0-computer/iroh) | Public network relay |
-| E2E Encryption | XChaCha20-Poly1305 | Blob encryption (256-bit) |
-| Key Derivation | Argon2id | Passphrase to key |
-| Transport | [iroh](https://github.com/n0-computer/iroh) | QUIC P2P + relay fallback (all tiers) |
-| Transport Encryption | iroh QUIC (TLS 1.3) | Wire encryption |
-| **Planned** | [clatter](https://github.com/jmlepisto/clatter) (Noise Protocol) | Hybrid post-quantum (ML-KEM-768 + X25519) |
+| Crate | Purpose | Tests |
+|-------|---------|-------|
+| `sync-types` | Wire format, message definitions | 33 |
+| `sync-core` | Pure logic, no I/O (instant tests) | 65 |
+| `sync-client` | Client library for applications | 59 |
+| `sync-content` | Large file transfer (encrypt-then-hash) | 24 |
+| `sync-cli` | CLI tool for testing/debugging | 27 |
+| `sync-relay` | Relay server | 51 |
 
-**Post-quantum roadmap:** Hybrid Noise Protocol (ML-KEM-768 + X25519 via clatter) is designed but not yet implemented. See [Appendix B](appendix-b-hybrid-crypto.md) for the design.
-
-## Current Status
-
-**Phase: Implementation COMPLETE (Phase 6 done — 2026-02-05)**
-
-- [x] Architecture design
-- [x] Protocol specification
-- [x] Documentation
-- [x] sync-types crate (33 tests) - wire format types + Welcome message
-- [x] sync-core crate (65 tests) - pure logic, zero I/O
-- [x] sync-client crate (59 tests) - E2E encryption, transport abstraction
-- [x] sync-content crate (24 tests) - encrypt-then-hash content transfer
-- [x] sync-cli tool (27 tests) - CLI with 6 commands
-- [x] IrohTransport (Phase 5) - E2E verified over iroh QUIC
-- [x] Chaos scenarios (50 passing, 28 stubs for relay integration)
-- [x] **sync-relay server (Phase 6 — 51 tests)**
-  - SQLite storage with WAL mode
-  - Protocol handler on ALPN /0k-sync/1
-  - Session management (HELLO→WELCOME, PUSH→PUSH_ACK, PULL→PULL_RESPONSE)
-  - HTTP endpoints (/health, /metrics)
-  - Background cleanup task
-  - Rate limiting (governor crate — per-device + global)
-  - notify_group (server-push via uni streams)
-  - Docker containerization (8/8 validation tests)
-  - Cross-machine E2E verified (Q ↔ Beast over Tailscale)
-- [x] Security audit v1 + v2 remediation (35 findings, 0 critical/high remaining)
-
-## Development
-
-```bash
-# Build workspace
-cargo build --workspace
-
-# Run tests
-cargo test --workspace
-
-# Lint
-cargo clippy --workspace
-
-# Format
-cargo fmt --check
-```
-
-## Integration Examples
-
-0k-Sync can be integrated with any framework:
-
-- **Tauri** - Use as a plugin or direct library
-- **Electron** - Via native Node.js bindings
-- **Mobile** - iOS/Android via FFI
-- **Web** - WebAssembly (future)
-
-See [docs/03-IMPLEMENTATION-PLAN.md](docs/03-IMPLEMENTATION-PLAN.md) for integration patterns.
-
-## Contributing
-
-This project follows:
-- **Jimmy's Workflow** (PRE-FLIGHT/RED/GREEN/CHECKPOINT)
-- **TDD** - Tests first, always
-- **KISS** - Keep it simple
-
-See [AGENTS.md](AGENTS.md) for complete development guidelines.
-
-## License
-
-Dual-licensed under MIT and Apache-2.0. See [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE).
+**309 tests passing.** Chaos test harness in progress (50 passing, 28 stubs awaiting infrastructure).
 
 ---
 
-**0k-Sync: Zero-knowledge sync for local-first apps.**
+## Deployment Options
+
+| Tier | Setup | Cost | Who's it for |
+|------|-------|------|--------------|
+| **Hobbyist** | Use iroh public network | Free | Tinkering, dev |
+| **Self-Hosted** | Docker on your server | Your electricity | Privacy maximalists |
+| **PaaS** | Railway, Fly.io, etc. | ~$5-50/mo | Small teams |
+
+The client library is identical across all tiers. Only the relay endpoint changes.
+
+---
+
+## What This Is (and Isn't)
+
+**Is:**
+- A sync primitive for local-first apps
+- A secure relay for routing encrypted blobs
+- Framework-agnostic (Tauri, Electron, mobile, CLI)
+
+**Isn't:**
+- A database (you handle storage)
+- A CRDT library (you handle conflict resolution)
+- A backup service (the relay is ephemeral)
+- A replacement for Syncthing (different use case — this is for app developers)
+
+---
+
+## Threat Model
+
+**What the relay knows:**
+- That Device A and Device B are paired (they share a group ID derived from the passphrase)
+- That *something* was synced (blob size, timestamp)
+- Connection metadata (IP addresses, unless using Tor/VPN)
+
+**What the relay cannot know:**
+- The passphrase
+- The plaintext content
+- File names, types, or structure
+- How many items are in a blob (it's all one ciphertext)
+
+**What would break this:**
+- Compromise of your passphrase
+- Compromise of a paired device
+- A flaw in XChaCha20-Poly1305 or Argon2id (unlikely)
+- A future quantum computer (mitigated by planned hybrid PQ)
+
+---
+
+## Documentation
+
+| Doc | What's in it |
+|-----|--------------|
+| [Executive Summary](docs/01-EXECUTIVE-SUMMARY.md) | Architecture overview |
+| [Specification](docs/02-SPECIFICATION.md) | Protocol details, message formats |
+| [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) | TDD phases, what's built |
+| [Chaos Testing](docs/06-CHAOS-TESTING-STRATEGY.md) | Failure scenarios, invariants |
+| [Hybrid Crypto Design](appendix-b-hybrid-crypto.md) | Post-quantum roadmap |
+| [E2E Testing Guide](docs/E2E-TESTING-GUIDE.md) | How to run integration tests |
+
+---
+
+## Status
+
+**Where we're at:** Phase 6 complete. The core protocol works end-to-end.
+
+| What | Status |
+|------|--------|
+| Wire format (sync-types) | ✅ Done — 33 tests |
+| Core logic (sync-core) | ✅ Done — 65 tests |
+| Client library (sync-client) | ✅ Done — 59 tests |
+| Large file transfer (sync-content) | ✅ Done — 24 tests |
+| CLI tool (sync-cli) | ✅ Done — 27 tests |
+| Relay server (sync-relay) | ✅ Done — 51 tests |
+| E2E cross-machine testing | ✅ Verified Q ↔ Beast |
+| Security audit | ✅ 2 audits, 0 critical/high remaining |
+| Docker deployment | ✅ Working |
+| Multi-relay failover | 🔜 Next priority |
+| Chaos test harness | 🔜 Infrastructure needed |
+| Crates.io publish | 🔜 After chaos hardening |
+| Hybrid post-quantum (Noise + ML-KEM) | 📋 Designed, not implemented |
+
+**309 tests passing.** This isn't vaporware — it's working code.
+
+**What's next:**
+- **Multi-relay failover** — eliminate single point of failure, automatic discovery and failover
+- Chaos test harness (network fault injection for QUIC)
+- Crates.io publish
+- Hybrid post-quantum handshake
+
+---
+
+## Contributing
+
+PRs welcome. The codebase follows TDD — if it's not tested, it doesn't exist.
+
+```bash
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace
+```
+
+See [AGENTS.md](AGENTS.md) for development guidelines.
+
+---
+
+## License
+
+MIT OR Apache-2.0 (your choice).
+
+---
+
+<p align="center">
+  <strong>0k-Sync</strong><br>
+  <em>Because "trust us" isn't a security model.</em>
+</p>
