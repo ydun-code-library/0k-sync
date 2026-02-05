@@ -258,10 +258,10 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 - [x] Docker containerization ✅ (8/8 validation tests)
 - [x] Integration tests (two CLI instances through relay) ✅ (bidirectional push/pull on Beast)
 - [x] Commit Cargo.lock to git ✅ (reproducible builds)
-- [ ] Docker build on Beast (test containerized relay) ⬅️ START HERE
-- [ ] Issue #5: Implement `notify_group` (1-2 hrs)
-- [ ] Implement 28 ignored chaos stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
-- [ ] Cross-machine E2E (Q ↔ Beast over Tailscale)
+- [x] Docker build on Beast (containerized relay E2E) ✅ (2026-02-05)
+- [x] Issue #5: notify_group (uni stream delivery) ✅ (2026-02-05)
+- [x] 28 chaos stubs → separate work item (needs harness with `tc netem`) ✅ (2026-02-05)
+- [x] Cross-machine E2E (Q ↔ Beast over Tailscale) ✅ (2026-02-05)
 
 **Reference:** See `docs/03-IMPLEMENTATION-PLAN.md` for Phase 6 details
 **Reference:** See `docs/06-CHAOS-TESTING-STRATEGY.md` for chaos scenarios
@@ -339,9 +339,15 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ---
 
-### Next: Chaos Harness + Multi-Relay ⭐ START HERE
+### Next: Test Project MCP + Chaos Harness + Multi-Relay ⭐ START HERE
 
-**Tasks:**
+**Step 0 — Test the 0k-sync project MCP (do this first):**
+- [ ] Verify `0k-sync-rag` MCP is connected (should appear in session MCP tools)
+- [ ] Test a search: `mcp__0k-sync-rag__project_0k_sync_search("notify_group")`
+- [ ] If not working: check Beast systemd service, re-index with `ssh jimmyb@100.71.79.25 "reingest-project 0k-sync"`
+- [ ] Config: `~/.claude.json` → `mcpServers` → `0k-sync-rag` on `http://100.71.79.25:8101/sse`
+
+**Then proceed to chaos + multi-relay:**
 - [ ] Build chaos test harness (Docker + `tc netem` for QUIC-compatible fault injection)
 - [ ] Implement 28 chaos test stubs using harness
 - [ ] Design multi-relay failover (Phase 6.5 — brought forward from Beta)
@@ -485,23 +491,26 @@ Phase 6 complete (43 relay tests, 284 total). Next: Chaos harness buildout, mult
 ## 🎬 Ready to Continue!
 
 **Tomorrow's First Actions:**
+
+**1. Test the 0k-sync project MCP (NEW — do this first):**
 ```bash
-cd /Users/ydun.io/Projects/Personal/0k-sync
-
-# 1. Verify green state
-cargo test --workspace
-cargo audit
-
-# 2. Docker build on Beast
-ssh jimmyb@100.71.79.25
-export PATH=$HOME/.cargo/bin:$PATH
-cd ~/0k-sync && git pull
-docker build -t 0k-sync-relay .
-
-# 3. Test containerized relay with CLI clients
+# MCP should auto-connect on session start. Verify by searching:
+# mcp__0k-sync-rag__project_0k_sync_search("notify_group")
+#
+# If not connected, check:
+#   - Q's config: ~/.claude.json → mcpServers → "0k-sync-rag"
+#   - Beast service: ssh jimmyb@100.71.79.25 "systemctl --user status 0k-sync-mcp"
+#   - Re-index:     ssh jimmyb@100.71.79.25 "reingest-project 0k-sync"
 ```
 
-**Then:** Chaos harness → multi-relay failover → tauri-plugin
+**2. Verify green state:**
+```bash
+cd /Users/ydun.io/Projects/Personal/0k-sync
+cargo test --workspace
+cargo audit
+```
+
+**3. Then:** Chaos harness → multi-relay failover → tauri-plugin
 
 **Good luck!**
 
@@ -527,7 +536,7 @@ All quick-win code review issues addressed + sqlx security upgrade:
 | 2 | Cleanup N+1 queries | ✅ Done |
 | 3 | Pull delivery batching | ✅ Done |
 | 4 | ProtocolError::Internal | ✅ Done |
-| 5 | notify_group | ⬜ Later |
+| 5 | notify_group | ✅ Done (uni stream delivery, 2026-02-05) |
 | 6 | total_sessions accuracy | ⬜ Optional |
 | 7 | Graceful shutdown | ✅ Done |
 
@@ -576,6 +585,13 @@ All quick-win code review issues addressed + sqlx security upgrade:
 - Upstream PR #875 merged: may make our patch redundant
 - Pre-releases pre.2–pre.6 exist; test removing patch when iroh updates
 
-**MCP Servers:**
-- `mcp__iroh-rag__iroh_ecosystem_search` - iroh server patterns
-- `mcp__rust-rag__rust_dev_search` - Rust patterns (axum, sqlx, governor)
+**MCP Servers (all on Beast 100.71.79.25 via systemd):**
+- `mcp__0k-sync-rag__project_0k_sync_search` - **Project MCP** (port 8101) — search this codebase
+- `mcp__rust-rag__rust_dev_search` - Rust patterns (port 8005)
+- `mcp__iroh-rag__iroh_ecosystem_search` - iroh P2P patterns (port 8008)
+- `mcp__crypto-rag__crypto_protocols_search` - Noise Protocol, crypto (port 8009)
+
+**Re-index project MCP after significant changes:**
+```bash
+ssh jimmyb@100.71.79.25 "reingest-project 0k-sync"
+```

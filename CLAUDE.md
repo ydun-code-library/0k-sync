@@ -79,10 +79,10 @@ cargo fmt --check
 # Run Relay Server
 cargo run -p sync-relay -- --config relay.toml
 
-# Run CLI Tool
-cargo run -p sync-cli -- push "message"
-cargo run -p sync-cli -- pull --after-cursor 0
-cargo run -p sync-cli -- pair --create
+# Run CLI Tool (package name is zerok-sync-cli)
+cargo run -p zerok-sync-cli -- push "message"
+cargo run -p zerok-sync-cli -- pull --after-cursor 0
+cargo run -p zerok-sync-cli -- pair --create
 
 # Docker
 docker build -t 0k-sync-relay .
@@ -98,10 +98,10 @@ bash tests/docker-validate.sh  # 8 validation tests
 3. `sync-client` - Library for local-first apps - 55 tests
 4. `sync-content` - Encrypt-then-hash content transfer - 23 tests
 5. `sync-cli` - Testing/verification tool - 20 tests
-6. `sync-relay` - **MVP FUNCTIONAL** (39 tests) - relay server with SQLite, HTTP endpoints, rate limiting
+6. `sync-relay` - **COMPLETE** (43 tests) - relay server with SQLite, HTTP endpoints, rate limiting, notify_group
 7. Framework integrations - Optional wrappers (e.g., tauri-plugin-sync)
 
-**Current Phase:** Phase 6 (Docker complete, integration tests next) — 279 tests passing, 34 ignored
+**Current Phase:** PHASE 6 COMPLETE — 284 tests passing, 34 ignored
 
 **Key Files:**
 - `docs/DOCS-MAP.md` - Navigation index (start here)
@@ -141,21 +141,22 @@ Noise Protocol (encryption)
 
 ## MCP Servers (Q's Toolbox)
 
-The following MCP servers are available for this project. Check these at session start.
+The following MCP servers are available for this project. All run on Beast (100.71.79.25) via systemd.
 
 ### Essential for 0k-Sync
 
-| Server | Tool | Purpose |
-|--------|------|---------|
-| `rust-rag` | `mcp__rust-rag__rust_dev_search` | Rust patterns, serde, tokio, thiserror, async |
-| `iroh-rag` | `mcp__iroh-rag__iroh_ecosystem_search` | iroh P2P, QUIC, blobs, gossip, relay |
-| `crypto-rag` | `mcp__crypto-rag__crypto_protocols_search` | Noise Protocol, hybrid crypto, ML-KEM |
+| Server | Tool | Port | Purpose |
+|--------|------|------|---------|
+| `rust-rag` | `mcp__rust-rag__rust_dev_search` | 8005 | Rust patterns, serde, tokio, thiserror, async |
+| `iroh-rag` | `mcp__iroh-rag__iroh_ecosystem_search` | 8008 | iroh P2P, QUIC, blobs, gossip, relay |
+| `crypto-rag` | `mcp__crypto-rag__crypto_protocols_search` | 8009 | Noise Protocol, hybrid crypto, ML-KEM |
+| `0k-sync-rag` | `mcp__0k-sync-rag__project_0k_sync_search` | 8101 | **Project MCP** — search this codebase |
 
 ### Future Phases
 
-| Server | Tool | Purpose |
-|--------|------|---------|
-| `tauri-rag` | `mcp__tauri-rag__tauri_dev_search` | Tauri 2.x commands, plugins, state (Phase 5) |
+| Server | Tool | Port | Purpose |
+|--------|------|------|---------|
+| `tauri-rag` | `mcp__tauri-rag__tauri_dev_search` | 8004 | Tauri 2.x commands, plugins, state |
 
 ### Not Needed
 
@@ -168,9 +169,22 @@ The following MCP servers are available for this project. Check these at session
 | `aiken-rag` | Aiken validators | Different project |
 | `vault-core-rag` | vault-core project | Different project |
 
+### Re-indexing the Project MCP
+
+When the 0k-sync codebase changes significantly (feature branches merged, major refactors, before code reviews), re-index from Q:
+
+```bash
+ssh jimmyb@100.71.79.25 "reingest-project 0k-sync"
+```
+
+Full guide: Beast at `/home/jimmyb/projects/RAGv1/docs/MCP-QUICK-START.md`
+
 ### Usage Examples
 
 ```
+# Search this project's codebase via MCP
+mcp__0k-sync-rag__project_0k_sync_search("notify_group implementation")
+
 # Search Rust patterns
 mcp__rust-rag__rust_dev_search("serde MessagePack serialization")
 
