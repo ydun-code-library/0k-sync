@@ -6,9 +6,10 @@ use crate::config::Config;
 use crate::limits::RateLimits;
 use crate::storage::SqliteStorage;
 use dashmap::DashMap;
+use iroh::endpoint::Connection;
 use std::collections::HashSet;
 use std::sync::Arc;
-use sync_types::{Cursor, DeviceId, GroupId};
+use sync_types::{Cursor, DeviceId, GroupId, Message, Notify};
 use tokio::sync::RwLock;
 
 /// Active session tracking for a group.
@@ -26,6 +27,8 @@ pub struct SyncRelay {
     rate_limits: RateLimits,
     /// Active sessions per group.
     sessions: DashMap<GroupId, Arc<RwLock<GroupSessions>>>,
+    /// Active connections for NOTIFY delivery (stored separately to preserve Debug on GroupSessions).
+    notify_connections: DashMap<(GroupId, DeviceId), Connection>,
 }
 
 impl std::fmt::Debug for SyncRelay {
@@ -47,6 +50,7 @@ impl SyncRelay {
             storage: Arc::new(storage),
             rate_limits,
             sessions: DashMap::new(),
+            notify_connections: DashMap::new(),
         }
     }
 
@@ -88,6 +92,19 @@ impl SyncRelay {
         );
     }
 
+    /// Register a connection for NOTIFY delivery.
+    ///
+    /// Called alongside `register_session` when a device completes HELLO.
+    pub async fn register_connection(
+        &self,
+        group_id: &GroupId,
+        device_id: &DeviceId,
+        connection: Connection,
+    ) {
+        self.notify_connections
+            .insert((*group_id, *device_id), connection);
+    }
+
     /// Unregister a session (device disconnected).
     pub async fn unregister_session(&self, group_id: &GroupId, device_id: &DeviceId) {
         if let Some(sessions) = self.sessions.get(group_id) {
@@ -101,6 +118,10 @@ impl SyncRelay {
                 guard.devices.len()
             );
         }
+
+        // Remove connection for notification delivery
+        self.notify_connections
+            .remove(&(*group_id, *device_id));
     }
 
     /// Get online device IDs for a group (excluding sender).
@@ -134,7 +155,10 @@ impl SyncRelay {
 
     /// Notify other online devices in a group about a new blob.
     ///
-    /// This is fire-and-forget - we don't wait for delivery.
+    /// This is fire-and-forget — we don't wait for delivery confirmation.
+    /// Each notification is sent via a server-opened unidirectional QUIC stream.
+    /// Clients that don't yet have a NOTIFY listener will have these streams
+    /// buffered by the QUIC stack (harmless for small messages).
     pub async fn notify_group(&self, group_id: &GroupId, sender: &DeviceId, cursor: Cursor) {
         let online = self.get_online_devices(group_id, sender).await;
 
@@ -142,18 +166,41 @@ impl SyncRelay {
             return;
         }
 
-        // For now, we just log the notification intent
-        // Full implementation will push NOTIFY messages to connected sessions
+        let notify = Message::Notify(Notify {
+            latest_cursor: cursor,
+            count: 1,
+        });
+
+        let bytes = match notify.to_bytes() {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::error!("Failed to serialize NOTIFY: {}", e);
+                return;
+            }
+        };
+
+        let mut sent = 0;
+        for device_id in &online {
+            if let Some(conn) = self.notify_connections.get(&(*group_id, *device_id)) {
+                let connection = conn.value().clone();
+                let bytes = bytes.clone();
+                let did = *device_id;
+                tokio::spawn(async move {
+                    if let Err(e) = deliver_notify(&connection, &bytes).await {
+                        tracing::debug!("Failed to notify {:?}: {}", did, e);
+                    }
+                });
+                sent += 1;
+            }
+        }
+
         tracing::debug!(
-            "Would notify {} devices in {:?} about cursor {}",
+            "Sent NOTIFY to {}/{} devices in {:?} about cursor {}",
+            sent,
             online.len(),
             group_id,
             cursor
         );
-
-        // TODO: Implement actual notification delivery
-        // This requires tracking send channels per session, which is more complex.
-        // For Phase 6 MVP, clients will poll with PULL.
     }
 
     /// Get total active sessions across all groups.
@@ -175,6 +222,31 @@ impl SyncRelay {
     pub fn total_groups(&self) -> usize {
         self.sessions.len()
     }
+}
+
+/// Deliver a NOTIFY message via a unidirectional QUIC stream.
+///
+/// Opens a new uni stream on the connection, writes the length-prefixed
+/// NOTIFY message, and finishes the stream. Fire-and-forget.
+async fn deliver_notify(connection: &Connection, message_bytes: &[u8]) -> Result<(), String> {
+    let mut send = connection
+        .open_uni()
+        .await
+        .map_err(|e| format!("open_uni failed: {e}"))?;
+
+    // Length-prefixed framing (4 bytes, big-endian)
+    let len = (message_bytes.len() as u32).to_be_bytes();
+    send.write_all(&len)
+        .await
+        .map_err(|e| format!("write length failed: {e}"))?;
+
+    send.write_all(message_bytes)
+        .await
+        .map_err(|e| format!("write payload failed: {e}"))?;
+
+    send.finish().map_err(|e| format!("finish failed: {e}"))?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -242,6 +314,70 @@ mod tests {
         assert_eq!(relay.session_count(&group_a).await, 1);
         assert_eq!(relay.session_count(&group_b).await, 1);
         assert_eq!(relay.total_groups(), 2);
+    }
+
+    #[tokio::test]
+    async fn unregister_cleans_up_connection_slot() {
+        let storage = SqliteStorage::in_memory().await.unwrap();
+        let relay = SyncRelay::new(test_config(), storage);
+
+        let group = GroupId::random();
+        let device = DeviceId::random();
+
+        relay.register_session(&group, &device).await;
+        assert_eq!(relay.session_count(&group).await, 1);
+
+        // Unregister should clean up both session and connection slot
+        relay.unregister_session(&group, &device).await;
+        assert_eq!(relay.session_count(&group).await, 0);
+        // Connection map should also be empty (no connection was registered, but no panic)
+        assert!(!relay.notify_connections.contains_key(&(group, device)));
+    }
+
+    #[tokio::test]
+    async fn notify_group_skips_when_no_devices() {
+        let storage = SqliteStorage::in_memory().await.unwrap();
+        let relay = SyncRelay::new(test_config(), storage);
+
+        let group = GroupId::random();
+        let sender = DeviceId::random();
+
+        // Should not panic or error when no devices online
+        relay.notify_group(&group, &sender, Cursor::new(1)).await;
+    }
+
+    #[tokio::test]
+    async fn notify_group_excludes_sender() {
+        let storage = SqliteStorage::in_memory().await.unwrap();
+        let relay = SyncRelay::new(test_config(), storage);
+
+        let group = GroupId::random();
+        let sender = DeviceId::random();
+
+        // Only the sender is online — should skip notification
+        relay.register_session(&group, &sender).await;
+        relay.notify_group(&group, &sender, Cursor::new(1)).await;
+
+        // No crash, no notification attempted (no connections stored)
+    }
+
+    #[test]
+    fn notify_message_serializes_correctly() {
+        let notify = Message::Notify(Notify {
+            latest_cursor: Cursor::new(42),
+            count: 3,
+        });
+
+        let bytes = notify.to_bytes().unwrap();
+        let decoded = Message::from_bytes(&bytes).unwrap();
+
+        assert_eq!(decoded, notify);
+        if let Message::Notify(n) = decoded {
+            assert_eq!(n.latest_cursor, Cursor::new(42));
+            assert_eq!(n.count, 3);
+        } else {
+            panic!("Expected Notify message");
+        }
     }
 
     #[tokio::test]

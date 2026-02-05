@@ -249,9 +249,12 @@ impl Session {
             .await
             .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
 
-        // Register session
+        // Register session and connection for NOTIFY delivery
         self.relay
             .register_session(&hello.group_id, &device_id)
+            .await;
+        self.relay
+            .register_connection(&hello.group_id, &device_id, self.connection.clone())
             .await;
 
         // Update state

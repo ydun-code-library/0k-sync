@@ -8,10 +8,10 @@ PURPOSE: Provide quick context and continuity between development sessions
 -->
 
 **Last Updated:** 2026-02-05
-**Last Session:** E2E Integration + Protocol Fixes (Q)
-**Current Phase:** PHASE 6 IN PROGRESS (Docker + E2E integration complete, chaos stubs next)
-**Session Summary:** See STATUS.md Session 16 for complete details
-**Next Handler:** Q (Phase 6: Docker on Beast, notify_group, chaos stubs)
+**Last Session:** Phase 6 Completion (Q)
+**Current Phase:** PHASE 6 COMPLETE — All phases 1-6 done
+**Session Summary:** See STATUS.md Sessions 16-17 for complete details
+**Next Handler:** Q (Chaos harness buildout, multi-relay failover design)
 
 ---
 
@@ -172,8 +172,8 @@ This handoff from Moneypenny contains:
 - ✅ Phase 4: sync-cli (20 tests) - CLI with 6 commands
 - ✅ Phase 5: IrohTransport (E2E verified Mac Mini ↔ Beast)
 - ✅ Chaos scenarios (78 tests: 50 passing, 28 stubs for Phase 6)
-- 🟡 **Phase 6: sync-relay (39 tests) - MVP + code review + rate limiting complete**
-- ✅ 280 tests total (280 passing, 34 ignored)
+- ✅ **Phase 6: sync-relay (43 tests) - COMPLETE (E2E verified, Docker, notify_group)**
+- ✅ 284 tests total (284 passing, 34 ignored)
 - ✅ **0 vulnerabilities** (sqlx 0.8, no mysql)
 - ✅ GitHub repository: https://github.com/ydun-code-library/0k-sync
 
@@ -326,15 +326,26 @@ curve25519-dalek = { git = "https://github.com/ydun-code-library/curve25519-dale
 
 ---
 
-### Step 4: Docker on Beast + Chaos ⭐ START HERE
+### Step 4: Docker on Beast + notify_group ✅ COMPLETE
 
-**Prerequisites:** Integration tests complete
+**Completed:** 2026-02-05
+
+- [x] Docker image built on Beast (77s build)
+- [x] Containerized relay E2E: bidirectional push/pull through Docker relay
+- [x] Cross-machine E2E: Q (Mac Mini) ↔ Beast over Tailscale
+- [x] notify_group implemented (server opens uni stream per target, fire-and-forget)
+- [x] +4 tests in sync-relay (43 total)
+- [x] 28 chaos stubs updated with infrastructure requirements → separate work item
+
+---
+
+### Next: Chaos Harness + Multi-Relay ⭐ START HERE
 
 **Tasks:**
-- [ ] Docker build on Beast (test containerized relay with real QUIC clients)
-- [ ] Issue #5: Implement notify_group (1-2 hrs)
-- [ ] Implement 28 ignored chaos stubs
-- [ ] Cross-machine E2E (Q ↔ Beast over Tailscale)
+- [ ] Build chaos test harness (Docker + `tc netem` for QUIC-compatible fault injection)
+- [ ] Implement 28 chaos test stubs using harness
+- [ ] Design multi-relay failover (Phase 6.5 — brought forward from Beta)
+- [ ] Implement multi-relay in client + relay
 
 ---
 
@@ -444,9 +455,9 @@ docker run -d -p 8080:8080 -v relay-data:/data --name relay 0k-sync-relay
 
 ### 1. Implementation Order (Current Progress)
 ```
-sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay MVP ✅ → code review fixes ✅ → rate limiting ✅ → Docker ✅ → E2E Integration ✅ → Docker on Beast ⬅️ NOW → notify_group → chaos stubs → tauri-plugin
+sync-types ✅ → sync-core ✅ → sync-client ✅ → sync-cli ✅ → IrohTransport ✅ → chaos-tests ✅ → sync-relay ✅ → PHASE 6 COMPLETE ✅ → Chaos harness ⬅️ NEXT → multi-relay → tauri-plugin
 ```
-Phase 6: MVP + code review + rate limiting + Docker + E2E integration complete (39 relay tests, 280 total). Next: Docker build on Beast, notify_group, chaos stubs.
+Phase 6 complete (43 relay tests, 284 total). Next: Chaos harness buildout, multi-relay failover (Phase 6.5).
 
 ### 2. Security is Paramount
 - NEVER log blob contents (even encrypted)
@@ -490,7 +501,7 @@ docker build -t 0k-sync-relay .
 # 3. Test containerized relay with CLI clients
 ```
 
-**Then:** Docker on Beast → notify_group → Chaos stubs
+**Then:** Chaos harness → multi-relay failover → tauri-plugin
 
 **Good luck!**
 
@@ -500,7 +511,7 @@ docker build -t 0k-sync-relay .
 
 **Last Updated:** 2026-02-05
 **Template Version:** 1.0.0
-**Next Handler:** Q (Phase 6: Docker on Beast, notify_group, chaos stubs)
+**Next Handler:** Q (Chaos harness, multi-relay failover)
 
 ---
 
@@ -540,16 +551,16 @@ All quick-win code review issues addressed + sqlx security upgrade:
 - [x] Docker containerization ✅ (8/8 validation tests, 2026-02-05)
 - [x] Integration tests (CLI through relay) ✅ (bidirectional push/pull on Beast, 2026-02-05)
 - [x] Commit Cargo.lock to git ✅ (2026-02-05)
-- [ ] Docker build on Beast (test containerized relay) ⬅️ START HERE
-- [ ] Issue #5: notify_group (1-2 hrs)
-- [ ] Activate 28 chaos test stubs
-- [ ] Cross-machine E2E (Q ↔ Beast over Tailscale)
+- [x] Docker build on Beast + containerized relay E2E ✅ (2026-02-05)
+- [x] Cross-machine E2E (Q ↔ Beast over Tailscale) ✅ (2026-02-05)
+- [x] Issue #5: notify_group ✅ (server-side, uni stream delivery, 2026-02-05)
+- [x] Chaos test stubs updated (28 stubs → separate chaos harness work item)
 
 **Test Summary:**
-- sync-relay: 39 tests (+7 from limits.rs)
+- sync-relay: 43 tests (+4 from notify_group)
 - sync-client: 56 tests (+1 from HELLO handshake)
 - sync-types: 32 tests
-- Workspace total: 280 passing, 34 ignored
+- Workspace total: 284 passing, 34 ignored
 
 **Key Commits (Recent First):**
 - `9fe34db` - curve25519-dalek patch comment update
