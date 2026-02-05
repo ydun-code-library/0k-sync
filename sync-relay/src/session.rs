@@ -8,7 +8,7 @@ use crate::server::SyncRelay;
 use crate::storage::{BlobStorage, StoreBlobRequest, StoredBlob};
 use iroh::endpoint::Connection;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sync_types::{Cursor, DeviceId, GroupId, Message, PullBlob, PullResponse, PushAck, Welcome};
 
 /// Session state machine states.
@@ -55,13 +55,37 @@ impl Session {
 
         // Main session loop
         loop {
-            // Accept a bidirectional stream
-            let stream = match self.connection.accept_bi().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    // Connection closed
-                    tracing::debug!("Connection closed: {}", e);
-                    break;
+            // Accept a bidirectional stream.
+            // F-006: Timeout when awaiting HELLO to prevent resource exhaustion.
+            let stream = if matches!(self.state, SessionState::AwaitingHello) {
+                let timeout_secs = self.relay.config().limits.hello_timeout_secs;
+                match tokio::time::timeout(
+                    Duration::from_secs(timeout_secs),
+                    self.connection.accept_bi(),
+                )
+                .await
+                {
+                    Ok(Ok(stream)) => stream,
+                    Ok(Err(e)) => {
+                        tracing::debug!("Connection closed during HELLO wait: {}", e);
+                        break;
+                    }
+                    Err(_) => {
+                        tracing::warn!(
+                            "HELLO timeout ({}s) for {}",
+                            timeout_secs,
+                            remote_id
+                        );
+                        break;
+                    }
+                }
+            } else {
+                match self.connection.accept_bi().await {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        tracing::debug!("Connection closed: {}", e);
+                        break;
+                    }
                 }
             };
 

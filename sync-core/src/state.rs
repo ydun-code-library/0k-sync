@@ -78,9 +78,8 @@ impl ConnectionState {
             ),
 
             // From Connected
-            (Self::Connected { .. }, Event::MessageReceived { message }) => {
-                let cursor = extract_cursor_from_message(&message);
-                let new_cursor = cursor.unwrap_or(Cursor::zero());
+            (Self::Connected { cursor: existing }, Event::MessageReceived { message }) => {
+                let new_cursor = extract_cursor_from_message(&message).unwrap_or(existing);
                 (
                     Self::Connected { cursor: new_cursor },
                     vec![Action::ProcessMessage { message }],
@@ -546,6 +545,32 @@ mod tests {
             }
             _ => panic!("Expected Connected state"),
         }
+    }
+
+    #[test]
+    fn cursor_preserved_on_unknown_message() {
+        // F-008: Unknown messages must NOT reset cursor to zero.
+        // ReceivedMessage::Other has no cursor — the existing cursor must be preserved.
+        let state = ConnectionState::Connected {
+            cursor: Cursor::new(5),
+        };
+        let (new_state, actions) = state.on_event(Event::MessageReceived {
+            message: ReceivedMessage::Other,
+        });
+
+        match new_state {
+            ConnectionState::Connected { cursor } => {
+                assert_eq!(
+                    cursor,
+                    Cursor::new(5),
+                    "cursor must be preserved when message has no cursor"
+                );
+            }
+            _ => panic!("Expected Connected state"),
+        }
+        assert!(actions
+            .iter()
+            .any(|a| matches!(a, Action::ProcessMessage { .. })));
     }
 
     #[test]

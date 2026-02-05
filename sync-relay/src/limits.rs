@@ -156,6 +156,7 @@ mod tests {
         LimitsConfig {
             connections_per_ip: 5,
             messages_per_minute: 10,
+            hello_timeout_secs: 10,
         }
     }
 
@@ -171,6 +172,7 @@ mod tests {
         let config = LimitsConfig {
             connections_per_ip: 5,
             messages_per_minute: 100,
+            hello_timeout_secs: 10,
         };
         let limits = RateLimits::new(&config);
         let endpoint_id = [1u8; 32];
@@ -192,6 +194,7 @@ mod tests {
         let config = LimitsConfig {
             connections_per_ip: 100,
             messages_per_minute: 5,
+            hello_timeout_secs: 10,
         };
         let limits = RateLimits::new(&config);
         let device_id = [2u8; 32];
@@ -213,6 +216,7 @@ mod tests {
         let config = LimitsConfig {
             connections_per_ip: 2,
             messages_per_minute: 2,
+            hello_timeout_secs: 10,
         };
         let limits = RateLimits::new(&config);
 

@@ -14,6 +14,9 @@ use zerok_sync_types::{BlobId, Cursor, Message, PullBlob, PullResponse, PushAck}
 
 use crate::config::DeviceConfig;
 
+/// Maximum message size (1MB, matching sync-relay protocol limit).
+const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
+
 /// In-memory blob storage for the serve command.
 #[derive(Debug, Default)]
 struct BlobStore {
@@ -115,6 +118,12 @@ impl ProtocolHandler for SyncProtocol {
         let mut len_buf = [0u8; 4];
         recv.read_exact(&mut len_buf).await.anyerr()?;
         let len = u32::from_be_bytes(len_buf) as usize;
+
+        // F-009: Guard against unbounded allocation from malicious length prefix
+        if len > MAX_MESSAGE_SIZE {
+            println!("  Rejected oversized message: {} bytes (max {})", len, MAX_MESSAGE_SIZE);
+            return Ok(());
+        }
 
         let mut data = vec![0u8; len];
         recv.read_exact(&mut data).await.anyerr()?;
@@ -280,6 +289,18 @@ mod tests {
         // Get after cursor 2
         let after_2 = store.get_after(Some(Cursor::new(2)));
         assert_eq!(after_2.len(), 0);
+    }
+
+    #[test]
+    fn max_message_size_guards_allocation() {
+        // F-009: Verify the allocation guard constant matches the relay protocol limit
+        assert_eq!(MAX_MESSAGE_SIZE, 1024 * 1024, "must match relay protocol limit");
+
+        // Verify the boundary conditions
+        assert!(MAX_MESSAGE_SIZE < u32::MAX as usize, "guard must reject u32::MAX");
+        // A u32 length prefix can express up to 4GB — we cap at 1MB
+        let malicious_len = u32::MAX as usize;
+        assert!(malicious_len > MAX_MESSAGE_SIZE);
     }
 
     #[test]

@@ -56,6 +56,10 @@ pub struct LimitsConfig {
     /// Maximum messages per device per minute (default: 100).
     #[serde(default = "default_messages_per_minute")]
     pub messages_per_minute: u32,
+    /// Timeout in seconds for receiving HELLO after connection (default: 10).
+    /// Connections that don't send HELLO within this time are dropped.
+    #[serde(default = "default_hello_timeout_secs")]
+    pub hello_timeout_secs: u64,
 }
 
 /// HTTP endpoints configuration.
@@ -109,6 +113,10 @@ fn default_messages_per_minute() -> u32 {
     100
 }
 
+fn default_hello_timeout_secs() -> u64 {
+    10
+}
+
 fn default_http_bind() -> String {
     "0.0.0.0:8080".to_string()
 }
@@ -141,6 +149,7 @@ impl Default for Config {
             limits: LimitsConfig {
                 connections_per_ip: default_connections_per_ip(),
                 messages_per_minute: default_messages_per_minute(),
+                hello_timeout_secs: default_hello_timeout_secs(),
             },
             http: HttpConfig {
                 bind_address: default_http_bind(),
@@ -233,6 +242,28 @@ interval_secs = 1800
         assert_eq!(config.limits.connections_per_ip, 5);
         assert_eq!(config.http.bind_address, "0.0.0.0:9090");
         assert_eq!(config.cleanup.interval_secs, 1800);
+    }
+
+    #[test]
+    fn hello_timeout_has_default() {
+        // F-006: HELLO timeout must have a reasonable default
+        let config = Config::default();
+        assert_eq!(config.limits.hello_timeout_secs, 10);
+    }
+
+    #[test]
+    fn hello_timeout_configurable_from_toml() {
+        // F-006: HELLO timeout must be configurable
+        let toml = r#"
+[server]
+[storage]
+[limits]
+hello_timeout_secs = 30
+[http]
+[cleanup]
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.limits.hello_timeout_secs, 30);
     }
 
     #[test]
