@@ -21,7 +21,8 @@ pub async fn run(data_dir: &Path, data: &[u8], use_mock: bool) -> Result<()> {
             SyncConfig::from_secret_bytes(&bytes, &group.relay_address)
                 .with_device_name(&device.device_name)
         }
-        _ => SyncConfig::new("placeholder-passphrase", &group.relay_address)
+        // TODO(F-003): Remove placeholder fallback — Sprint 5
+        _ => SyncConfig::new_with_salt("placeholder-passphrase", b"placeholder-salt", &group.relay_address)
             .with_device_name(&device.device_name),
     };
 

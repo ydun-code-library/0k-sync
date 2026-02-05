@@ -27,8 +27,8 @@ pub async fn create(data_dir: &Path, passphrase: Option<&str>) -> Result<()> {
         None => prompt_passphrase("Enter passphrase for new sync group: ")?,
     };
 
-    // Use sync-client's GroupSecret for passphrase derivation
-    let client_secret = ClientGroupSecret::from_passphrase(&passphrase);
+    // Use sync-client's GroupSecret for passphrase derivation (with random salt)
+    let (client_secret, salt) = ClientGroupSecret::from_passphrase(&passphrase);
 
     // Convert to sync-core's GroupSecret format
     let group_secret = GroupSecret::from_bytes(*client_secret.as_bytes());
@@ -38,16 +38,17 @@ pub async fn create(data_dir: &Path, passphrase: Option<&str>) -> Result<()> {
     let relay_bytes = [0u8; 32]; // Placeholder - in production this would be the relay's public key
     let relay_node_id = RelayNodeId::from_bytes(relay_bytes);
 
-    // Create invite
-    let invite = Invite::create(relay_node_id, group_id, group_secret);
+    // Create invite with salt for v2 format
+    let invite = Invite::create(relay_node_id, group_id, group_secret, salt.to_vec());
     let short_code = invite.to_short_code();
     let qr_payload = invite.to_qr_payload();
 
-    // Save group configuration with secret for encryption
-    let group_config = GroupConfig::with_secret(
+    // Save group configuration with secret and salt for encryption
+    let group_config = GroupConfig::with_secret_and_salt(
         &group_id.to_string(),
         &relay_node_id.to_string(),
         client_secret.as_bytes(),
+        &salt,
     );
     group_config.save(data_dir).await?;
 
@@ -89,7 +90,8 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
 
         // If we got the invite from QR but also have a passphrase, verify it matches
         if let Some(passphrase) = passphrase {
-            let client_secret = ClientGroupSecret::from_passphrase(passphrase);
+            let client_secret =
+                ClientGroupSecret::from_passphrase_with_salt(passphrase, &invite.salt);
             let derived_group_id = GroupId::from_secret(client_secret.as_bytes());
 
             if derived_group_id != invite.group_id {
@@ -97,10 +99,12 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
             }
         }
 
-        // Save group configuration
-        let group_config = GroupConfig::new(
+        // Save group configuration WITH secret and salt (the invite carries both)
+        let group_config = GroupConfig::with_secret_and_salt(
             &invite.group_id.to_string(),
             &invite.relay_node_id.to_string(),
+            invite.group_secret.as_bytes(),
+            &invite.salt,
         );
         group_config.save(data_dir).await?;
 
@@ -119,20 +123,29 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
     let is_endpoint_id = code.len() == 64 && code.chars().all(|c| c.is_ascii_hexdigit());
 
     if is_endpoint_id {
-        // Direct EndpointId join - requires passphrase for group derivation
+        // Direct EndpointId join - requires passphrase for group derivation.
+        // Uses a fixed salt because there's no invite to carry a random salt.
+        // This is weaker than the QR path — prefer QR/short code for production use.
+        const ENDPOINT_JOIN_SALT: &[u8; 16] = b"0k-endpt-join-v2";
+
         let passphrase = match passphrase {
             Some(p) => p.to_string(),
             None => prompt_passphrase("Enter group passphrase: ")?,
         };
 
-        // Derive group from passphrase
-        let client_secret = ClientGroupSecret::from_passphrase(&passphrase);
+        // Derive group from passphrase with fixed salt
+        let client_secret =
+            ClientGroupSecret::from_passphrase_with_salt(&passphrase, ENDPOINT_JOIN_SALT);
         let group_secret = GroupSecret::from_bytes(*client_secret.as_bytes());
         let group_id = group_secret.derive_group_id();
 
-        // Use the provided EndpointId as the relay address, store secret for encryption
-        let group_config =
-            GroupConfig::with_secret(&group_id.to_string(), code, client_secret.as_bytes());
+        // Use the provided EndpointId as the relay address, store secret and salt
+        let group_config = GroupConfig::with_secret_and_salt(
+            &group_id.to_string(),
+            code,
+            client_secret.as_bytes(),
+            ENDPOINT_JOIN_SALT,
+        );
         group_config.save(data_dir).await?;
 
         println!("Joined sync group successfully!");
@@ -228,18 +241,24 @@ mod tests {
         let dir = tempdir().unwrap();
         init_device(dir.path()).await;
 
-        // Create an invite payload
-        let client_secret = ClientGroupSecret::from_passphrase("test");
+        // Create a v2 invite payload with salt
+        let salt = b"test-salt-00000!";
+        let client_secret = ClientGroupSecret::from_passphrase_with_salt("test", salt);
         let group_secret = GroupSecret::from_bytes(*client_secret.as_bytes());
         let group_id = group_secret.derive_group_id();
         let relay = RelayNodeId::from_bytes([0u8; 32]);
-        let invite = Invite::create(relay, group_id, group_secret);
+        let invite = Invite::create(relay, group_id, group_secret, salt.to_vec());
         let qr = invite.to_qr_payload();
 
         // Join with the QR payload
         join(dir.path(), &qr, None).await.unwrap();
 
         assert!(dir.path().join("group.json").exists());
+
+        // Verify the group_secret was saved (fixes pre-existing bug)
+        let config = GroupConfig::load(dir.path()).await.unwrap();
+        assert!(config.group_secret_hex.is_some());
+        assert!(config.salt_hex.is_some());
     }
 
     #[tokio::test]

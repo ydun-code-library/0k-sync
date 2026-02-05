@@ -105,7 +105,7 @@ mod tests {
     /// E-ENC-01: Corrupted ciphertext fails decryption.
     #[tokio::test]
     async fn e_enc_01_corrupted_ciphertext() {
-        let secret = GroupSecret::from_passphrase("test-passphrase");
+        let secret = GroupSecret::from_passphrase_with_salt("test-passphrase", b"test-salt-00000!");
         let key = GroupKey::derive(&secret);
 
         // Encrypt some data
@@ -124,7 +124,7 @@ mod tests {
     /// E-ENC-02: Truncated payload (no nonce) handled gracefully.
     #[tokio::test]
     async fn e_enc_02_truncated_payload() {
-        let secret = GroupSecret::from_passphrase("test-passphrase");
+        let secret = GroupSecret::from_passphrase_with_salt("test-passphrase", b"test-salt-00000!");
         let key = GroupKey::derive(&secret);
 
         // Create a payload that's too short to contain a nonce
@@ -145,8 +145,8 @@ mod tests {
     /// E-ENC-03: Wrong key fails decryption.
     #[tokio::test]
     async fn e_enc_03_wrong_key_decryption() {
-        let secret_a = GroupSecret::from_passphrase("passphrase-a");
-        let secret_b = GroupSecret::from_passphrase("passphrase-b");
+        let secret_a = GroupSecret::from_passphrase_with_salt("passphrase-a", b"test-salt-00000!");
+        let secret_b = GroupSecret::from_passphrase_with_salt("passphrase-b", b"test-salt-00000!");
 
         let key_a = GroupKey::derive(&secret_a);
         let key_b = GroupKey::derive(&secret_b);
@@ -163,7 +163,7 @@ mod tests {
     /// E-ENC-04: Valid encrypt/decrypt cycle with nonce extraction.
     #[tokio::test]
     async fn e_enc_04_nonce_extraction() {
-        let secret = GroupSecret::from_passphrase("test-passphrase");
+        let secret = GroupSecret::from_passphrase_with_salt("test-passphrase", b"test-salt-00000!");
         let key = GroupKey::derive(&secret);
 
         let plaintext = b"test message for nonce extraction";
@@ -182,7 +182,7 @@ mod tests {
     /// E-ENC-05: Empty plaintext encrypts/decrypts correctly.
     #[tokio::test]
     async fn e_enc_05_empty_plaintext() {
-        let secret = GroupSecret::from_passphrase("test-passphrase");
+        let secret = GroupSecret::from_passphrase_with_salt("test-passphrase", b"test-salt-00000!");
         let key = GroupKey::derive(&secret);
 
         let plaintext = b"";
@@ -210,8 +210,8 @@ mod tests {
         // Use fixed params for reproducibility
         let params = Argon2Params::for_ram_mb(1000); // Low-end params
 
-        let secret1 = GroupSecret::from_passphrase_with_params(passphrase, params);
-        let secret2 = GroupSecret::from_passphrase_with_params(passphrase, params);
+        let secret1 = GroupSecret::from_passphrase_with_params(passphrase, b"test-salt-00000!", params);
+        let secret2 = GroupSecret::from_passphrase_with_params(passphrase, b"test-salt-00000!", params);
 
         let key1 = GroupKey::derive(&secret1);
         let key2 = GroupKey::derive(&secret2);
@@ -226,8 +226,8 @@ mod tests {
     async fn e_pq_02_key_derivation_different() {
         let params = Argon2Params::for_ram_mb(1000);
 
-        let secret1 = GroupSecret::from_passphrase_with_params("passphrase-one", params);
-        let secret2 = GroupSecret::from_passphrase_with_params("passphrase-two", params);
+        let secret1 = GroupSecret::from_passphrase_with_params("passphrase-one", b"test-salt-00000!", params);
+        let secret2 = GroupSecret::from_passphrase_with_params("passphrase-two", b"test-salt-00000!", params);
 
         let key1 = GroupKey::derive(&secret1);
         let key2 = GroupKey::derive(&secret2);
@@ -258,7 +258,7 @@ mod tests {
     /// E-PQ-05: HKDF domain separation produces different subkeys.
     #[tokio::test]
     async fn e_pq_05_hkdf_domain_separation() {
-        let secret = GroupSecret::from_passphrase("domain-separation-test");
+        let secret = GroupSecret::from_passphrase_with_salt("domain-separation-test", b"test-salt-00000!");
         let key = GroupKey::derive(&secret);
 
         // Encryption and auth keys must be different

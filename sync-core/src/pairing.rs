@@ -121,7 +121,7 @@ impl std::fmt::Debug for GroupSecret {
 /// An invite to join a sync group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Invite {
-    /// Invite format version (currently 1).
+    /// Invite format version (2 = with salt; v1 rejected).
     pub version: u32,
     /// The iroh NodeId of the relay to connect to.
     pub relay_node_id: RelayNodeId,
@@ -129,6 +129,10 @@ pub struct Invite {
     pub group_id: GroupId,
     /// The shared secret for E2E encryption.
     pub group_secret: GroupSecret,
+    /// Argon2id salt used to derive the GroupSecret from the passphrase.
+    /// Required in v2 invites. Empty for legacy v1 (which are rejected).
+    #[serde(default)]
+    pub salt: Vec<u8>,
     /// Unix timestamp when the invite was created.
     pub created_at: u64,
     /// Unix timestamp when the invite expires.
@@ -141,8 +145,9 @@ impl Invite {
         relay_node_id: RelayNodeId,
         group_id: GroupId,
         group_secret: GroupSecret,
+        salt: Vec<u8>,
     ) -> Self {
-        Self::create_with_ttl(relay_node_id, group_id, group_secret, DEFAULT_INVITE_TTL)
+        Self::create_with_ttl(relay_node_id, group_id, group_secret, salt, DEFAULT_INVITE_TTL)
     }
 
     /// Create a new invite with custom TTL.
@@ -150,6 +155,7 @@ impl Invite {
         relay_node_id: RelayNodeId,
         group_id: GroupId,
         group_secret: GroupSecret,
+        salt: Vec<u8>,
         ttl: Duration,
     ) -> Self {
         let now = SystemTime::now()
@@ -158,10 +164,11 @@ impl Invite {
             .as_secs();
 
         Self {
-            version: 1,
+            version: 2,
             relay_node_id,
             group_id,
             group_secret,
+            salt,
             created_at: now,
             expires_at: now + ttl.as_secs(),
         }
@@ -185,6 +192,9 @@ impl Invite {
     }
 
     /// Decode an invite from a base64 JSON payload.
+    ///
+    /// Only version 2 invites (with salt) are accepted. Version 1 is rejected
+    /// because it used a static Argon2id salt (security finding F-001).
     pub fn from_qr_payload(payload: &str) -> Result<Self, PairingError> {
         let json_bytes = URL_SAFE_NO_PAD
             .decode(payload)
@@ -193,7 +203,7 @@ impl Invite {
         let invite: Self = serde_json::from_slice(&json_bytes)
             .map_err(|e| PairingError::InvalidPayload(format!("json parse: {}", e)))?;
 
-        if invite.version != 1 {
+        if invite.version != 2 {
             return Err(PairingError::UnsupportedVersion(invite.version));
         }
 
@@ -293,12 +303,17 @@ mod tests {
         RelayNodeId::from_bytes([0xAB; 32])
     }
 
+    fn test_salt() -> Vec<u8> {
+        b"test-salt-00000!".to_vec()
+    }
+
     #[test]
     fn invite_roundtrip() {
         let invite = Invite::create(
             test_relay_node_id(),
             GroupId::random(),
             GroupSecret::random(),
+            test_salt(),
         );
 
         let encoded = invite.to_qr_payload();
@@ -306,6 +321,7 @@ mod tests {
 
         assert_eq!(invite.relay_node_id, decoded.relay_node_id);
         assert_eq!(invite.group_id, decoded.group_id);
+        assert_eq!(decoded.salt, test_salt());
     }
 
     #[test]
@@ -314,6 +330,7 @@ mod tests {
             test_relay_node_id(),
             GroupId::random(),
             GroupSecret::random(),
+            test_salt(),
         );
 
         let code = invite.to_short_code();
@@ -349,6 +366,7 @@ mod tests {
             test_relay_node_id(),
             GroupId::random(),
             GroupSecret::random(),
+            test_salt(),
             Duration::from_secs(0), // Already expired
         );
 
@@ -361,6 +379,7 @@ mod tests {
             test_relay_node_id(),
             GroupId::random(),
             GroupSecret::random(),
+            test_salt(),
         );
 
         assert!(!invite.is_expired());
@@ -436,13 +455,50 @@ mod tests {
             test_relay_node_id(),
             GroupId::from_secret(&[0x42; 32]),
             secret.clone(),
+            test_salt(),
         );
         let invite2 = Invite::create(
             test_relay_node_id(),
             GroupId::from_secret(&[0x42; 32]),
             secret,
+            test_salt(),
         );
 
         assert_eq!(invite1.to_short_code(), invite2.to_short_code());
+    }
+
+    #[test]
+    fn reject_invite_v1() {
+        // Create a v1-style invite (no salt) by constructing and then modifying
+        let mut invite = Invite::create(
+            test_relay_node_id(),
+            GroupId::random(),
+            GroupSecret::random(),
+            test_salt(),
+        );
+        invite.version = 1; // Force v1
+
+        let encoded = invite.to_qr_payload();
+        let result = Invite::from_qr_payload(&encoded);
+        assert!(matches!(result, Err(PairingError::UnsupportedVersion(1))));
+    }
+
+    #[test]
+    fn invite_v2_includes_salt() {
+        let salt = vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let invite = Invite::create(
+            test_relay_node_id(),
+            GroupId::random(),
+            GroupSecret::random(),
+            salt.clone(),
+        );
+        assert_eq!(invite.version, 2);
+        assert_eq!(invite.salt, salt);
+
+        // Roundtrip preserves salt
+        let encoded = invite.to_qr_payload();
+        let decoded = Invite::from_qr_payload(&encoded).unwrap();
+        assert_eq!(decoded.salt, salt);
+        assert_eq!(decoded.version, 2);
     }
 }

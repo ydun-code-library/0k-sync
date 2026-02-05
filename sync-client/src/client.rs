@@ -20,7 +20,7 @@
 //! use sync_client::{SyncClient, SyncConfig, MockTransport};
 //!
 //! let transport = MockTransport::new();
-//! let config = SyncConfig::new("my-passphrase", "node-address");
+//! let config = SyncConfig::new_with_salt("my-passphrase", b"random-salt-here", "node-address");
 //! let client = SyncClient::new(config, transport);
 //!
 //! // Connect and sync
@@ -80,10 +80,27 @@ pub struct SyncConfig {
 }
 
 impl SyncConfig {
-    /// Create a new configuration from a passphrase.
-    pub fn new(passphrase: &str, relay_address: &str) -> Self {
+    /// Create a new configuration from a passphrase (generates random salt).
+    ///
+    /// Returns the config and the 16-byte salt. The salt MUST be shared with
+    /// other devices (e.g., in the Invite payload) so they can derive the same secret.
+    pub fn new(passphrase: &str, relay_address: &str) -> (Self, [u8; 16]) {
+        let (secret, salt) = GroupSecret::from_passphrase(passphrase);
+        let config = Self {
+            group_secret: secret,
+            relay_address: relay_address.to_string(),
+            device_name: "0k-sync device".to_string(),
+            default_ttl: 0,
+        };
+        (config, salt)
+    }
+
+    /// Create a configuration from a passphrase with an explicit salt.
+    ///
+    /// Use this when joining a group where the salt is known from the Invite.
+    pub fn new_with_salt(passphrase: &str, salt: &[u8], relay_address: &str) -> Self {
         Self {
-            group_secret: GroupSecret::from_passphrase(passphrase),
+            group_secret: GroupSecret::from_passphrase_with_salt(passphrase, salt),
             relay_address: relay_address.to_string(),
             device_name: "0k-sync device".to_string(),
             default_ttl: 0,
@@ -386,7 +403,8 @@ mod tests {
     use zerok_sync_types::{GroupId, PullBlob, Welcome};
 
     fn test_config() -> SyncConfig {
-        SyncConfig::new("test-passphrase", "test-node")
+        // Fixed salt for deterministic test configs
+        SyncConfig::new_with_salt("test-passphrase", b"test-salt-00000!", "test-node")
     }
 
     // ===========================================
@@ -395,9 +413,10 @@ mod tests {
 
     #[test]
     fn config_creates_group_secret() {
-        let config = SyncConfig::new("my-passphrase", "node-address");
-        // Secret should be deterministic
-        let config2 = SyncConfig::new("my-passphrase", "node-address");
+        let salt = b"test-salt-00000!";
+        let config = SyncConfig::new_with_salt("my-passphrase", salt, "node-address");
+        // Secret should be deterministic given same passphrase + salt
+        let config2 = SyncConfig::new_with_salt("my-passphrase", salt, "node-address");
         assert_eq!(
             config.group_secret.as_bytes(),
             config2.group_secret.as_bytes()
@@ -406,7 +425,7 @@ mod tests {
 
     #[test]
     fn config_builder_pattern() {
-        let config = SyncConfig::new("pass", "node")
+        let config = SyncConfig::new_with_salt("pass", b"test-salt-00000!", "node")
             .with_device_name("My Device")
             .with_ttl(3600);
 

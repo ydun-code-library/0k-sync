@@ -141,16 +141,27 @@ pub fn detect_available_ram_mb() -> u64 {
 pub struct GroupSecret([u8; KEY_SIZE]);
 
 impl GroupSecret {
-    /// Create a GroupSecret from a passphrase using Argon2id.
-    pub fn from_passphrase(passphrase: &str) -> Self {
-        Self::from_passphrase_with_params(passphrase, Argon2Params::default())
+    /// Create a GroupSecret from a passphrase using Argon2id with a random salt.
+    ///
+    /// Returns the derived secret and the random 16-byte salt.
+    /// The salt MUST be shared with other devices (e.g., via the Invite QR payload)
+    /// for them to derive the same secret.
+    pub fn from_passphrase(passphrase: &str) -> (Self, [u8; 16]) {
+        let mut salt = [0u8; 16];
+        getrandom::getrandom(&mut salt).expect("getrandom failed");
+        let secret = Self::from_passphrase_with_salt(passphrase, &salt);
+        (secret, salt)
     }
 
-    /// Create a GroupSecret with custom Argon2 parameters.
-    pub fn from_passphrase_with_params(passphrase: &str, params: Argon2Params) -> Self {
-        // Use a domain-separated salt for 0k-Sync
-        let salt = b"0k-sync-group-secret-v1";
+    /// Create a GroupSecret from a passphrase and explicit salt.
+    ///
+    /// Use this when the salt is known (e.g., extracted from an Invite).
+    pub fn from_passphrase_with_salt(passphrase: &str, salt: &[u8]) -> Self {
+        Self::from_passphrase_with_params(passphrase, salt, Argon2Params::default())
+    }
 
+    /// Create a GroupSecret with custom Argon2 parameters and explicit salt.
+    pub fn from_passphrase_with_params(passphrase: &str, salt: &[u8], params: Argon2Params) -> Self {
         let argon2_params = params
             .to_argon2_params()
             .expect("invalid argon2 parameters");
@@ -322,7 +333,7 @@ mod tests {
 
         // Time the Argon2 derivation (GroupSecret creation), not HKDF (GroupKey derivation)
         let start = std::time::Instant::now();
-        let secret = GroupSecret::from_passphrase_with_params("my-secure-passphrase", params);
+        let secret = GroupSecret::from_passphrase_with_params("my-secure-passphrase", b"test-salt-00000!", params);
         let elapsed = start.elapsed();
 
         let key = GroupKey::derive_with_ram(&secret, 1500);
@@ -434,8 +445,9 @@ mod tests {
     #[test]
     fn group_secret_from_passphrase_is_deterministic() {
         let params = Argon2Params::for_ram_mb(1500); // Fast params for test
-        let secret1 = GroupSecret::from_passphrase_with_params("same-passphrase", params);
-        let secret2 = GroupSecret::from_passphrase_with_params("same-passphrase", params);
+        let salt = b"test-salt-00000!";
+        let secret1 = GroupSecret::from_passphrase_with_params("same-passphrase", salt, params);
+        let secret2 = GroupSecret::from_passphrase_with_params("same-passphrase", salt, params);
 
         assert_eq!(secret1.as_bytes(), secret2.as_bytes());
     }
@@ -443,10 +455,29 @@ mod tests {
     #[test]
     fn group_secret_different_passphrases_differ() {
         let params = Argon2Params::for_ram_mb(1500);
-        let secret1 = GroupSecret::from_passphrase_with_params("passphrase-1", params);
-        let secret2 = GroupSecret::from_passphrase_with_params("passphrase-2", params);
+        let salt = b"test-salt-00000!";
+        let secret1 = GroupSecret::from_passphrase_with_params("passphrase-1", salt, params);
+        let secret2 = GroupSecret::from_passphrase_with_params("passphrase-2", salt, params);
 
         assert_ne!(secret1.as_bytes(), secret2.as_bytes());
+    }
+
+    #[test]
+    fn different_salts_different_secrets() {
+        let params = Argon2Params::for_ram_mb(1500);
+        let secret1 = GroupSecret::from_passphrase_with_params("same-passphrase", b"salt-aaaaaaaaaa!", params);
+        let secret2 = GroupSecret::from_passphrase_with_params("same-passphrase", b"salt-bbbbbbbbbb!", params);
+
+        assert_ne!(secret1.as_bytes(), secret2.as_bytes());
+    }
+
+    #[test]
+    fn from_passphrase_returns_salt() {
+        let (secret, salt) = GroupSecret::from_passphrase("test-passphrase");
+        assert_eq!(salt.len(), 16);
+        // Re-derive with same salt should produce same secret
+        let secret2 = GroupSecret::from_passphrase_with_salt("test-passphrase", &salt);
+        assert_eq!(secret.as_bytes(), secret2.as_bytes());
     }
 
     #[test]

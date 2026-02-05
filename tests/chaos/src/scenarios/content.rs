@@ -15,7 +15,7 @@ mod tests {
     /// S-BLOB-01: Large blob (1MB) encrypts and decrypts correctly.
     #[tokio::test]
     async fn s_blob_01_large_blob_encryption() {
-    let secret = GroupSecret::from_passphrase("large-blob-test");
+    let secret = GroupSecret::from_passphrase_with_salt("large-blob-test", b"test-salt-00000!");
     let key = GroupKey::derive(&secret);
 
     // Create 1MB blob
@@ -35,7 +35,7 @@ mod tests {
 /// S-BLOB-02: Many small blobs (100 x 1KB) all encrypt/decrypt correctly.
 #[tokio::test]
 async fn s_blob_02_many_small_blobs() {
-    let secret = GroupSecret::from_passphrase("many-blobs-test");
+    let secret = GroupSecret::from_passphrase_with_salt("many-blobs-test", b"test-salt-00000!");
     let key = GroupKey::derive(&secret);
 
     let mut encrypted_blobs = Vec::new();
@@ -57,7 +57,7 @@ async fn s_blob_02_many_small_blobs() {
 /// S-BLOB-03: Empty blob (zero bytes) handled correctly.
 #[tokio::test]
 async fn s_blob_03_empty_blob() {
-    let secret = GroupSecret::from_passphrase("empty-blob-test");
+    let secret = GroupSecret::from_passphrase_with_salt("empty-blob-test", b"test-salt-00000!");
     let key = GroupKey::derive(&secret);
 
     let plaintext: Vec<u8> = vec![];
@@ -77,7 +77,7 @@ async fn s_blob_03_empty_blob() {
 /// S-BLOB-04: Maximum message size blob handled correctly.
 #[tokio::test]
 async fn s_blob_04_max_size_blob() {
-    let secret = GroupSecret::from_passphrase("max-size-test");
+    let secret = GroupSecret::from_passphrase_with_salt("max-size-test", b"test-salt-00000!");
     let key = GroupKey::derive(&secret);
 
     // Create a moderately large blob (100KB - not actual max to keep test fast)
@@ -166,7 +166,7 @@ async fn c_stor_04_reset_clears_state() {
 /// C-COLL-01: Pull multiple blobs, all decrypt correctly.
 #[tokio::test]
 async fn c_coll_01_pull_multiple_blobs() {
-    let secret = GroupSecret::from_passphrase("collection-test");
+    let secret = GroupSecret::from_passphrase_with_salt("collection-test", b"test-salt-00000!");
     let key = GroupKey::derive(&secret);
 
     // Encrypt 3 blobs
@@ -198,7 +198,7 @@ async fn c_coll_01_pull_multiple_blobs() {
 /// C-COLL-02: Mixed valid/invalid blobs - valid returned, invalid skipped.
 #[tokio::test]
 async fn c_coll_02_pull_mixed_valid_invalid() {
-    let secret = GroupSecret::from_passphrase("mixed-test");
+    let secret = GroupSecret::from_passphrase_with_salt("mixed-test", b"test-salt-00000!");
     let key = GroupKey::derive(&secret);
 
     // Encrypt 2 valid blobs
