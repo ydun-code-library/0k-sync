@@ -195,5 +195,5 @@ mcp__crypto-rag__crypto_protocols_search("Noise Protocol XX handshake")
 
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-06*
 *Template Version: 1.7.0*

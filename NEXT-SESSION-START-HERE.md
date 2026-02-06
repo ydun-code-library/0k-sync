@@ -35,6 +35,8 @@
 - E2E testing guide created: `docs/E2E-TESTING-GUIDE.md`
 - Beast relay rebuilt with latest code
 - gh auth switched to Jimmyh-world account
+- Fixed `time` crate CVE (stack exhaustion DoS) — 0.3.46 → 0.3.47
+- Zero vulnerabilities now (sqlx was already patched)
 
 ### 2026-02-05 (Session 3): Security Audit v1 + v2 Remediation + Docs Remediation
 
