@@ -220,10 +220,36 @@ networks:
 |----------|---------|--------|---------|
 | **Pair** | 2 | 1 | Basic sync correctness |
 | **Multi-device** | 5 | 1 | Fan-out sync, conflict resolution |
-| **Multi-relay** | 4 | 2 | Relay failover (future Tier 3+) |
+| **Multi-relay** | 4 | 2-3 | Relay failover and fan-out (Phase 6.5) |
 | **Swarm** | 20 | 1 | Connection limits, resource exhaustion |
 
 Start with **Pair** for alpha. Scale to **Multi-device** at beta. **Swarm** for RC/GA stress validation.
+
+### 4.4 Multi-Relay Chaos Scenarios (Phase 6.5)
+
+These scenarios test client-side fan-out and failover across multiple independent relays. All fan-out logic is in the client — relays have no awareness of each other.
+
+| ID | Scenario | Setup | Expected Behaviour |
+|----|----------|-------|--------------------|
+| **MR-1** | Primary relay killed during active push | 2 relays, kill primary after HELLO | Client connect fails over to secondary relay, push completes there |
+| **MR-2** | Secondary relay killed | 2 relays, kill secondary during fan-out | Client reports primary ack success, logs warning about secondary failure |
+| **MR-3** | All relays killed | 2 relays, kill both | Client returns `AllRelaysFailed`, sync is offline until relays recover |
+| **MR-4** | Relay flapping (up/down/up) | 1 relay, toggle availability | Client reconnects on next operation, per-relay cursor resumes correctly |
+| **MR-5** | Primary relay high latency | 2 relays, inject 5s latency on primary | Secondary fan-out push completes fast, primary push completes eventually |
+
+**Pre-requisites for MR scenarios:**
+- Client configured with 2+ relay addresses
+- Each relay running independently with own SQLite
+- Per-relay cursor tracking enabled in client
+
+**MR-1 detail:** The client attempts HELLO/Welcome on the primary relay. If the connection fails (relay killed), the client tries the next relay in preference order. Once connected, the push proceeds normally. The test verifies:
+1. Connect failover fires within timeout
+2. Push completes on secondary
+3. Per-relay cursor is tracked for the secondary relay (not the dead primary)
+
+**MR-3 detail:** When all relays are unreachable, the client must fail gracefully — not hang, not panic. `ClientError::AllRelaysFailed` is returned. The caller can retry later with exponential backoff.
+
+**MR-4 detail:** Relay flapping tests cursor resilience. After reconnect, the client resumes pulling from the last known cursor for that relay. No duplicate data, no missed data (within TTL window).
 
 ---
 

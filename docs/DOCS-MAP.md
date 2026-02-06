@@ -58,6 +58,7 @@
 | `05-RELEASE-STRATEGY.md` | 930 | Versioning, publishing, CI/CD | Before release activities |
 | `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 scenarios | Building chaos test harness |
 | `E2E-TESTING-GUIDE.md` | ~150 | Manual E2E testing Q ↔ Beast | Running integration tests |
+| `MULTI-RELAY-SPEC.md` | ~200 | Multi-relay fan-out architecture (Phase 6.5) | Multi-relay implementation |
 
 ### Reference Documents (docs/reference/)
 

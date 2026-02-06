@@ -1,7 +1,7 @@
 # 0k-Sync - Technical Specification
 
-**Version:** 2.3.0
-**Date:** 2026-02-03
+**Version:** 2.4.0
+**Date:** 2026-02-06
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementers, Developers
 
@@ -778,9 +778,9 @@ sync_relay_bytes_transferred 157286400
    - group_id: random 32 bytes
    - group_secret: random 32 bytes
    - device_keypair (if not exists)
-3. Create invite payload:
+3. Create invite payload (v3):
    {
-     relay_node: "sync-relay-node-id",  // NodeId of sync-relay, or omitted for Tier 1
+     relay_nodes: ["primary-node-id", "secondary-node-id"],  // NodeIds of sync-relays
      group_id: base64(group_id),
      group_secret: base64(group_secret),
      created_by: base64(device_pubkey),
@@ -1269,7 +1269,8 @@ connections_per_ip = 10
 ```toml
 [sync]
 backend = "sync-relay"
-relay_node_id = "your-sync-relay-node-id"
+# Multi-relay fan-out: list relays in preference order (first = primary)
+relay_addresses = ["primary-node-id", "secondary-node-id"]
 # or for DNS-based discovery:
 # relay_discovery = "https://sync.example.com/.well-known/iroh"
 auto_reconnect = true
@@ -1277,11 +1278,15 @@ reconnect_delay_ms = 1000
 max_reconnect_delay_ms = 30000
 ```
 
+Push fan-out sends encrypted blobs to all configured relays concurrently. The primary relay's acknowledgement is returned to the caller; secondary results are fire-and-forget. Pull failover tries each relay in order until one responds. Each relay tracks its own cursor independently.
+
+See `docs/MULTI-RELAY-SPEC.md` for full multi-relay architecture.
+
 ### 13.3 Environment Variables
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `SYNC_RELAY_NODE_ID` | Override relay NodeId | Config file |
+| `SYNC_RELAY_ADDRESSES` | Override relay NodeIds (comma-separated) | Config file |
 | `SYNC_API_KEY` | Managed Cloud API key | None |
 | `SYNC_LOG_LEVEL` | Logging verbosity | `info` |
 | `SYNC_DEVICE_NAME` | Human-readable name | Hostname |
