@@ -122,16 +122,21 @@ impl std::fmt::Debug for GroupSecret {
 /// An invite to join a sync group.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Invite {
-    /// Invite format version (2 = with salt; v1 rejected).
+    /// Invite format version (2 = with salt, single relay; 3 = multi-relay; v1 rejected).
     pub version: u32,
-    /// The iroh NodeId of the relay to connect to.
-    pub relay_node_id: RelayNodeId,
+    /// The iroh NodeIds of relays to connect to (v3: multiple, v2: single via alias).
+    /// First relay is primary; remaining are secondaries for fan-out.
+    #[serde(
+        alias = "relay_node_id",
+        deserialize_with = "deserialize_relay_node_ids"
+    )]
+    pub relay_node_ids: Vec<RelayNodeId>,
     /// The group identifier.
     pub group_id: GroupId,
     /// The shared secret for E2E encryption.
     pub group_secret: GroupSecret,
     /// Argon2id salt used to derive the GroupSecret from the passphrase.
-    /// Required in v2 invites. Empty for legacy v1 (which are rejected).
+    /// Required in v2+ invites. Empty for legacy v1 (which are rejected).
     #[serde(default)]
     pub salt: Vec<u8>,
     /// Unix timestamp when the invite was created.
@@ -141,7 +146,9 @@ pub struct Invite {
 }
 
 impl Invite {
-    /// Create a new invite with default TTL (10 minutes).
+    /// Create a new v2 invite with a single relay (default TTL 10 minutes).
+    ///
+    /// For backward compatibility. Prefer `create_multi_relay` for v3 invites.
     pub fn create(
         relay_node_id: RelayNodeId,
         group_id: GroupId,
@@ -157,7 +164,23 @@ impl Invite {
         )
     }
 
-    /// Create a new invite with custom TTL.
+    /// Create a new v3 invite with multiple relays (default TTL 10 minutes).
+    pub fn create_multi_relay(
+        relay_node_ids: Vec<RelayNodeId>,
+        group_id: GroupId,
+        group_secret: GroupSecret,
+        salt: Vec<u8>,
+    ) -> Self {
+        Self::create_multi_relay_with_ttl(
+            relay_node_ids,
+            group_id,
+            group_secret,
+            salt,
+            DEFAULT_INVITE_TTL,
+        )
+    }
+
+    /// Create a new v2 invite with a single relay and custom TTL.
     pub fn create_with_ttl(
         relay_node_id: RelayNodeId,
         group_id: GroupId,
@@ -172,7 +195,31 @@ impl Invite {
 
         Self {
             version: 2,
-            relay_node_id,
+            relay_node_ids: vec![relay_node_id],
+            group_id,
+            group_secret,
+            salt,
+            created_at: now,
+            expires_at: now + ttl.as_secs(),
+        }
+    }
+
+    /// Create a new v3 invite with multiple relays and custom TTL.
+    pub fn create_multi_relay_with_ttl(
+        relay_node_ids: Vec<RelayNodeId>,
+        group_id: GroupId,
+        group_secret: GroupSecret,
+        salt: Vec<u8>,
+        ttl: Duration,
+    ) -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        Self {
+            version: 3,
+            relay_node_ids,
             group_id,
             group_secret,
             salt,
@@ -192,7 +239,7 @@ impl Invite {
 
     /// Encode the invite as a base64 JSON payload for QR codes.
     ///
-    /// Format: `BASE64(JSON({ version, relay_node_id, group_id, ... }))`
+    /// Format: `BASE64(JSON({ version, relay_node_ids, group_id, ... }))`
     pub fn to_qr_payload(&self) -> String {
         let json = serde_json::to_string(self).expect("invite serialization failed");
         URL_SAFE_NO_PAD.encode(json.as_bytes())
@@ -200,8 +247,8 @@ impl Invite {
 
     /// Decode an invite from a base64 JSON payload.
     ///
-    /// Only version 2 invites (with salt) are accepted. Version 1 is rejected
-    /// because it used a static Argon2id salt (security finding F-001).
+    /// Accepts version 2 (single relay) and version 3 (multi-relay) invites.
+    /// Version 1 is rejected because it used a static Argon2id salt (security finding F-001).
     pub fn from_qr_payload(payload: &str) -> Result<Self, PairingError> {
         let json_bytes = URL_SAFE_NO_PAD
             .decode(payload)
@@ -210,11 +257,16 @@ impl Invite {
         let invite: Self = serde_json::from_slice(&json_bytes)
             .map_err(|e| PairingError::InvalidPayload(format!("json parse: {}", e)))?;
 
-        if invite.version != 2 {
+        if invite.version != 2 && invite.version != 3 {
             return Err(PairingError::UnsupportedVersion(invite.version));
         }
 
         Ok(invite)
+    }
+
+    /// Get the primary relay node ID (first in the list).
+    pub fn primary_relay(&self) -> Option<&RelayNodeId> {
+        self.relay_node_ids.first()
     }
 
     /// Encode the invite as a short code (XXXX-XXXX-XXXX-XXXX).
@@ -269,6 +321,36 @@ impl Invite {
     }
 }
 
+/// Custom deserializer that accepts either a single RelayNodeId or a Vec<RelayNodeId>.
+///
+/// This handles backward compatibility: v2 invites have `"relay_node_id": <single>`,
+/// while v3 invites have `"relay_node_ids": [<list>]`. The serde alias maps the old
+/// field name, and this deserializer handles the type difference.
+fn deserialize_relay_node_ids<'de, D>(deserializer: D) -> Result<Vec<RelayNodeId>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        One(RelayNodeId),
+        Many(Vec<RelayNodeId>),
+    }
+
+    match OneOrMany::deserialize(deserializer)? {
+        OneOrMany::One(single) => Ok(vec![single]),
+        OneOrMany::Many(many) => {
+            if many.is_empty() {
+                Err(de::Error::custom("relay_node_ids must not be empty"))
+            } else {
+                Ok(many)
+            }
+        }
+    }
+}
+
 /// Encode bytes as base32 (RFC 4648, uppercase, no padding).
 fn base32_encode(bytes: &[u8]) -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -315,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn invite_roundtrip() {
+    fn invite_v2_roundtrip() {
         let invite = Invite::create(
             test_relay_node_id(),
             GroupId::random(),
@@ -326,9 +408,79 @@ mod tests {
         let encoded = invite.to_qr_payload();
         let decoded = Invite::from_qr_payload(&encoded).unwrap();
 
-        assert_eq!(invite.relay_node_id, decoded.relay_node_id);
+        assert_eq!(invite.relay_node_ids, decoded.relay_node_ids);
+        assert_eq!(decoded.relay_node_ids.len(), 1);
+        assert_eq!(decoded.relay_node_ids[0], test_relay_node_id());
         assert_eq!(invite.group_id, decoded.group_id);
         assert_eq!(decoded.salt, test_salt());
+        assert_eq!(decoded.version, 2);
+    }
+
+    #[test]
+    fn invite_v3_multi_relay_roundtrip() {
+        let relay_a = RelayNodeId::from_bytes([0xAA; 32]);
+        let relay_b = RelayNodeId::from_bytes([0xBB; 32]);
+        let relay_c = RelayNodeId::from_bytes([0xCC; 32]);
+
+        let invite = Invite::create_multi_relay(
+            vec![relay_a, relay_b, relay_c],
+            GroupId::random(),
+            GroupSecret::random(),
+            test_salt(),
+        );
+
+        assert_eq!(invite.version, 3);
+        assert_eq!(invite.relay_node_ids.len(), 3);
+
+        let encoded = invite.to_qr_payload();
+        let decoded = Invite::from_qr_payload(&encoded).unwrap();
+
+        assert_eq!(decoded.version, 3);
+        assert_eq!(decoded.relay_node_ids.len(), 3);
+        assert_eq!(decoded.relay_node_ids[0], relay_a);
+        assert_eq!(decoded.relay_node_ids[1], relay_b);
+        assert_eq!(decoded.relay_node_ids[2], relay_c);
+        assert_eq!(decoded.salt, test_salt());
+    }
+
+    #[test]
+    fn invite_v2_deserializes_single_relay_into_vec() {
+        // Simulate a v2 invite JSON with singular "relay_node_id"
+        let relay = test_relay_node_id();
+        let group_id = GroupId::random();
+        let secret = GroupSecret::random();
+
+        let v2_json = serde_json::json!({
+            "version": 2,
+            "relay_node_id": relay,
+            "group_id": group_id,
+            "group_secret": secret,
+            "salt": test_salt(),
+            "created_at": 1000000u64,
+            "expires_at": 2000000u64,
+        });
+
+        let json_str = serde_json::to_string(&v2_json).unwrap();
+        let payload = URL_SAFE_NO_PAD.encode(json_str.as_bytes());
+        let decoded = Invite::from_qr_payload(&payload).unwrap();
+
+        assert_eq!(decoded.relay_node_ids.len(), 1);
+        assert_eq!(decoded.relay_node_ids[0], relay);
+    }
+
+    #[test]
+    fn invite_v3_primary_relay() {
+        let relay_a = RelayNodeId::from_bytes([0xAA; 32]);
+        let relay_b = RelayNodeId::from_bytes([0xBB; 32]);
+
+        let invite = Invite::create_multi_relay(
+            vec![relay_a, relay_b],
+            GroupId::random(),
+            GroupSecret::random(),
+            test_salt(),
+        );
+
+        assert_eq!(invite.primary_relay(), Some(&relay_a));
     }
 
     #[test]
@@ -491,6 +643,21 @@ mod tests {
     }
 
     #[test]
+    fn reject_invite_v99() {
+        let mut invite = Invite::create(
+            test_relay_node_id(),
+            GroupId::random(),
+            GroupSecret::random(),
+            test_salt(),
+        );
+        invite.version = 99;
+
+        let encoded = invite.to_qr_payload();
+        let result = Invite::from_qr_payload(&encoded);
+        assert!(matches!(result, Err(PairingError::UnsupportedVersion(99))));
+    }
+
+    #[test]
     fn invite_v2_includes_salt() {
         let salt = vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let invite = Invite::create(
@@ -507,5 +674,26 @@ mod tests {
         let decoded = Invite::from_qr_payload(&encoded).unwrap();
         assert_eq!(decoded.salt, salt);
         assert_eq!(decoded.version, 2);
+    }
+
+    #[test]
+    fn short_code_works_with_multi_relay() {
+        // Short code is based on group secret, not relay info
+        let secret = GroupSecret::from_bytes([0x42; 32]);
+        let invite_v2 = Invite::create(
+            test_relay_node_id(),
+            GroupId::from_secret(&[0x42; 32]),
+            secret.clone(),
+            test_salt(),
+        );
+        let invite_v3 = Invite::create_multi_relay(
+            vec![test_relay_node_id(), RelayNodeId::from_bytes([0xBB; 32])],
+            GroupId::from_secret(&[0x42; 32]),
+            secret,
+            test_salt(),
+        );
+
+        // Same short code regardless of relay count
+        assert_eq!(invite_v2.to_short_code(), invite_v3.to_short_code());
     }
 }

@@ -36,16 +36,16 @@ pub async fn run(data_dir: &Path) -> Result<()> {
             } else {
                 &group.group_id
             };
-            let relay_display = if group.relay_address.len() > 16 {
-                &group.relay_address[..16]
-            } else {
-                &group.relay_address
-            };
 
             println!("Sync Group:");
             println!("  ID:     {}", group_id_display);
-            println!("  Relay:  {}", relay_display);
-            println!("  Cursor: {}", group.cursor);
+            println!("  Relays: {} configured", group.relay_addresses.len());
+            for (i, addr) in group.relay_addresses.iter().enumerate() {
+                let label = if i == 0 { "primary" } else { "secondary" };
+                let display = if addr.len() > 16 { &addr[..16] } else { addr };
+                let cursor = group.cursor_for_relay(addr);
+                println!("    [{}] {}... (cursor: {})", label, display, cursor);
+            }
             println!("  Joined: {}", format_timestamp(group.joined_at));
         }
         Err(_) => {
@@ -120,7 +120,7 @@ mod tests {
         let device = DeviceConfig::new("Test Device");
         device.save(dir.path()).await.unwrap();
 
-        let group = GroupConfig::new("test-group", "test-relay");
+        let group = GroupConfig::new("test-group", &["test-relay"]);
         group.save(dir.path()).await.unwrap();
 
         let result = run(dir.path()).await;

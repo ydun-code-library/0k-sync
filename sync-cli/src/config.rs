@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 use zerok_sync_types::{Cursor, DeviceId};
 
@@ -61,12 +62,18 @@ impl DeviceConfig {
 pub struct GroupConfig {
     /// Group identifier (derived from passphrase).
     pub group_id: String,
-    /// Relay address (iroh NodeId).
-    pub relay_address: String,
+    /// Relay addresses (iroh NodeIds). First is primary, rest are secondaries.
+    #[serde(
+        alias = "relay_address",
+        deserialize_with = "deserialize_relay_addresses"
+    )]
+    pub relay_addresses: Vec<String>,
     /// When the group was joined.
     pub joined_at: u64,
-    /// Current sync cursor.
-    pub cursor: u64,
+    /// Per-relay cursor tracking. Key is relay address, value is last cursor.
+    /// Backward compat: old singular `cursor` field is migrated on load.
+    #[serde(alias = "cursor", deserialize_with = "deserialize_cursors", default)]
+    pub cursors: HashMap<String, u64>,
     /// Hex-encoded group secret for encryption (derived from passphrase).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_secret_hex: Option<String>,
@@ -77,30 +84,34 @@ pub struct GroupConfig {
 
 impl GroupConfig {
     /// Create a new group configuration.
-    pub fn new(group_id: &str, relay_address: &str) -> Self {
+    #[allow(dead_code)] // Used in tests
+    pub fn new(group_id: &str, relay_addresses: &[&str]) -> Self {
+        let addrs: Vec<String> = relay_addresses.iter().map(|s| s.to_string()).collect();
         Self {
             group_id: group_id.to_string(),
-            relay_address: relay_address.to_string(),
+            relay_addresses: addrs,
             joined_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            cursor: 0,
+            cursors: HashMap::new(),
             group_secret_hex: None,
             salt_hex: None,
         }
     }
 
     /// Create a new group configuration with secret.
-    pub fn with_secret(group_id: &str, relay_address: &str, secret_bytes: &[u8]) -> Self {
+    #[allow(dead_code)] // Used in tests
+    pub fn with_secret(group_id: &str, relay_addresses: &[&str], secret_bytes: &[u8]) -> Self {
+        let addrs: Vec<String> = relay_addresses.iter().map(|s| s.to_string()).collect();
         Self {
             group_id: group_id.to_string(),
-            relay_address: relay_address.to_string(),
+            relay_addresses: addrs,
             joined_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            cursor: 0,
+            cursors: HashMap::new(),
             group_secret_hex: Some(hex::encode(secret_bytes)),
             salt_hex: None,
         }
@@ -109,21 +120,37 @@ impl GroupConfig {
     /// Create a new group configuration with secret and salt.
     pub fn with_secret_and_salt(
         group_id: &str,
-        relay_address: &str,
+        relay_addresses: &[&str],
         secret_bytes: &[u8],
         salt: &[u8],
     ) -> Self {
+        let addrs: Vec<String> = relay_addresses.iter().map(|s| s.to_string()).collect();
         Self {
             group_id: group_id.to_string(),
-            relay_address: relay_address.to_string(),
+            relay_addresses: addrs,
             joined_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            cursor: 0,
+            cursors: HashMap::new(),
             group_secret_hex: Some(hex::encode(secret_bytes)),
             salt_hex: Some(hex::encode(salt)),
         }
+    }
+
+    /// Get the primary relay address (first in the list).
+    pub fn primary_relay(&self) -> Option<&str> {
+        self.relay_addresses.first().map(|s| s.as_str())
+    }
+
+    /// Get the cursor for a specific relay. Returns 0 if not tracked yet.
+    pub fn cursor_for_relay(&self, relay_address: &str) -> u64 {
+        self.cursors.get(relay_address).copied().unwrap_or(0)
+    }
+
+    /// Update the cursor for a specific relay.
+    pub fn set_cursor_for_relay(&mut self, relay_address: &str, cursor: u64) {
+        self.cursors.insert(relay_address.to_string(), cursor);
     }
 
     /// Get the group secret bytes, if stored.
@@ -134,17 +161,36 @@ impl GroupConfig {
     }
 
     /// Get the salt bytes, if stored.
+    #[allow(dead_code)] // Used in tests
     pub fn salt_bytes(&self) -> Option<Vec<u8>> {
         self.salt_hex.as_ref().and_then(|h| hex::decode(h).ok())
     }
 
     /// Load group configuration from a directory.
+    ///
+    /// Handles backward compatibility: old `group.json` with singular
+    /// `relay_address` and `cursor` fields are migrated automatically.
     pub async fn load(data_dir: &Path) -> Result<Self> {
         let path = data_dir.join("group.json");
         let contents = tokio::fs::read_to_string(&path)
             .await
             .context("Not paired. Run 'sync-cli pair' first.")?;
-        serde_json::from_str(&contents).context("Invalid group configuration")
+        let mut config: Self =
+            serde_json::from_str(&contents).context("Invalid group configuration")?;
+
+        // Migrate old singular cursor to per-relay cursors if needed.
+        // The deserializer handles the field name, but if the old format had
+        // `"cursor": 42` and `"relay_address": "foo"`, the cursor deserializer
+        // creates {"": 42}. We need to fix the key to the actual relay address.
+        if config.cursors.contains_key("") {
+            if let Some(cursor_val) = config.cursors.remove("") {
+                if let Some(primary) = config.relay_addresses.first() {
+                    config.cursors.insert(primary.clone(), cursor_val);
+                }
+            }
+        }
+
+        Ok(config)
     }
 
     /// Save group configuration to a directory.
@@ -163,10 +209,54 @@ impl GroupConfig {
         data_dir.join("group.json").exists()
     }
 
-    /// Update cursor position.
+    /// Update cursor position for the primary relay.
     #[allow(dead_code)]
     pub fn update_cursor(&mut self, cursor: Cursor) {
-        self.cursor = cursor.value();
+        if let Some(primary) = self.relay_addresses.first().cloned() {
+            self.cursors.insert(primary, cursor.value());
+        }
+    }
+}
+
+/// Custom deserializer: accepts either a single string or a Vec<String>.
+fn deserialize_relay_addresses<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        One(String),
+        Many(Vec<String>),
+    }
+
+    match OneOrMany::deserialize(deserializer)? {
+        OneOrMany::One(single) => Ok(vec![single]),
+        OneOrMany::Many(many) => Ok(many),
+    }
+}
+
+/// Custom deserializer: accepts either a single u64 or a HashMap<String, u64>.
+/// When reading old format `"cursor": 42`, creates `{"": 42}` which is
+/// fixed up in `GroupConfig::load()` to use the actual relay address.
+fn deserialize_cursors<'de, D>(deserializer: D) -> Result<HashMap<String, u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum CursorFormat {
+        Single(u64),
+        Map(HashMap<String, u64>),
+    }
+
+    match CursorFormat::deserialize(deserializer)? {
+        CursorFormat::Single(val) => {
+            let mut map = HashMap::new();
+            map.insert(String::new(), val); // Empty key, fixed up in load()
+            Ok(map)
+        }
+        CursorFormat::Map(map) => Ok(map),
     }
 }
 
@@ -230,11 +320,11 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn group_config_with_salt_roundtrip() {
+    async fn group_config_multi_relay_roundtrip() {
         let dir = tempdir().unwrap();
         let config = GroupConfig::with_secret_and_salt(
             "group-123",
-            "relay-addr",
+            &["relay-a", "relay-b", "relay-c"],
             &[0x42u8; 32],
             &[0xABu8; 16],
         );
@@ -242,6 +332,10 @@ mod tests {
 
         let loaded = GroupConfig::load(dir.path()).await.unwrap();
         assert_eq!(loaded.group_id, "group-123");
+        assert_eq!(
+            loaded.relay_addresses,
+            vec!["relay-a", "relay-b", "relay-c"]
+        );
         assert!(loaded.group_secret_hex.is_some());
         assert!(loaded.salt_hex.is_some());
         assert_eq!(loaded.salt_bytes().unwrap(), vec![0xABu8; 16]);
@@ -249,10 +343,67 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn group_config_without_salt_loads() {
-        // Backwards compatibility: old config without salt_hex
+    async fn group_config_single_relay_roundtrip() {
         let dir = tempdir().unwrap();
-        let config = GroupConfig::with_secret("group-old", "relay", &[1u8; 32]);
+        let config = GroupConfig::with_secret_and_salt(
+            "group-123",
+            &["relay-addr"],
+            &[0x42u8; 32],
+            &[0xABu8; 16],
+        );
+        config.save(dir.path()).await.unwrap();
+
+        let loaded = GroupConfig::load(dir.path()).await.unwrap();
+        assert_eq!(loaded.relay_addresses, vec!["relay-addr"]);
+        assert_eq!(loaded.primary_relay(), Some("relay-addr"));
+    }
+
+    #[tokio::test]
+    async fn group_config_old_format_backward_compat() {
+        // Simulate an old group.json with singular relay_address and cursor
+        let dir = tempdir().unwrap();
+        let old_json = serde_json::json!({
+            "group_id": "old-group",
+            "relay_address": "old-relay",
+            "joined_at": 1000000u64,
+            "cursor": 42u64,
+            "group_secret_hex": hex::encode([0x42u8; 32]),
+            "salt_hex": hex::encode([0xABu8; 16]),
+        });
+        let path = dir.path().join("group.json");
+        tokio::fs::write(&path, serde_json::to_string_pretty(&old_json).unwrap())
+            .await
+            .unwrap();
+
+        let loaded = GroupConfig::load(dir.path()).await.unwrap();
+        assert_eq!(loaded.relay_addresses, vec!["old-relay"]);
+        assert_eq!(loaded.cursor_for_relay("old-relay"), 42);
+        assert_eq!(loaded.primary_relay(), Some("old-relay"));
+    }
+
+    #[tokio::test]
+    async fn group_config_per_relay_cursor_tracking() {
+        let dir = tempdir().unwrap();
+        let mut config =
+            GroupConfig::with_secret("group-123", &["relay-a", "relay-b"], &[0x42u8; 32]);
+
+        assert_eq!(config.cursor_for_relay("relay-a"), 0);
+        assert_eq!(config.cursor_for_relay("relay-b"), 0);
+
+        config.set_cursor_for_relay("relay-a", 10);
+        config.set_cursor_for_relay("relay-b", 5);
+        config.save(dir.path()).await.unwrap();
+
+        let loaded = GroupConfig::load(dir.path()).await.unwrap();
+        assert_eq!(loaded.cursor_for_relay("relay-a"), 10);
+        assert_eq!(loaded.cursor_for_relay("relay-b"), 5);
+        assert_eq!(loaded.cursor_for_relay("relay-c"), 0); // unknown relay
+    }
+
+    #[tokio::test]
+    async fn group_config_without_salt_loads() {
+        let dir = tempdir().unwrap();
+        let config = GroupConfig::with_secret("group-old", &["relay"], &[1u8; 32]);
         config.save(dir.path()).await.unwrap();
 
         let loaded = GroupConfig::load(dir.path()).await.unwrap();
@@ -266,7 +417,7 @@ mod tests {
     async fn group_config_file_permissions() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempdir().unwrap();
-        let config = GroupConfig::with_secret("test", "relay", &[0u8; 32]);
+        let config = GroupConfig::with_secret("test", &["relay"], &[0u8; 32]);
         config.save(dir.path()).await.unwrap();
 
         let path = dir.path().join("group.json");

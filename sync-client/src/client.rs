@@ -20,7 +20,7 @@
 //! use sync_client::{SyncClient, SyncConfig, MockTransport};
 //!
 //! let transport = MockTransport::new();
-//! let config = SyncConfig::new_with_salt("my-passphrase", b"random-salt-here", "node-address");
+//! let config = SyncConfig::new_with_salt("my-passphrase", b"random-salt-here", "node-address"); // single relay
 //! let client = SyncClient::new(config, transport);
 //!
 //! // Connect and sync
@@ -66,6 +66,10 @@ pub enum ClientError {
     /// Protocol error.
     #[error("protocol error: {0}")]
     Protocol(String),
+
+    /// All configured relay addresses failed to connect.
+    #[error("all relays failed: {0}")]
+    AllRelaysFailed(String),
 }
 
 /// Configuration for SyncClient.
@@ -73,8 +77,9 @@ pub enum ClientError {
 pub struct SyncConfig {
     /// The group secret (derived from passphrase).
     pub group_secret: GroupSecret,
-    /// Address of the relay/peer to connect to (iroh NodeId).
-    pub relay_address: String,
+    /// Addresses of relays to connect to (iroh NodeIds).
+    /// First is primary; remaining are secondaries for fan-out.
+    pub relay_addresses: Vec<String>,
     /// Human-readable device name.
     pub device_name: String,
     /// Time-to-live for pushed blobs (seconds, 0 = no expiry).
@@ -90,7 +95,7 @@ impl SyncConfig {
         let (secret, salt) = GroupSecret::from_passphrase(passphrase);
         let config = Self {
             group_secret: secret,
-            relay_address: relay_address.to_string(),
+            relay_addresses: vec![relay_address.to_string()],
             device_name: "0k-sync device".to_string(),
             default_ttl: 0,
         };
@@ -103,7 +108,7 @@ impl SyncConfig {
     pub fn new_with_salt(passphrase: &str, salt: &[u8], relay_address: &str) -> Self {
         Self {
             group_secret: GroupSecret::from_passphrase_with_salt(passphrase, salt),
-            relay_address: relay_address.to_string(),
+            relay_addresses: vec![relay_address.to_string()],
             device_name: "0k-sync device".to_string(),
             default_ttl: 0,
         }
@@ -115,10 +120,15 @@ impl SyncConfig {
         bytes.copy_from_slice(secret_bytes);
         Self {
             group_secret: GroupSecret::from_raw(bytes),
-            relay_address: relay_address.to_string(),
+            relay_addresses: vec![relay_address.to_string()],
             device_name: "0k-sync device".to_string(),
             default_ttl: 0,
         }
+    }
+
+    /// Get the primary relay address (first in the list).
+    pub fn primary_relay(&self) -> Option<&str> {
+        self.relay_addresses.first().map(|s| s.as_str())
     }
 
     /// Set the device name.
@@ -130,6 +140,12 @@ impl SyncConfig {
     /// Set the default TTL for pushed blobs.
     pub fn with_ttl(mut self, ttl: u32) -> Self {
         self.default_ttl = ttl;
+        self
+    }
+
+    /// Set multiple relay addresses (for multi-relay fan-out/failover).
+    pub fn with_relay_addresses(mut self, addresses: &[&str]) -> Self {
+        self.relay_addresses = addresses.iter().map(|s| s.to_string()).collect();
         self
     }
 }
@@ -170,6 +186,7 @@ pub struct SyncClient<T: Transport> {
     key: GroupKey,
     state: Arc<Mutex<ConnectionState>>,
     cursor: Arc<Mutex<CursorTracker>>,
+    active_relay: Arc<Mutex<Option<String>>>,
 }
 
 impl<T: Transport> SyncClient<T> {
@@ -182,10 +199,15 @@ impl<T: Transport> SyncClient<T> {
             key,
             state: Arc::new(Mutex::new(ConnectionState::new())),
             cursor: Arc::new(Mutex::new(CursorTracker::new())),
+            active_relay: Arc::new(Mutex::new(None)),
         }
     }
 
     /// Connect to the relay and perform HELLO/Welcome handshake.
+    ///
+    /// Tries each relay address in order until one succeeds the full
+    /// transport connect + HELLO/Welcome handshake. The first successful
+    /// relay becomes the "active" relay for this session.
     pub async fn connect(&self) -> Result<(), ClientError> {
         // Update state machine
         {
@@ -194,18 +216,65 @@ impl<T: Transport> SyncClient<T> {
             *state = new_state;
         }
 
-        // Perform transport connection
+        if self.config.relay_addresses.is_empty() {
+            return Err(ClientError::AllRelaysFailed(
+                "no relay addresses configured".to_string(),
+            ));
+        }
+
+        let mut errors: Vec<(String, String)> = Vec::new();
+
+        for address in &self.config.relay_addresses {
+            match self.try_connect_relay(address).await {
+                Ok(server_cursor) => {
+                    // Update state machine for successful connection
+                    {
+                        let mut state = self.state.lock().await;
+                        let (new_state, _actions) = state.clone().on_event(Event::ConnectSucceeded);
+                        *state = new_state;
+                    }
+
+                    // Complete handshake
+                    {
+                        let mut state = self.state.lock().await;
+                        let (final_state, _actions) =
+                            state.clone().on_event(Event::HandshakeCompleted {
+                                cursor: server_cursor,
+                            });
+                        *state = final_state;
+                    }
+
+                    // Track the active relay
+                    {
+                        let mut active = self.active_relay.lock().await;
+                        *active = Some(address.clone());
+                    }
+
+                    return Ok(());
+                }
+                Err(e) => {
+                    // Clean up partial connection before trying next relay
+                    let _ = self.transport.close().await;
+                    errors.push((address.clone(), e.to_string()));
+                }
+            }
+        }
+
+        // All relays failed
+        let error_details: Vec<String> = errors
+            .iter()
+            .map(|(addr, err)| format!("{}: {}", addr, err))
+            .collect();
+        Err(ClientError::AllRelaysFailed(error_details.join("; ")))
+    }
+
+    /// Try connecting to a single relay: transport connect + HELLO/Welcome handshake.
+    async fn try_connect_relay(&self, address: &str) -> Result<Cursor, ClientError> {
+        // Transport-level connection
         self.transport
-            .connect(&self.config.relay_address)
+            .connect(address)
             .await
             .map_err(|e| ClientError::ConnectionFailed(e.to_string()))?;
-
-        // Update state machine for successful connection
-        {
-            let mut state = self.state.lock().await;
-            let (new_state, _actions) = state.clone().on_event(Event::ConnectSucceeded);
-            *state = new_state;
-        }
 
         // Send HELLO with group identity
         let group_id = GroupId::from_secret(self.config.group_secret.as_bytes());
@@ -226,27 +295,21 @@ impl<T: Transport> SyncClient<T> {
         let welcome = Message::from_bytes(&welcome_bytes)
             .map_err(|e| ClientError::Serialization(e.to_string()))?;
 
-        let server_cursor = match welcome {
-            Message::Welcome(w) => w.max_cursor,
-            _ => return Err(ClientError::Protocol("expected Welcome response".into())),
-        };
-
-        // Complete handshake
-        {
-            let mut state = self.state.lock().await;
-            let (final_state, _actions) = state.clone().on_event(Event::HandshakeCompleted {
-                cursor: server_cursor,
-            });
-            *state = final_state;
+        match welcome {
+            Message::Welcome(w) => Ok(w.max_cursor),
+            _ => Err(ClientError::Protocol("expected Welcome response".into())),
         }
-
-        Ok(())
     }
 
     /// Check if connected.
     pub async fn is_connected(&self) -> bool {
         let state = self.state.lock().await;
         state.is_connected()
+    }
+
+    /// Get the address of the relay we're connected to.
+    pub async fn active_relay(&self) -> Option<String> {
+        self.active_relay.lock().await.clone()
     }
 
     /// Disconnect from the relay.
@@ -518,7 +581,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connect_failure_returns_error() {
+    async fn connect_failure_returns_all_relays_failed() {
         let transport = MockTransport::new();
         transport.fail_next_connect("network unreachable");
 
@@ -526,7 +589,81 @@ mod tests {
 
         let result = client.connect().await;
         assert!(result.is_err());
-        assert!(matches!(result, Err(ClientError::ConnectionFailed(_))));
+        assert!(
+            matches!(result, Err(ClientError::AllRelaysFailed(_))),
+            "expected AllRelaysFailed, got: {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn connect_fails_first_relay_succeeds_on_second() {
+        let transport = MockTransport::new();
+        // First connect (relay-a) fails, second (relay-b) succeeds
+        transport.fail_next_connect("relay-a unreachable");
+        // Queue Welcome for the successful relay-b handshake
+        transport.queue_response(mock_welcome(5, 0));
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+
+        assert!(client.is_connected().await);
+        assert_eq!(
+            transport.connected_address(),
+            Some("relay-b".to_string()),
+            "should be connected to second relay"
+        );
+        assert_eq!(
+            client.active_relay().await,
+            Some("relay-b".to_string()),
+            "active_relay should track the successful relay"
+        );
+    }
+
+    #[tokio::test]
+    async fn connect_fails_all_relays_returns_error() {
+        let transport = MockTransport::new();
+        // Both relays fail at transport level
+        transport.fail_next_n_connects(3, "unreachable");
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b", "relay-c"]);
+        let client = SyncClient::new(config, transport);
+
+        let result = client.connect().await;
+        assert!(result.is_err());
+        match &result {
+            Err(ClientError::AllRelaysFailed(msg)) => {
+                assert!(msg.contains("relay-a"), "should mention relay-a: {}", msg);
+                assert!(msg.contains("relay-b"), "should mention relay-b: {}", msg);
+                assert!(msg.contains("relay-c"), "should mention relay-c: {}", msg);
+            }
+            other => panic!("expected AllRelaysFailed, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_tracks_active_relay() {
+        let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
+        let client = SyncClient::new(test_config(), transport);
+
+        assert!(client.active_relay().await.is_none());
+
+        client.connect().await.unwrap();
+
+        assert_eq!(client.active_relay().await, Some("test-node".to_string()));
+    }
+
+    #[tokio::test]
+    async fn connect_with_empty_relays_fails() {
+        let transport = MockTransport::new();
+        let config = test_config().with_relay_addresses(&[]);
+        let client = SyncClient::new(config, transport);
+
+        let result = client.connect().await;
+        assert!(matches!(result, Err(ClientError::AllRelaysFailed(_))));
     }
 
     // ===========================================

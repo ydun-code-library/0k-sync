@@ -20,8 +20,12 @@ pub async fn run(data_dir: &Path, data: &[u8], use_mock: bool) -> Result<()> {
         .filter(|b| b.len() == 32)
         .ok_or_else(|| anyhow::anyhow!("Group secret not found. Run 'sync-cli pair' first."))?;
     let bytes: [u8; 32] = secret_bytes.try_into().unwrap();
-    let config = SyncConfig::from_secret_bytes(&bytes, &group.relay_address)
-        .with_device_name(&device.device_name);
+    let primary_relay = group
+        .primary_relay()
+        .ok_or_else(|| anyhow::anyhow!("No relay addresses configured"))?
+        .to_string();
+    let config =
+        SyncConfig::from_secret_bytes(&bytes, &primary_relay).with_device_name(&device.device_name);
 
     // Create transport and client based on mode
     if use_mock {
@@ -52,13 +56,22 @@ async fn run_with_mock(
 }
 
 /// Run push with IrohTransport (real P2P).
+///
+/// After pushing to the primary relay, spawns fire-and-forget tasks
+/// to push the same data to secondary relays (fan-out).
 async fn run_with_iroh(
     config: SyncConfig,
     group: &mut GroupConfig,
     data_dir: &Path,
     data: &[u8],
 ) -> Result<()> {
-    println!("Connecting to peer: {}", group.relay_address);
+    let primary = group.primary_relay().unwrap_or("unknown");
+    println!("Connecting to peer: {}", primary);
+
+    // Capture secondary relay info before moving config into SyncClient
+    let secondary_addrs: Vec<String> = group.relay_addresses.iter().skip(1).cloned().collect();
+    let secret_bytes: [u8; 32] = *config.group_secret.as_bytes();
+    let device_name = config.device_name.clone();
 
     let transport = IrohTransport::new()
         .await
@@ -67,7 +80,46 @@ async fn run_with_iroh(
     println!("  Our EndpointId: {}", transport.endpoint_id());
 
     let client = SyncClient::new(config, transport);
-    do_push(client, group, data_dir, data).await
+
+    // Primary push (connects with failover, pushes to active relay)
+    do_push(client, group, data_dir, data).await?;
+
+    // Fan-out to secondary relays (fire-and-forget, best effort)
+    if !secondary_addrs.is_empty() {
+        println!(
+            "  Fan-out: pushing to {} secondary relay(s)...",
+            secondary_addrs.len()
+        );
+        let data_owned = data.to_vec();
+        let mut handles = Vec::new();
+
+        for addr in secondary_addrs {
+            let cfg =
+                SyncConfig::from_secret_bytes(&secret_bytes, &addr).with_device_name(&device_name);
+            let payload = data_owned.clone();
+            handles.push(tokio::spawn(async move {
+                let transport = match IrohTransport::new().await {
+                    Ok(t) => t,
+                    Err(_) => return,
+                };
+                let client = SyncClient::new(cfg, transport);
+                if client.connect().await.is_err() {
+                    return;
+                }
+                let _ = client.push(&payload).await;
+            }));
+        }
+
+        // Brief wait for secondaries (don't block the CLI indefinitely)
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            for handle in handles {
+                let _ = handle.await;
+            }
+        })
+        .await;
+    }
+
+    Ok(())
 }
 
 /// Common push logic for any transport.
@@ -85,8 +137,14 @@ async fn do_push<T: Transport>(
 
     match client.push(data).await {
         Ok((blob_id, cursor)) => {
-            // Update cursor in config
-            group.cursor = cursor.value();
+            // Update cursor for the active relay (handles failover correctly)
+            let relay = client
+                .active_relay()
+                .await
+                .or_else(|| group.primary_relay().map(|s| s.to_string()));
+            if let Some(addr) = relay {
+                group.set_cursor_for_relay(&addr, cursor.value());
+            }
             group.save(data_dir).await?;
 
             println!("Push successful!");
@@ -139,7 +197,7 @@ mod tests {
         let device = DeviceConfig::new("Test Device");
         device.save(dir).await.unwrap();
 
-        let group = GroupConfig::with_secret("test-group-id", "test-relay", &[0x42u8; 32]);
+        let group = GroupConfig::with_secret("test-group-id", &["test-relay"], &[0x42u8; 32]);
         group.save(dir).await.unwrap();
     }
 
@@ -147,7 +205,7 @@ mod tests {
         let device = DeviceConfig::new("Test Device");
         device.save(dir).await.unwrap();
 
-        let group = GroupConfig::new("test-group-id", "test-relay");
+        let group = GroupConfig::new("test-group-id", &["test-relay"]);
         group.save(dir).await.unwrap();
     }
 

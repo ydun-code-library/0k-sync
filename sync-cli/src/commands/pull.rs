@@ -15,7 +15,11 @@ pub async fn run(data_dir: &Path, after_cursor: Option<u64>, use_mock: bool) -> 
     let device = DeviceConfig::load(data_dir).await?;
     let mut group = GroupConfig::load(data_dir).await?;
 
-    let cursor = after_cursor.unwrap_or(group.cursor);
+    let primary_relay = group
+        .primary_relay()
+        .ok_or_else(|| anyhow::anyhow!("No relay addresses configured"))?
+        .to_string();
+    let cursor = after_cursor.unwrap_or_else(|| group.cursor_for_relay(&primary_relay));
     println!("Pulling data after cursor {}...", cursor);
 
     // Create sync client config from stored secret (F-003: no placeholder fallback)
@@ -24,8 +28,8 @@ pub async fn run(data_dir: &Path, after_cursor: Option<u64>, use_mock: bool) -> 
         .filter(|b| b.len() == 32)
         .ok_or_else(|| anyhow::anyhow!("Group secret not found. Run 'sync-cli pair' first."))?;
     let bytes: [u8; 32] = secret_bytes.try_into().unwrap();
-    let config = SyncConfig::from_secret_bytes(&bytes, &group.relay_address)
-        .with_device_name(&device.device_name);
+    let config =
+        SyncConfig::from_secret_bytes(&bytes, &primary_relay).with_device_name(&device.device_name);
 
     // Create transport and client based on mode
     if use_mock {
@@ -62,7 +66,8 @@ async fn run_with_iroh(
     data_dir: &Path,
     cursor: u64,
 ) -> Result<()> {
-    println!("Connecting to peer: {}", group.relay_address);
+    let primary = group.primary_relay().unwrap_or("unknown");
+    println!("Connecting to peer: {}", primary);
 
     let transport = IrohTransport::new()
         .await
@@ -95,6 +100,14 @@ async fn do_pull<T: Transport>(
                 println!("Received {} blob(s):", blobs.len());
                 println!();
 
+                // Use active relay for cursor tracking (handles failover)
+                let relay_addr = client
+                    .active_relay()
+                    .await
+                    .or_else(|| group.primary_relay().map(|s| s.to_string()))
+                    .unwrap_or_default();
+                let current_cursor = group.cursor_for_relay(&relay_addr);
+
                 for blob in &blobs {
                     // Try to display as UTF-8, otherwise show hex
                     let content = match std::str::from_utf8(&blob.payload) {
@@ -105,8 +118,8 @@ async fn do_pull<T: Transport>(
                     println!("  [{}] {}", blob.cursor, content);
 
                     // Update cursor if this is higher
-                    if blob.cursor.value() > group.cursor {
-                        group.cursor = blob.cursor.value();
+                    if blob.cursor.value() > current_cursor {
+                        group.set_cursor_for_relay(&relay_addr, blob.cursor.value());
                     }
                 }
 
@@ -114,7 +127,7 @@ async fn do_pull<T: Transport>(
                 group.save(data_dir).await?;
 
                 println!();
-                println!("Cursor updated to {}", group.cursor);
+                println!("Cursor updated to {}", group.cursor_for_relay(&relay_addr));
             }
         }
         Err(e) => {
@@ -179,7 +192,7 @@ mod tests {
         let device = DeviceConfig::new("Test Device");
         device.save(dir).await.unwrap();
 
-        let group = GroupConfig::with_secret("test-group-id", "test-relay", &[0x42u8; 32]);
+        let group = GroupConfig::with_secret("test-group-id", &["test-relay"], &[0x42u8; 32]);
         group.save(dir).await.unwrap();
     }
 
@@ -187,7 +200,7 @@ mod tests {
         let device = DeviceConfig::new("Test Device");
         device.save(dir).await.unwrap();
 
-        let group = GroupConfig::new("test-group-id", "test-relay");
+        let group = GroupConfig::new("test-group-id", &["test-relay"]);
         group.save(dir).await.unwrap();
     }
 

@@ -46,7 +46,7 @@ pub async fn create(data_dir: &Path, passphrase: Option<&str>) -> Result<()> {
     // Save group configuration with secret and salt for encryption
     let group_config = GroupConfig::with_secret_and_salt(
         &group_id.to_string(),
-        &relay_node_id.to_string(),
+        &[relay_node_id.to_string().as_str()],
         client_secret.as_bytes(),
         &salt,
     );
@@ -100,9 +100,15 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
         }
 
         // Save group configuration WITH secret and salt (the invite carries both)
+        let relay_strs: Vec<String> = invite
+            .relay_node_ids
+            .iter()
+            .map(|r| r.to_string())
+            .collect();
+        let relay_refs: Vec<&str> = relay_strs.iter().map(|s| s.as_str()).collect();
         let group_config = GroupConfig::with_secret_and_salt(
             &invite.group_id.to_string(),
-            &invite.relay_node_id.to_string(),
+            &relay_refs,
             invite.group_secret.as_bytes(),
             &invite.salt,
         );
@@ -142,7 +148,7 @@ pub async fn join(data_dir: &Path, code: &str, passphrase: Option<&str>) -> Resu
         // Use the provided EndpointId as the relay address, store secret and salt
         let group_config = GroupConfig::with_secret_and_salt(
             &group_id.to_string(),
-            code,
+            &[code],
             client_secret.as_bytes(),
             ENDPOINT_JOIN_SALT,
         );
@@ -273,9 +279,9 @@ mod tests {
             .await
             .unwrap();
 
-        // Verify group.json was created with correct relay_address
+        // Verify group.json was created with correct relay_addresses
         let config = GroupConfig::load(dir.path()).await.unwrap();
-        assert_eq!(config.relay_address, endpoint_id);
+        assert_eq!(config.relay_addresses, vec![endpoint_id]);
         assert!(!config.group_id.is_empty());
     }
 

@@ -21,7 +21,7 @@ struct MockTransportInner {
     connected_address: Option<String>,
     sent_messages: Vec<Vec<u8>>,
     receive_queue: VecDeque<Vec<u8>>,
-    fail_next_connect: Option<String>,
+    connect_failures: VecDeque<String>,
     fail_next_send: Option<String>,
     fail_next_recv: Option<String>,
 }
@@ -56,10 +56,20 @@ impl MockTransport {
         inner.connected_address.clone()
     }
 
-    /// Cause the next connect() to fail with the given error.
+    /// Cause the next connect() call to fail with the given error.
+    ///
+    /// Can be called multiple times to queue sequential failures.
     pub fn fail_next_connect(&self, error: &str) {
         let mut inner = self.inner.lock().unwrap();
-        inner.fail_next_connect = Some(error.to_string());
+        inner.connect_failures.push_back(error.to_string());
+    }
+
+    /// Cause the next N connect() calls to fail with the given error.
+    pub fn fail_next_n_connects(&self, count: usize, error: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        for _ in 0..count {
+            inner.connect_failures.push_back(error.to_string());
+        }
     }
 
     /// Cause the next send() to fail with the given error.
@@ -95,7 +105,7 @@ impl Transport for MockTransport {
         let mut inner = self.inner.lock().unwrap();
 
         // Check for forced failure
-        if let Some(error) = inner.fail_next_connect.take() {
+        if let Some(error) = inner.connect_failures.pop_front() {
             return Err(TransportError::ConnectionFailed(error));
         }
 
