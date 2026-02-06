@@ -76,7 +76,7 @@ iroh supports P2P hole-punching, and we get that for free. But our focus is **mu
 **Why relay-first:**
 - QUIC-based (UDP, not TCP) — works through NATs, handles packet loss gracefully
 - [iroh's own docs](https://docs.iroh.computer/concepts/relays) say: *"For production, use dedicated relays"* — we agree
-- Multi-relay with automatic failover is on our near-term roadmap
+- **Multi-relay fan-out is implemented** — connect failover, push to multiple relays, per-relay cursor tracking
 - P2P is a nice-to-have optimization, not the core architecture
 
 **What if iroh disappears?**
@@ -206,13 +206,13 @@ let blobs = client.pull().await?;
 | Crate | Purpose | Tests |
 |-------|---------|-------|
 | `sync-types` | Wire format, message definitions | 33 |
-| `sync-core` | Pure logic, no I/O (instant tests) | 65 |
-| `sync-client` | Client library for applications | 59 |
+| `sync-core` | Pure logic, no I/O (instant tests) | 70 |
+| `sync-client` | Client library for applications | 63 |
 | `sync-content` | Large file transfer (encrypt-then-hash) | 24 |
-| `sync-cli` | CLI tool for testing/debugging | 27 |
+| `sync-cli` | CLI tool for testing/debugging | 30 |
 | `sync-relay` | Relay server | 51 |
 
-**309 tests passing.** Chaos test harness in progress (50 passing, 28 stubs awaiting infrastructure).
+**321 tests passing.** Chaos test harness in progress (50 passing, 28 stubs awaiting infrastructure).
 
 ---
 
@@ -279,28 +279,27 @@ The client library is identical across all tiers. Only the relay endpoint change
 
 ## Status
 
-**Where we're at:** Phase 6 complete. The core protocol works end-to-end.
+**Where we're at:** Phase 6.5 complete. The core protocol works end-to-end with multi-relay redundancy.
 
 | What | Status |
 |------|--------|
 | Wire format (sync-types) | ✅ Done — 33 tests |
-| Core logic (sync-core) | ✅ Done — 65 tests |
-| Client library (sync-client) | ✅ Done — 59 tests |
+| Core logic (sync-core) | ✅ Done — 70 tests |
+| Client library (sync-client) | ✅ Done — 63 tests |
 | Large file transfer (sync-content) | ✅ Done — 24 tests |
-| CLI tool (sync-cli) | ✅ Done — 27 tests |
+| CLI tool (sync-cli) | ✅ Done — 30 tests |
 | Relay server (sync-relay) | ✅ Done — 51 tests |
+| Multi-relay fan-out | ✅ Done — connect failover, push fan-out, per-relay cursors |
 | E2E cross-machine testing | ✅ Verified Q ↔ Beast |
 | Security audit | ✅ 2 audits, 0 critical/high remaining |
 | Docker deployment | ✅ Working |
-| Multi-relay failover | 🔜 Next priority |
 | Chaos test harness | 🔜 Infrastructure needed |
 | Crates.io publish | 🔜 After chaos hardening |
 | Hybrid post-quantum (Noise + ML-KEM) | 📋 Designed, not implemented |
 
-**309 tests passing.** This isn't vaporware — it's working code.
+**321 tests passing.** This isn't vaporware — it's working code.
 
 **What's next:**
-- **Multi-relay failover** — eliminate single point of failure, automatic discovery and failover
 - Chaos test harness (network fault injection for QUIC)
 - Crates.io publish
 - Hybrid post-quantum handshake

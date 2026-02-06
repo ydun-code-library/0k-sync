@@ -193,13 +193,13 @@ gh issue list
 ## Current Status
 
 <!-- PROJECT_SPECIFIC START: CURRENT_STATUS -->
-✅ **Phases 1-6 COMPLETE** (2026-02-05)
+✅ **Phases 1-6.5 COMPLETE** (2026-02-06)
 
 - ✅ Phase 1: sync-types (33 tests) - wire format + Welcome message
-- ✅ Phase 2: sync-core (65 tests) - pure logic
-- ✅ Phase 3: sync-client (59 tests) - E2E encryption
+- ✅ Phase 2: sync-core (70 tests) - pure logic + Invite v3 multi-relay
+- ✅ Phase 3: sync-client (63 tests) - E2E encryption + connect failover
 - ✅ Phase 3.5: sync-content (24 tests) - encrypt-then-hash
-- ✅ Phase 4: sync-cli (27 tests) - CLI tool
+- ✅ Phase 4: sync-cli (30 tests) - CLI tool + multi-relay config
 - ✅ Phase 5: IrohTransport + chaos scenarios (50 passing, 28 stubs)
 - ✅ **Phase 6: sync-relay server (51 tests)**
   - ✅ SQLite storage with WAL mode
@@ -212,9 +212,17 @@ gh issue list
   - ✅ notify_group (server-push via uni streams)
   - ✅ Cross-machine E2E (Q ↔ Beast over Tailscale)
   - ✅ Security audit v1 + v2 remediation complete
+- ✅ **Phase 6.5: Multi-relay fan-out (2026-02-06)**
+  - ✅ Invite v3 with relay list (backward compat with v2)
+  - ✅ GroupConfig multi-relay + per-relay cursors (serde OneOrMany compat)
+  - ✅ SyncConfig multi-relay support
+  - ✅ Connect failover (tries relays in order, AllRelaysFailed error)
+  - ✅ Push fan-out (primary awaited, secondaries fire-and-forget)
+  - ✅ Per-relay cursor tracking (HashMap<String, u64>)
+  - ✅ E2E verified Q ↔ Beast
 - ⚪ Phase 7: framework integrations (optional)
 
-**Total: 309 tests passing, 34 ignored**
+**Total: 321 tests passing, 34 ignored**
 <!-- PROJECT_SPECIFIC END: CURRENT_STATUS -->
 
 ## Technology Stack
@@ -392,15 +400,15 @@ None
 
 ### 🟡 Important Issues
 1. **iroh 0.96** requires cargo patch for curve25519-dalek (configured in Cargo.toml)
-2. **Cargo.lock not in git** — Non-reproducible builds (Docker and CI). Should be committed for binary crates.
-3. **QUIC port is ephemeral** — `config.server.bind_address` is logged but never passed to `Endpoint::builder().bind()`. Cannot expose fixed UDP port in Docker.
-4. **SIGINT only** — `tokio::signal::ctrl_c()` catches SIGINT, not SIGTERM. Docker workaround: `STOPSIGNAL SIGINT`.
+2. **QUIC port is ephemeral** — `config.server.bind_address` is logged but never passed to `Endpoint::builder().bind()`. Cannot expose fixed UDP port in Docker.
+3. **SIGINT only** — `tokio::signal::ctrl_c()` catches SIGINT, not SIGTERM. Docker workaround: `STOPSIGNAL SIGINT`.
 
 ### ✅ Resolved Issues
 1. **curve25519-dalek build failure** — Fixed with cargo patch (PR #878 upstream)
 2. **Stream acknowledgment race** — Fixed with `send.stopped().await`
 3. **pair --join EndpointId** — Now properly saves EndpointId as relay_address
 4. **curve25519-dalek fork visibility** — Fork was accidentally private, blocking Docker builds. Made public 2026-02-05.
+5. **Cargo.lock committed** — Now tracked in git for reproducible builds (2026-02-05)
 
 ### 📝 Technical Debt
 1. iroh 0.96 is pre-1.0 — minor API changes possible
@@ -500,8 +508,8 @@ RELAY_BIND=127.0.0.1:8080
 RELAY_DATABASE=/data/relay.db
 RUST_LOG=info
 
-# Client
-SYNC_RELAY_NODE_ID=your-sync-relay-node-id
+# Client (supports multiple relays since Phase 6.5)
+SYNC_RELAY_NODE_IDS=primary-node-id,secondary-node-id
 SYNC_GROUP_PASSPHRASE=user-provided
 ```
 <!-- PROJECT_SPECIFIC END: ENVIRONMENT_VARIABLES -->

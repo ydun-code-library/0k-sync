@@ -1,7 +1,7 @@
 # 0k-Sync - Executive Summary
 
-**Version:** 2.1.0
-**Date:** 2026-02-02
+**Version:** 2.3.0
+**Date:** 2026-02-06
 **Author:** James (LTIS Investments AB)
 **Audience:** Technical Executives, Architects, Decision Makers
 
@@ -45,15 +45,17 @@ Device A                     RELAY                      Device B
     │                          │   (blob deleted)          │
 ```
 
+**Multi-relay fan-out** (Phase 6.5): Clients push to multiple relays simultaneously. Primary relay is awaited; secondaries are fire-and-forget. On connect, the client tries each relay in order until one succeeds (automatic failover). Each relay tracks cursors independently.
+
 **Key insight:** The client library stays constant. Only the relay tier changes.
 
 ### What We're Building
 
 | Component | Purpose |
 |-----------|---------|
-| **sync-client** | Rust library for E2E encryption, pairing, cursor tracking |
+| **sync-client** | Rust library for E2E encryption, pairing, cursor tracking, multi-relay failover |
 | **sync-content** | Large file transfer via iroh-blobs (encrypt-then-hash) |
-| **sync-relay** | Stateless message router with temporary buffering |
+| **sync-relay** | Stateless message router with temporary buffering (runs independently per region) |
 
 ### What We're NOT Building
 
@@ -138,6 +140,7 @@ Three gates must be addressed before GA release:
 | **No accounts** | Devices pair via QR code or short code; no email/password |
 | **Forward secrecy** | iroh QUIC TLS (transport level). Noise Protocol XX planned for application-level forward secrecy. |
 | **Replay protection** | Monotonic cursors + nonces |
+| **Relay redundancy** | Multi-relay fan-out with automatic connect failover (Phase 6.5) |
 
 ### Mobile Architecture: Wake-on-Push
 
@@ -227,7 +230,7 @@ From research validation:
 |------|----------|------------|
 | Post-quantum transition | Medium | Hybrid Noise (clatter ML-KEM-768) designed but not yet implemented |
 | FIPS compliance gap | Critical (for Gov/Finance) | Feature flag for AES-GCM/PBKDF2 build |
-| iroh ecosystem maturity | Low | Using stable 0.96; self-hosted option available |
+| iroh ecosystem maturity | Low | Using stable 0.96; self-hosted option; multi-relay failover implemented |
 | Mobile battery impact | Medium | Wake-on-Push architecture; quantify in beta |
 | Thundering herd | Medium | Client-side jitter required |
 
@@ -241,7 +244,7 @@ From research validation:
 | Who is it for? | Local-first developers (any framework) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |
-| What's validated? | iroh 0.96 (E2E tested), XChaCha20-Poly1305, Argon2id. Noise Protocol (clatter) not yet implemented. |
+| What's validated? | iroh 0.96 (E2E tested), XChaCha20-Poly1305, Argon2id, multi-relay fan-out. Noise Protocol (clatter) not yet implemented. |
 | What's blocked? | FIPS compliance (enterprise only) |
 
 **0k-Sync completes local-first apps: Build → Store Locally → Sync Securely.**
@@ -258,4 +261,4 @@ From research validation:
 
 ---
 
-*Document: 01-EXECUTIVE-SUMMARY.md | Version: 2.2.0 | Date: 2026-02-02*
+*Document: 01-EXECUTIVE-SUMMARY.md | Version: 2.3.0 | Date: 2026-02-06*

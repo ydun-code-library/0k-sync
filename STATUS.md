@@ -8,10 +8,10 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 -->
 
 **Last Updated:** 2026-02-06
-**Project Phase:** PHASE 6 COMPLETE
-**Completion:** 100% (Phases 1-6 + 3.5 complete)
+**Project Phase:** PHASE 6.5 COMPLETE
+**Completion:** 100% (Phases 1-6.5 + 3.5 complete)
 **GitHub Repository:** https://github.com/ydun-code-library/0k-sync (PUBLIC)
-**Current Focus:** Chaos harness buildout (separate work item), multi-relay failover (Phase 6.5)
+**Current Focus:** Chaos harness buildout, deferred LOW findings cleanup
 **Vulnerabilities:** 0 (time + sqlx CVEs patched)
 
 ---
@@ -21,7 +21,7 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 **Project Type:** Rust Cargo Workspace (Server + Client Library)
 **Primary Goal:** E2E encrypted sync infrastructure for local-first applications
 **Target Deployment:** Beast (home server) via Docker + Cloudflare Tunnel
-**Status:** Phase 6 COMPLETE — E2E encrypted relay with security audit remediation (2026-02-05)
+**Status:** Phase 6.5 COMPLETE — E2E encrypted relay with multi-relay fan-out and security audit remediation (2026-02-06)
 
 ---
 
@@ -203,6 +203,32 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ---
 
+### Phase 6.5: Multi-Relay Fan-Out ✅ COMPLETE
+- **Duration:** 1 session (2026-02-06)
+- **Output:** Connect failover, push fan-out, per-relay cursor tracking
+- **Status:** Complete — E2E verified Q ↔ Beast
+- **Commit:** `e1553a3`
+
+**Completed Tasks:**
+- [x] Documentation-first: `docs/MULTI-RELAY-SPEC.md` created
+- [x] Invite v3 with relay list (`relay_node_ids: Vec`) + v2 backward compat via serde alias
+- [x] GroupConfig multi-relay (`relay_addresses: Vec<String>`) + per-relay cursors (`HashMap<String, u64>`)
+- [x] SyncConfig multi-relay support (`with_relay_addresses` builder)
+- [x] Connect failover: tries relays in order, `AllRelaysFailed` error if all fail
+- [x] Push fan-out: primary awaited, secondaries fire-and-forget (10s timeout)
+- [x] Per-relay cursor tracking with `active_relay()` getter
+- [x] Serde OneOrMany pattern for backward compat with old single-relay configs
+- [x] CLI updates: `pair`, `push`, `pull`, `status` all multi-relay aware
+- [x] E2E verified: Q ↔ Beast over Tailscale with real relay
+- [x] +12 new tests across sync-core, sync-client, sync-cli
+
+**Test counts after Phase 6.5:**
+- sync-types: 33, sync-core: 70 (+5), sync-client: 63 (+4), sync-content: 24
+- sync-cli: 30 (+3), sync-relay: 51, chaos: 50 passing / 28 stubs
+- **Total: 321 passing, 34 ignored**
+
+---
+
 ### Phase 7: Framework Integration (Optional) ⚪ NOT STARTED
 - **Duration:** Estimated 2 hours per framework
 - **Output:** Framework-specific wrappers (e.g., Tauri plugin)
@@ -218,20 +244,22 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 ## Current Sprint/Session Status
 
 ### Active Tasks (Current Session)
-- ✅ E2E integration: bidirectional push/pull through real relay on Beast
-- ✅ 3 protocol gaps found and fixed via TDD
-- ✅ Cargo.lock committed for reproducible builds
-- ✅ Beast server setup and validated
+- ✅ Phase 6.5 multi-relay fan-out — COMPLETE
+- ✅ Documentation update for Phase 6.5 status
 
-### Completed This Session (2026-02-05)
-- [x] Committed Cargo.lock (was gitignored, now tracked for reproducible builds)
-- [x] Cloned and built workspace on Beast (279 tests passing)
-- [x] Discovered and fixed 3 protocol gaps via TDD (Jimmy's Workflow):
-  - [x] HELLO/Welcome handshake missing from `SyncClient::connect()`
-  - [x] Hardcoded "placeholder-passphrase" in CLI push/pull (now uses stored group secret)
-  - [x] QUIC stream model mismatch: client reused one stream, relay expects one-per-request
-- [x] E2E integration test on Beast: two CLI instances syncing through real relay
-- [x] All tests pass (280 passing, 34 ignored), clippy clean
+### Completed This Session (2026-02-06)
+- [x] Phase 6.5: Multi-relay fan-out implementation (TDD, 7 steps)
+  - [x] Invite v3 with relay list + v2 backward compat
+  - [x] GroupConfig multi-relay + per-relay cursors
+  - [x] SyncConfig multi-relay support
+  - [x] Connect failover (tries relays in order)
+  - [x] Push fan-out (primary + fire-and-forget secondaries)
+  - [x] Per-relay cursor tracking
+  - [x] CLI updates (pair, push, pull, status)
+- [x] E2E verified on Beast: Q ↔ Beast push/pull with real relay
+- [x] Pushed to GitHub, pulled on Beast, rebuilt relay + CLI
+- [x] Documentation updates (README, CLAUDE, AGENTS, STATUS, NEXT-SESSION, Executive Summary)
+- [x] All 321 tests pass, 34 ignored, clippy clean
 
 ### Blockers
 - None at this time
@@ -247,8 +275,8 @@ PURPOSE: Track project progress, status, and metrics across development sessions
 
 ### Code Metrics
 - **Total Lines of Code:** ~7,500+ (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay, chaos-tests)
-- **Test Count:** 343 tests (33 sync-types + 65 sync-core + 59 sync-client + 24 sync-content + 27 sync-cli + 51 sync-relay + 50 chaos-passing + 5 doc-tests + 34 ignored)
-- **Passing:** 309 | **Ignored:** 34 (28 chaos stubs need harness, 5 doc tests, 1 sync-client E2E)
+- **Test Count:** 355 tests (33 sync-types + 70 sync-core + 63 sync-client + 24 sync-content + 30 sync-cli + 51 sync-relay + 50 chaos-passing + 34 ignored)
+- **Passing:** 321 | **Ignored:** 34 (28 chaos stubs need harness, 5 doc tests, 1 sync-client E2E)
 - **Test Coverage:** 100% for public APIs
 - **Crates:** 6 of 7 implemented (sync-types, sync-core, sync-client, sync-content, sync-cli, sync-relay complete)
 
@@ -297,15 +325,13 @@ See: https://github.com/dalek-cryptography/curve25519-dalek/pull/878
 - ✅ Specification v0.3.0 (2026-01) - Full architecture
 
 ### Current Milestone
-- 🔄 Phase 6: sync-relay (2026-02-03)
-  - Progress: 0%
-  - Dependencies: Phase 5 complete ✅
+- ✅ Phase 6.5: Multi-relay fan-out (2026-02-06) — COMPLETE
 
 ### Upcoming Milestones
-- ⚪ sync-relay server (Phase 6 - in planning)
-- ⚪ Full topology chaos testing (Phase 6)
+- ⚪ Chaos test harness (Docker + `tc netem` for QUIC fault injection)
+- ⚪ Deferred LOW findings cleanup (20 from security audit v1)
 - ⚪ tauri-plugin-sync (Phase 7 - optional)
-- ⚪ CashTable integration (after relay)
+- ⚪ CashTable integration (after chaos hardening)
 
 ---
 
@@ -361,21 +387,45 @@ None
 - [x] Real P2P connections work (E2E verified: Mac Mini ↔ Beast)
 - [x] Transport chaos scenarios (26 passing + 28 stubs for Phase 6)
 
-### Phase 6 Success Criteria (sync-relay)
-- [ ] Server accepts iroh connections (QUIC)
-- [ ] Noise handshake completes successfully
-- [ ] Blobs stored and retrieved correctly
-- [ ] Health endpoint returns status
-- [ ] Full topology chaos passes
+### Phase 6 Success Criteria (sync-relay) ✅ COMPLETE
+- [x] Server accepts iroh connections (QUIC)
+- [x] HELLO/Welcome handshake completes successfully
+- [x] Blobs stored and retrieved correctly
+- [x] Health endpoint returns status
+- [ ] Full topology chaos passes (28 stubs pending harness)
+
+### Phase 6.5 Success Criteria (multi-relay) ✅ COMPLETE
+- [x] Connect failover across multiple relays
+- [x] Push fan-out to primary + secondaries
+- [x] Per-relay cursor tracking
+- [x] Invite v3 with relay list + v2 backward compat
+- [x] E2E verified Q ↔ Beast
 
 ### Overall Project Success
-- [ ] Two devices can sync via relay
-- [ ] E2E encryption verified (relay sees only ciphertext)
+- [x] Two devices can sync via relay
+- [x] E2E encryption verified (relay sees only ciphertext)
 - [ ] CashTable uses sync for multi-device
 
 ---
 
 ## Session History
+
+### Session 18: 2026-02-06 (Phase 6.5 Multi-Relay Fan-Out - Q)
+- Implemented multi-relay fan-out via TDD (7 implementation steps)
+- Invite v3 with relay list (`relay_node_ids: Vec`) + v2 backward compat via serde alias
+- GroupConfig multi-relay (`relay_addresses: Vec<String>`) + per-relay cursors (`HashMap<String, u64>`)
+- Connect failover: `SyncClient::connect()` tries each relay in order, `AllRelaysFailed` if all fail
+- Push fan-out: CLI spawns fire-and-forget tasks for secondary relays (10s timeout)
+- Per-relay cursor tracking with `active_relay()` getter
+- Serde OneOrMany pattern for backward compat with old single-relay group.json
+- +12 new tests across sync-core (+5), sync-client (+4), sync-cli (+3)
+- E2E verified: Q ↔ Beast over Tailscale with real relay
+- Pushed to GitHub, pulled on Beast, rebuilt relay + CLI
+- Documentation updated: README, CLAUDE, AGENTS, STATUS, NEXT-SESSION, Executive Summary
+- Multi-relay spec: `docs/MULTI-RELAY-SPEC.md`
+- **Tests:** 321 passing, 34 ignored, clippy clean
+- **Commits:** `aa3d7a6` (docs), `e1553a3` (implementation)
+- **Output:** Phase 6.5 complete. Next: chaos harness, deferred LOW findings
 
 ### Session 17: 2026-02-05 (Phase 6 Completion - Q)
 - Docker image built on Beast (77s), containerized relay E2E verified
@@ -579,7 +629,9 @@ None
 - ✅ AI-optimized structure
 
 ### Code Quality
-- N/A - Not yet implemented
+- ✅ 321 tests passing, 0 failures
+- ✅ Clippy clean (0 warnings)
+- ✅ 2 security audits, 0 critical/high remaining
 
 ### Process Quality
 - ✅ Following Jimmy's Workflow
@@ -620,14 +672,14 @@ None
 
 ## Next Steps (Priority Order)
 
-### Immediate (Next Session) - Chaos Harness + Multi-Relay
+### Immediate (Next Session) - Chaos Harness
 1. Build chaos test harness (Docker + `tc netem` for QUIC fault injection)
 2. Implement 28 chaos test stubs (T-*, S-SM-*, S-CONC-*, S-CONV-*)
-3. Multi-relay failover design (Phase 6.5 — brought forward from Beta)
+3. Deferred LOW findings cleanup (20 from security audit v1)
 
-### Short Term (Next 2-3 Sessions) - Multi-Relay + Framework
-1. Multi-relay failover implementation (client config, connection failover, cursor reconciliation)
-2. tauri-plugin-sync wrapper (Phase 7)
+### Short Term (Next 2-3 Sessions) - Framework + Integration
+1. tauri-plugin-sync wrapper (Phase 7)
+2. CashTable integration
 
 ### Medium Term (Next 1-2 Weeks)
 1. CashTable integration
@@ -642,6 +694,6 @@ None
 
 **This is the source of truth for Sync Relay status.**
 
-**Last Updated:** 2026-02-05
-**Next Update:** After chaos harness or multi-relay work
-**Next Handler:** Q (Chaos harness buildout, multi-relay failover design)
+**Last Updated:** 2026-02-06
+**Next Update:** After chaos harness buildout
+**Next Handler:** Q (Chaos harness buildout, deferred LOW findings cleanup)

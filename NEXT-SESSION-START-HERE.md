@@ -1,13 +1,34 @@
 # Next Session Start Here
 
 **Last Updated:** 2026-02-06
-**Last Session:** README rewrite, repo public, security expert review (Q)
-**Current Phase:** PHASE 6 COMPLETE — 309 tests passing, 34 ignored
-**Next Handler:** Q (Chaos harness buildout, multi-relay failover design)
+**Last Session:** Phase 6.5 Multi-Relay Fan-Out + Documentation Update (Q)
+**Current Phase:** PHASE 6.5 COMPLETE — 321 tests passing, 34 ignored
+**Next Handler:** Q (Chaos harness buildout, deferred LOW findings cleanup)
 
 ---
 
 ## Session History (Most Recent First)
+
+### 2026-02-06 (Session 5): Phase 6.5 Multi-Relay Fan-Out
+
+**Implementation (TDD, 7 steps):**
+- Invite v3 with relay list + v2 backward compat via serde alias
+- GroupConfig multi-relay + per-relay cursors (serde OneOrMany pattern)
+- SyncConfig multi-relay support + `with_relay_addresses` builder
+- Connect failover: tries relays in order, `AllRelaysFailed` error
+- Push fan-out: primary awaited, secondaries fire-and-forget (10s timeout)
+- Per-relay cursor tracking with `active_relay()` getter
+- CLI updates: pair, push, pull, status all multi-relay aware
+
+**E2E Verified:**
+- Q ↔ Beast push/pull through real relay on Beast (port 8095)
+- Cross-machine bidirectional sync working
+
+**Docs:**
+- `docs/MULTI-RELAY-SPEC.md` created (Sprint 1)
+- All status files updated for 321 tests, Phase 6.5 complete
+
+**Commits:** `aa3d7a6` (docs), `e1553a3` (implementation), `80f8097` (status update)
 
 ### 2026-02-06 (Session 4): README Rewrite + Repo Public + Security Expert Review
 
@@ -76,17 +97,17 @@ Report: `docs/reviews/2026-02-05-security-audit-v2-report.md`
 ## Current State
 
 ```
-309 tests passing, 34 ignored, clippy clean, 0 vulnerabilities
-Phase 6 COMPLETE — security audit v1 + v2 remediation applied
+321 tests passing, 34 ignored, clippy clean, 0 vulnerabilities
+Phase 6.5 COMPLETE — multi-relay fan-out + security audit remediation applied
 ```
 
 | Crate | Tests | Status |
 |-------|-------|--------|
 | sync-types | 33 | Complete |
-| sync-core | 65 | Complete |
-| sync-client | 59 | Complete (1 ignored) |
+| sync-core | 70 | Complete (+5 Invite v3) |
+| sync-client | 63 | Complete (+4 failover, 1 ignored) |
 | sync-content | 24 | Complete |
-| sync-cli | 27 | Complete |
+| sync-cli | 30 | Complete (+3 config) |
 | sync-relay | 51 | Complete |
 | chaos-tests | 50 | 50 passing, 28 stubs |
 
@@ -96,11 +117,11 @@ Phase 6 COMPLETE — security audit v1 + v2 remediation applied
 
 ### Beast Server State (CURRENT)
 
-Beast relay rebuilt 2026-02-06 with commit `1b1d142`. Running on port 8090.
+Beast has commit `e1553a3` (Phase 6.5). Relay last tested on port 8095, EndpointId `2f55dc04e058f50ab73398b4d9d138bad2987f97ca69fe69205f7df5af12c663`.
 
 ### MCP Project Index (STALE)
 
-Re-index after README rewrite and research docs:
+Re-index after Phase 6.5 implementation + docs update:
 
 ```bash
 ssh jimmyb@100.71.79.25 "reingest-project 0k-sync"
@@ -122,20 +143,20 @@ Branch protection: PRs required, admin bypass enabled for Jimmyh-world
 **Location:** `tests/chaos/` — stubs marked `#[ignore = "requires relay"]`
 **Reference:** `docs/06-CHAOS-TESTING-STRATEGY.md`
 
-### 2. Multi-Relay Failover (Phase 6.5)
-
-James wants this brought forward. Single relay = SPOF. iroh RelayMap supports multiple relays at transport layer.
-
-**Needs:**
-- Protocol support for multiple sync-relays
-- State reconciliation after failover
-- Chaos scenarios for relay-under-attack failover
-
-**Reference:** `docs/06-CHAOS-TESTING-STRATEGY.md` Section 4.3, tactical mesh appendix
-
-### 3. Deferred LOW Findings
+### 2. Deferred LOW Findings
 
 20 LOW findings from security audit v1 (F-022 through F-041) deferred to cleanup work item.
+
+### 3. Multi-Relay Chaos Scenarios
+
+Now that fan-out is implemented, add chaos scenarios for multi-relay:
+- MR-1: Primary relay killed during active push
+- MR-2: Secondary relay killed
+- MR-3: All relays killed
+- MR-4: Relay flapping (up/down/up)
+- MR-5: Primary relay high latency
+
+**Reference:** `docs/MULTI-RELAY-SPEC.md`, `docs/06-CHAOS-TESTING-STRATEGY.md` Section 4.3
 
 ---
 
@@ -150,6 +171,7 @@ James wants this brought forward. Single relay = SPOF. iroh RelayMap supports mu
 | `docs/reviews/2026-02-05-security-audit-v2-report.md` | Latest audit |
 | `docs/research/pq-crypto-shake-mlkem.md` | PQ crypto research (Matthias feedback) |
 | `docs/research/oprf-passphrase-hardening.md` | OPRF research (Matthias feedback) |
+| `docs/MULTI-RELAY-SPEC.md` | Multi-relay fan-out design |
 | `AGENTS.md` | Development guidelines |
 
 ---

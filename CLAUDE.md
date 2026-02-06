@@ -94,14 +94,14 @@ bash tests/docker-validate.sh  # 8 validation tests
 
 **This is a Rust Cargo workspace** with 6 core crates:
 1. `sync-types` - Shared types (Envelope, Message, Welcome, etc.) - 33 tests
-2. `sync-core` - Pure logic, no I/O (instant tests) - 65 tests
-3. `sync-client` - Library for local-first apps - 59 tests
+2. `sync-core` - Pure logic, no I/O (instant tests) - 70 tests
+3. `sync-client` - Library for local-first apps - 63 tests
 4. `sync-content` - Encrypt-then-hash content transfer - 24 tests
-5. `sync-cli` - Testing/verification tool - 27 tests
+5. `sync-cli` - Testing/verification tool - 30 tests
 6. `sync-relay` - **COMPLETE** (51 tests) - relay server with SQLite, HTTP endpoints, rate limiting, notify_group
 7. Framework integrations - Optional wrappers (e.g., tauri-plugin-sync)
 
-**Current Phase:** PHASE 6 COMPLETE — 309 tests passing, 34 ignored
+**Current Phase:** PHASE 6.5 COMPLETE — 321 tests passing, 34 ignored (multi-relay fan-out)
 
 **Key Files:**
 - `docs/DOCS-MAP.md` - Navigation index (start here)
