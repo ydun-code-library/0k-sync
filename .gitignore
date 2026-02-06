@@ -20,3 +20,15 @@ Thumbs.db
 
 # Test artifacts
 *.log
+
+# Internal development process files
+AGENTS.md
+CLAUDE.md
+STATUS.md
+NEXT-SESSION-START-HERE.md
+JIMMYS-WORKFLOW.md
+.claude/
+
+# Internal docs (archive, handoffs, plans)
+docs/archive/
+docs/handoffs/
