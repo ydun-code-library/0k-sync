@@ -1,13 +1,40 @@
 # Next Session Start Here
 
-**Last Updated:** 2026-02-05
-**Last Session:** Security audit v2 remediation + documentation accuracy remediation (Q)
+**Last Updated:** 2026-02-06
+**Last Session:** README rewrite, repo public, security expert review (Q)
 **Current Phase:** PHASE 6 COMPLETE — 309 tests passing, 34 ignored
 **Next Handler:** Q (Chaos harness buildout, multi-relay failover design)
 
 ---
 
 ## Session History (Most Recent First)
+
+### 2026-02-06 (Session 4): README Rewrite + Repo Public + Security Expert Review
+
+**README Major Rewrite:**
+- Added "The Vision" section (edge AI, personal privacy use cases)
+- Added "Who's This For?" with three personas (defense/industrial, privacy-conscious, nerds)
+- Reframed Transport Layer as "relay-first, not P2P" (multi-relay failover priority)
+- Fixed honesty issues (removed unverified claims, "Minimal metadata" not "No metadata")
+- Added detailed Status table showing component completion
+- Quick Start now shows "build from source" (honest about publish status)
+
+**Repo Made Public:**
+- LICENSE-MIT and LICENSE-APACHE added
+- Branch protection enabled (PRs required, admin bypass for owner)
+- URL: https://github.com/ydun-code-library/0k-sync
+
+**Security Expert Review (Matthias/felsweg):**
+- Feedback on SHA-3/Keccak/SHAKE sponge functions
+- Feedback on OPRF for passphrase hardening
+- Research conducted and documented:
+  - `docs/research/pq-crypto-shake-mlkem.md`
+  - `docs/research/oprf-passphrase-hardening.md`
+
+**Other:**
+- E2E testing guide created: `docs/E2E-TESTING-GUIDE.md`
+- Beast relay rebuilt with latest code
+- gh auth switched to Jimmyh-world account
 
 ### 2026-02-05 (Session 3): Security Audit v1 + v2 Remediation + Docs Remediation
 
@@ -65,35 +92,22 @@ Phase 6 COMPLETE — security audit v1 + v2 remediation applied
 
 ## Outstanding Items
 
-### Beast Server State (STALE)
+### Beast Server State (CURRENT)
 
-Beast relay is running commit `fea1b50` (pre security audit v2). Needs rebuild:
-
-```bash
-ssh jimmyb@100.71.79.25
-cd ~/0k-sync
-git pull
-export PATH=$HOME/.cargo/bin:$PATH
-docker build -t 0k-sync-relay .
-docker stop relay && docker rm relay
-docker run -d -p 8080:8080 -v relay-data:/data --name relay 0k-sync-relay
-```
+Beast relay rebuilt 2026-02-06 with commit `1b1d142`. Running on port 8090.
 
 ### MCP Project Index (STALE)
 
-Re-index after documentation remediation:
+Re-index after README rewrite and research docs:
 
 ```bash
 ssh jimmyb@100.71.79.25 "reingest-project 0k-sync"
 ```
 
-### Push to GitHub
+### GitHub
 
-Documentation remediation commits need pushing:
-
-```bash
-git push origin main
-```
+Repo is PUBLIC: https://github.com/ydun-code-library/0k-sync
+Branch protection: PRs required, admin bypass enabled for Jimmyh-world
 
 ---
 
@@ -127,11 +141,14 @@ James wants this brought forward. Single relay = SPOF. iroh RelayMap supports mu
 
 | File | Purpose |
 |------|---------|
+| `README.md` | Public-facing project overview |
 | `docs/DOCS-MAP.md` | Navigation index |
 | `docs/02-SPECIFICATION.md` | Protocol specification |
+| `docs/E2E-TESTING-GUIDE.md` | Q ↔ Beast integration testing |
 | `docs/reviews/2026-02-05-security-audit-v2-report.md` | Latest audit |
+| `docs/research/pq-crypto-shake-mlkem.md` | PQ crypto research (Matthias feedback) |
+| `docs/research/oprf-passphrase-hardening.md` | OPRF research (Matthias feedback) |
 | `AGENTS.md` | Development guidelines |
-| `STATUS.md` | Progress tracking |
 
 ---
 
@@ -167,4 +184,4 @@ ssh jimmyb@100.71.79.25
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-06
