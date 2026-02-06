@@ -72,6 +72,8 @@
 |------|-------|---------|--------------|
 | `iroh-deep-dive-report.md` | 690 | **AMENDMENT SOURCE** — iroh ecosystem audit | Before spec updates |
 | `tactical-mesh-profile-appendix-d.md` | 877 | Defense/tactical applications | Strategic context |
+| `pq-crypto-shake-mlkem.md` | 150 | SHAKE256 + ML-KEM architecture | PQ implementation |
+| `oprf-passphrase-hardening.md` | 180 | OPRF for offline attack prevention | Enterprise tier design |
 
 ---
 
@@ -170,6 +172,8 @@ Dockerfile + Docker files (Containerization)
 ### Research Documents
 - `research/iroh-deep-dive-report.md` — iroh ecosystem
 - `research/tactical-mesh-profile-appendix-d.md` — Tactical applications
+- `research/pq-crypto-shake-mlkem.md` — SHAKE256 + ML-KEM for PQ compliance
+- `research/oprf-passphrase-hardening.md` — OPRF for offline attack prevention
 
 ### Release & Quality Documents
 - `05-RELEASE-STRATEGY.md` — Versioning, publishing, CI/CD, quality gates
