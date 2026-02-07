@@ -1,31 +1,5 @@
----
-tagline: "Zero-knowledge sync for local-first apps"
-description: >
-  The relay never sees your data. Not encrypted-at-rest-but-we-have-the-keys.
-  Actually zero knowledge. The relay is a dumb pipe that routes ciphertext
-  between your devices. No accounts, no key escrow. Keys derive from your
-  passphrase via Argon2id. Pure Rust, no runtime, designed for edge hardware,
-  slow networks, and battery-constrained devices.
-status: development
-icon: 0k-sync.svg
-tech:
-  - Rust
-  - iroh
-  - QUIC
-  - XChaCha20-Poly1305
-  - Argon2id
-  - BLAKE3
-highlights:
-  - "Zero-knowledge relay — the server can't read your data, even if compromised"
-  - "No accounts — devices pair via passphrase or QR code"
-  - "Multi-relay failover — connect failover, push fan-out, per-relay cursor tracking"
-  - "428 tests passing across 9 crates (Rust + JS + Python), 2 security audits completed"
-  - "Transport-agnostic core — sync-types and sync-core have zero iroh dependencies"
-  - "Multi-language bindings — Node.js/Bun (napi-rs) and Python (PyO3)"
-  - "Large file support with content-addressed hashing (BLAKE3) and chunked transfer"
----
 <p align="center">
-  <img src="assets/0k-sync.svg" alt="0k-Sync" width="400">
+  <img src="assets/0k-sync.png" alt="0k-Sync" width="400">
 </p>
 
 <p align="center">
@@ -365,6 +339,6 @@ MIT OR Apache-2.0 (your choice).
 ---
 
 <p align="center">
-  <img src="assets/0k-sync.svg" alt="0k-Sync" width="120"><br>
+  <img src="assets/0k-sync.png" alt="0k-Sync" width="120"><br>
   <em>Because "trust us" isn't a security model.</em>
 </p>
