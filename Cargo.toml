@@ -7,6 +7,7 @@ members = [
     "sync-content",
     "sync-bridge",
     "sync-node",
+    "sync-python",
     "sync-cli",
     "sync-relay",
     "tauri-plugin-sync",

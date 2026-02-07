@@ -1,0 +1,23 @@
+[package]
+name = "zerok-sync-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Python bindings for 0k-Sync via PyO3"
+keywords = ["sync", "zero-knowledge", "pyo3", "python"]
+categories = ["api-bindings"]
+
+[lib]
+name = "_zerok_sync"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Our bridge crate
+zerok-sync-bridge = { path = "../sync-bridge", package = "zerok-sync-bridge" }
+
+# PyO3 bindings
+pyo3 = { version = "0.28", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
+tokio = { workspace = true }

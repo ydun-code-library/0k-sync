@@ -23,6 +23,15 @@ node_modules/
 *.node
 package-lock.json
 
+# Python / PyO3
+*.so
+*.pyd
+*.whl
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
 # Test artifacts
 *.log
 
