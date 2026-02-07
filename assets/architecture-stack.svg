@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="520" rx="12" fill="#F8F7F4"/>
+
+  <!-- ==================== LEFT: Your Application ==================== -->
+  <rect x="40" y="30" width="540" height="310" rx="8" fill="#fff" filter="url(#shadow)"/>
+  <text x="310" y="60" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#2D3436">Your Application</text>
+
+  <!-- Table header -->
+  <rect x="60" y="78" width="500" height="30" rx="4" fill="#2D3436"/>
+  <text x="180" y="98" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#F8F7F4">Crate</text>
+  <text x="430" y="98" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#F8F7F4">Functionality</text>
+
+  <!-- Row 1: sync-client -->
+  <rect x="60" y="112" width="500" height="28" rx="0" fill="#fff"/>
+  <text x="80" y="131" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="#5BBFBF">sync-client</text>
+  <text x="310" y="131" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">E2E encryption, transport, cursors</text>
+
+  <!-- Row 2: sync-core -->
+  <rect x="60" y="140" width="500" height="28" rx="0" fill="#F5F4F1"/>
+  <text x="80" y="159" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="#5BBFBF">sync-core</text>
+  <text x="310" y="159" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">State machine, buffer logic (no I/O)</text>
+
+  <!-- Row 3: sync-types -->
+  <rect x="60" y="168" width="500" height="28" rx="0" fill="#fff"/>
+  <text x="80" y="187" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="#5BBFBF">sync-types</text>
+  <text x="310" y="187" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">Wire format (MessagePack)</text>
+
+  <!-- Row 4: sync-content -->
+  <rect x="60" y="196" width="500" height="28" rx="0" fill="#F5F4F1"/>
+  <text x="80" y="215" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="#5BBFBF">sync-content</text>
+  <text x="310" y="215" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">Encrypt-then-hash, large file transfer</text>
+
+  <!-- Row 5: iroh QUIC -->
+  <rect x="60" y="224" width="500" height="28" rx="0" fill="#fff"/>
+  <text x="80" y="243" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="#888">iroh QUIC</text>
+  <text x="310" y="243" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">Relay-first transport (P2P optional)</text>
+
+  <!-- Bindings section -->
+  <line x1="60" y1="262" x2="560" y2="262" stroke="#E8E6E1" stroke-width="1"/>
+  <text x="80" y="282" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#999">BINDINGS</text>
+
+  <!-- Row 6: sync-bridge -->
+  <rect x="60" y="290" width="160" height="26" rx="4" fill="#E8E6E1"/>
+  <text x="140" y="308" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#555">sync-bridge (FFI)</text>
+
+  <!-- Row 7: sync-node -->
+  <rect x="230" y="290" width="160" height="26" rx="4" fill="#E8E6E1"/>
+  <text x="310" y="308" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#555">sync-node (JS/Bun)</text>
+
+  <!-- Row 8: sync-python -->
+  <rect x="400" y="290" width="160" height="26" rx="4" fill="#E8E6E1"/>
+  <text x="480" y="308" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#555">sync-python (PyO3)</text>
+
+  <!-- ==================== RIGHT: sync-relay ==================== -->
+  <rect x="620" y="30" width="300" height="310" rx="8" fill="#fff" filter="url(#shadow)"/>
+  <text x="770" y="60" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#2D3436">sync-relay</text>
+
+  <!-- Relay bullet points -->
+  <circle cx="645" cy="92" r="3" fill="#5BBFBF"/>
+  <text x="658" y="97" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">Routes opaque blobs between</text>
+  <text x="658" y="113" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">paired devices</text>
+
+  <circle cx="645" cy="138" r="3" fill="#5BBFBF"/>
+  <text x="658" y="143" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">SQLite storage (WAL mode)</text>
+  <text x="658" y="159" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">for offline buffering</text>
+
+  <circle cx="645" cy="184" r="3" fill="#5BBFBF"/>
+  <text x="658" y="189" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">Rate limiting</text>
+  <text x="658" y="205" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">(per-device + global)</text>
+
+  <circle cx="645" cy="230" r="3" fill="#5BBFBF"/>
+  <text x="658" y="235" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">Multi-relay failover with</text>
+  <text x="658" y="251" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#555">push fan-out</text>
+
+  <circle cx="645" cy="276" r="3" fill="#5BBFBF"/>
+  <text x="658" y="281" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#2D3436">Zero plaintext, zero metadata</text>
+
+  <!-- ==================== BOTTOM: Crypto bar ==================== -->
+  <rect x="40" y="370" width="880" height="120" rx="8" fill="#2D3436" filter="url(#shadow)"/>
+  <text x="480" y="400" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#5BBFBF">Cryptographic Primitives</text>
+
+  <!-- Crypto pills -->
+  <rect x="60" y="418" width="190" height="28" rx="14" fill="#3D4849"/>
+  <text x="155" y="437" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#5BBFBF">XChaCha20-Poly1305</text>
+
+  <rect x="265" y="418" width="120" height="28" rx="14" fill="#3D4849"/>
+  <text x="325" y="437" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#5BBFBF">Argon2id</text>
+
+  <rect x="400" y="418" width="90" height="28" rx="14" fill="#3D4849"/>
+  <text x="445" y="437" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#5BBFBF">BLAKE3</text>
+
+  <rect x="505" y="418" width="130" height="28" rx="14" fill="#3D4849"/>
+  <text x="570" y="437" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#5BBFBF">HKDF-SHA256</text>
+
+  <rect x="650" y="418" width="140" height="28" rx="14" fill="#3D4849"/>
+  <text x="720" y="437" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#5BBFBF">QUIC (TLS 1.3)</text>
+
+  <text x="480" y="470" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#888">Hybrid PQ (ML-KEM-768 + X25519) designed, not yet implemented</text>
+</svg>

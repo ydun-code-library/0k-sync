@@ -10,21 +10,9 @@
   <em>The relay never sees your data. Not encrypted-at-rest-but-we-have-the-keys.<br>Actually zero knowledge. The relay is a dumb pipe that routes ciphertext between your devices.</em>
 </p>
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   Device A                        RELAY                        Device B    │
-│   ┌───────┐                    ┌─────────┐                    ┌───────┐    │
-│   │ App   │                    │ Routes  │                    │ App   │    │
-│   │ Data  │──► Encrypt ──────► │ Opaque  │ ──────────────────►│ Data  │    │
-│   │       │   (your key)       │ Blobs   │      Decrypt ◄─────│       │    │
-│   └───────┘                    │         │     (your key)     └───────┘    │
-│                                │ Sees:   │                                 │
-│                                │ Nothing │                                 │
-│                                └─────────┘                                 │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="assets/architecture-flow.svg" alt="Zero-knowledge sync flow: Device A encrypts, Relay routes opaque blobs, Device B decrypts" width="800">
+</p>
 
 ---
 
@@ -182,30 +170,9 @@ let blobs = client.pull().await?;
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        Your Application                         │
-├────────────────────────────────────────────────────────────────┤
-│  sync-client         │ E2E encryption, transport, cursors      │
-├──────────────────────┼─────────────────────────────────────────┤
-│  sync-core           │ State machine, buffer logic (no I/O)    │
-├──────────────────────┼─────────────────────────────────────────┤
-│  sync-types          │ Wire format (MessagePack)               │
-├────────────────────────────────────────────────────────────────┤
-│  iroh QUIC           │ Relay-first transport (P2P optional)    │
-└────────────────────────────────────────────────────────────────┘
-
-                              ▼
-
-┌────────────────────────────────────────────────────────────────┐
-│                         sync-relay                              │
-├────────────────────────────────────────────────────────────────┤
-│  • Routes opaque blobs between paired devices                  │
-│  • SQLite storage (WAL mode) for offline buffering             │
-│  • Rate limiting (per-device + global)                         │
-│  • Zero plaintext, zero metadata logging                       │
-└────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="assets/architecture-stack.svg" alt="Architecture: crate stack, sync-relay responsibilities, and cryptographic primitives" width="800">
+</p>
 
 **Crate breakdown:**
 
