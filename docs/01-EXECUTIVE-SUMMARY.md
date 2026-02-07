@@ -56,9 +56,9 @@ Device A                     RELAY                      Device B
 | **sync-client** | Rust library for E2E encryption, pairing, cursor tracking, multi-relay failover |
 | **sync-content** | Large file transfer via iroh-blobs (encrypt-then-hash) |
 | **sync-relay** | Stateless message router with temporary buffering (runs independently per region) |
-| **sync-bridge** | FFI bridge — resolves generic `SyncClient<T>` into concrete `SyncHandle` for bindings (planned) |
-| **sync-node** | napi-rs bindings — `@0k-sync/native` npm package for Bun/Node.js/Deno (planned) |
-| **sync-python** | PyO3 bindings — `zerok-sync` pip package for Python 3.10+ (planned) |
+| **sync-bridge** | FFI bridge — resolves generic `SyncClient<T>` into concrete `SyncHandle` for bindings |
+| **sync-node** | napi-rs bindings — `@0k-sync/native` npm package for Bun/Node.js/Deno |
+| **sync-python** | PyO3 bindings — `zerok-sync` pip package for Python 3.10+ |
 
 ### What We're NOT Building
 
@@ -200,9 +200,9 @@ sync-core      → Pure logic (state machine, no I/O)
 sync-client    → Library (crypto, transport)
     ↓
 ├── sync-cli       → Testing tool (headless E2E)
-├── sync-bridge    → FFI keystone (resolves generic for bindings) [PLANNED]
-│   ├── sync-node      → napi-rs (Bun, Node.js, Deno) [PLANNED]
-│   └── sync-python    → PyO3 (Python 3.10+) [PLANNED]
+├── sync-bridge    → FFI keystone (resolves generic for bindings)
+│   ├── sync-node      → napi-rs (Bun, Node.js, Deno)
+│   └── sync-python    → PyO3 (Python 3.10+)
 └── integrations   → Framework bindings (Tauri plugin, etc.)
     ↓
 sync-relay     → Custom relay (Tiers 2-6)
@@ -250,7 +250,7 @@ From research validation:
 | Who is it for? | Local-first developers (any framework) |
 | Why build it? | Fills the sync gap in local-first ecosystem |
 | How does it scale? | Client constant, relay tier changes |
-| What's validated? | iroh 0.96 (E2E tested), XChaCha20-Poly1305, Argon2id, multi-relay fan-out. Multi-language bindings spec'd (napi-rs, PyO3). Noise Protocol (clatter) not yet implemented. |
+| What's validated? | iroh 0.96 (E2E tested), XChaCha20-Poly1305, Argon2id, multi-relay fan-out. Multi-language bindings implemented (napi-rs, PyO3). 428 tests across 9 crates. Noise Protocol (clatter) not yet implemented. |
 | What's blocked? | FIPS compliance (enterprise only) |
 
 **0k-Sync completes local-first apps: Build → Store Locally → Sync Securely.**

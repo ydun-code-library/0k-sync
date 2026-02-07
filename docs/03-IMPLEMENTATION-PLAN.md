@@ -220,10 +220,10 @@ members = [
     "sync-cli",
     "tauri-plugin-sync",
     "tests/chaos",        # Chaos test harness (Phases 1-2 skeleton, scenarios added per phase)
-    # "sync-relay",  # Enable when implementing Phase 6
-    # "sync-bridge", # Phase 8A: FFI bridge crate
-    # "sync-node",   # Phase 8B: napi-rs (JS/TS bindings)
-    # "sync-python", # Phase 8C: PyO3 (Python bindings)
+    "sync-relay",
+    "sync-bridge",
+    "sync-node",
+    # "sync-python", # Built via maturin, not standard cargo workspace member
 ]
 
 [workspace.package]
@@ -309,7 +309,7 @@ bollard = "0.16"                 # Docker API client for topology management
 │  Phase 7: tauri-plugin      ◄──────────────────────────┘  ⚪ Optional   │
 │  (framework integration)                                 │               │
 │                                                          ▼               │
-│  Phase 8: Multi-Language    ◄────────────────────────────┘  ⚪ Planned  │
+│  Phase 8: Multi-Language    ◄────────────────────────────┘  ✅ Complete │
 │  Bindings (bridge + node + python)                                       │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -325,9 +325,9 @@ bollard = "0.16"                 # Docker API client for topology management
 | 4 | sync-cli | sync-client | None (testing tool) | ✅ Complete |
 | 5 | sync-client (transport) | sync-client | sync-content, sync-relay | ✅ Complete |
 | 3.5 | sync-content | sync-client, IrohTransport | tauri-plugin | ✅ Complete |
-| 6 | sync-relay | sync-types, IrohTransport | None | ⬅️ Next |
+| 6 | sync-relay | sync-types, IrohTransport | None | ✅ Complete |
 | 7 | tauri-plugin | sync-client, sync-content | None (optional) | ⚪ Not started |
-| 8 | sync-bridge, sync-node, sync-python | sync-client | None | ⚪ Planned |
+| 8 | sync-bridge, sync-node, sync-python | sync-client | None | ✅ Complete |
 
 ---
 
@@ -1970,7 +1970,7 @@ Expose sync-client to JavaScript/TypeScript (Bun, Node.js) and Python via a shar
 Before starting implementation, verify:
 
 - [ ] Spec Section 18 reviewed and understood
-- [ ] `cargo test --workspace` passes (321+ tests, 0 failures)
+- [x] `cargo test --workspace` passes (428+ tests, 0 failures)
 - [ ] `sync-client` public API is stable (no breaking changes planned)
 - [ ] napi-rs v3 installed (`cargo install napi-cli`)
 - [ ] maturin installed (`pip install maturin`)
