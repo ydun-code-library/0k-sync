@@ -187,9 +187,39 @@ let blobs = client.pull().await?;
 | `sync-bridge` | FFI-friendly bridge layer | 34 |
 | `sync-node` | Node.js/Bun bindings (napi-rs) | 10 + 21 JS |
 | `sync-python` | Python bindings (PyO3) | 11 + 31 pytest |
-| `chaos-tests` | Docker chaos harness + scenarios | 68 + 28 ignored |
+| `chaos-tests` | Chaos + distributed testing | 68 + 65 ignored |
 
-**394 Rust tests + 21 JS + 31 Python = 446 total.** Chaos test harness implemented (68 unit tests passing, 28 Docker-based scenario tests ready for Beast).
+**397 Rust tests + 21 JS + 31 Python = 449 total.** Two tiers of chaos testing: 28 single-host Docker scenarios (Toxiproxy) and 37 distributed scenarios across 3 machines over Tailscale.
+
+---
+
+## Testing
+
+We don't just test the happy path. We test what happens when the world falls apart.
+
+**Two tiers of chaos testing:**
+
+| Tier | What | How |
+|------|------|-----|
+| **Single-host** (28 tests) | Toxiproxy-mediated chaos — latency, packet loss, bandwidth limits, connection drops | Docker Compose on Beast |
+| **Distributed** (37 tests) | Real multi-machine sync across a Tailscale mesh — relay failover, edge device behavior, network partitions | Q (Mac Mini) + Beast (Linux server) + Guardian (Raspberry Pi) |
+
+**Distributed test topology:**
+
+```
+Q (Mac Mini) ──── Tailscale ──── Beast (91GB server)
+     │                               ├── Relay-1 (:8090)
+     │                               ├── Relay-2 (:8091)
+     │                               └── Relay-3 (:8092)
+     │
+     └──────── Tailscale ──── Guardian (Raspberry Pi)
+```
+
+Three permanent relays run on Beast. Tests connect to them, push/pull data, kill relays, inject network chaos, partition machines, and verify that data converges after recovery. Every test verifies the zero-knowledge invariant — no plaintext in any relay log.
+
+**Relay observability:** Each relay exposes Prometheus metrics (`/metrics`) and a JSON health endpoint (`/health`) with real-time counters — pushes, pulls, bytes transferred, connections, storage consumed, rate limit hits. You can see exactly what each relay is doing and how much it costs to operate.
+
+**See:** [Distributed Testing Guide](docs/07-DISTRIBUTED-TESTING-GUIDE.md) for setup, commands, and troubleshooting.
 
 ---
 
@@ -249,6 +279,7 @@ The client library is identical across all tiers. Only the relay endpoint change
 | [Specification](docs/02-SPECIFICATION.md) | Protocol details, message formats |
 | [Implementation Plan](docs/03-IMPLEMENTATION-PLAN.md) | TDD phases, what's built |
 | [Chaos Testing](docs/06-CHAOS-TESTING-STRATEGY.md) | Failure scenarios, invariants |
+| [Distributed Testing](docs/07-DISTRIBUTED-TESTING-GUIDE.md) | Multi-machine testing, relay ops, observability |
 | [Hybrid Crypto Design](appendix-b-hybrid-crypto.md) | Post-quantum roadmap |
 | [E2E Testing Guide](docs/E2E-TESTING-GUIDE.md) | How to run integration tests |
 
@@ -256,7 +287,7 @@ The client library is identical across all tiers. Only the relay endpoint change
 
 ## Status
 
-**Where we're at:** Phase 8 complete + chaos harness. Core protocol with multi-relay redundancy, multi-language bindings (JavaScript/Bun, Python), and Docker-based chaos testing infrastructure.
+**Where we're at:** Phase 8 complete + distributed chaos testing. Core protocol with multi-relay redundancy, multi-language bindings (JavaScript/Bun, Python), and multi-machine chaos testing across a 3-node Tailscale mesh.
 
 | What | Status |
 |------|--------|
@@ -273,11 +304,13 @@ The client library is identical across all tiers. Only the relay endpoint change
 | E2E cross-machine testing | ✅ Verified Q ↔ Beast |
 | Security audit | ✅ 2 audits, 0 critical/high remaining |
 | Docker deployment | ✅ Working |
-| Chaos test harness | ✅ 68 unit + 28 Docker scenarios |
+| Chaos testing (single-host) | ✅ 28 Docker scenarios (Toxiproxy) |
+| Distributed testing | ✅ 37 scenarios across Q/Beast/Guardian mesh |
+| Relay observability | ✅ Prometheus metrics (14 metrics), JSON health endpoint |
 | Crates.io publish | 🔜 When ready |
 | Hybrid post-quantum (Noise + ML-KEM) | 📋 Designed, not implemented |
 
-**446 tests passing (394 Rust + 21 JS + 31 Python).** This isn't vaporware — it's working code.
+**449 tests passing (397 Rust + 21 JS + 31 Python), plus 65 infrastructure-dependent tests.** This isn't vaporware — it's working code.
 
 **What's next:**
 - UniFFI bindings for Kotlin/Swift (mobile)
