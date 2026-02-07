@@ -1,11 +1,15 @@
-//! Pumba command wrapper for container chaos.
+//! Container chaos operations via bollard Docker API.
 //!
-//! Pumba is a tool for chaos testing Docker containers. This module
-//! provides a wrapper for generating Pumba commands.
+//! Replaces the Pumba binary dependency with direct bollard calls.
+//! All container lifecycle operations (kill, pause, stop, restart)
+//! are now handled through `ChaosHarness` methods.
+//!
+//! This module retains the `ContainerAction` and `PumbaConfig` types
+//! for backward compatibility with existing test code.
 
 use thiserror::Error;
 
-/// Errors that can occur when running Pumba.
+/// Errors that can occur during container chaos operations.
 #[derive(Debug, Error)]
 pub enum PumbaError {
     /// Command execution failed
@@ -35,7 +39,7 @@ pub enum ContainerAction {
 }
 
 impl ContainerAction {
-    /// Get the Pumba command string.
+    /// Get the action as a string.
     pub fn as_str(&self) -> &'static str {
         match self {
             ContainerAction::Kill => "kill",
@@ -46,7 +50,10 @@ impl ContainerAction {
     }
 }
 
-/// Configuration for a Pumba chaos action.
+/// Configuration for a container chaos action.
+///
+/// Use `ChaosHarness::kill_container()`, `ChaosHarness::pause_container()`,
+/// etc. instead of building these manually.
 #[derive(Debug, Clone)]
 pub struct PumbaConfig {
     /// Container name or regex pattern
@@ -108,7 +115,7 @@ impl PumbaConfig {
     }
 }
 
-/// Pumba command builder.
+/// Pumba command builder (legacy — prefer ChaosHarness methods).
 pub struct PumbaCommand {
     config: PumbaConfig,
 }
@@ -157,12 +164,6 @@ impl PumbaCommand {
     pub fn build_command(&self) -> String {
         let args = self.build_args();
         format!("pumba {}", args.join(" "))
-    }
-
-    /// Execute the command (placeholder).
-    pub async fn execute(&self) -> Result<(), PumbaError> {
-        // TODO: Actually execute the command
-        Ok(())
     }
 }
 

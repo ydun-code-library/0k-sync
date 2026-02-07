@@ -11,9 +11,8 @@ use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
 use zerok_sync_bridge::{
-    error::SyncBridgeError,
-    handle::derive_secret as bridge_derive_secret,
-    SyncHandle, SyncHandleConfig,
+    error::SyncBridgeError, handle::derive_secret as bridge_derive_secret, SyncHandle,
+    SyncHandleConfig,
 };
 
 // ============================================================

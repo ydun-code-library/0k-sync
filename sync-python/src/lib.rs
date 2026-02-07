@@ -13,9 +13,8 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 use zerok_sync_bridge::{
-    error::SyncBridgeError,
-    handle::derive_secret as bridge_derive_secret,
-    SyncHandle, SyncHandleConfig,
+    error::SyncBridgeError, handle::derive_secret as bridge_derive_secret, SyncHandle,
+    SyncHandleConfig,
 };
 
 // ============================================================
@@ -84,7 +83,10 @@ pub struct PushResult {
 #[pymethods]
 impl PushResult {
     fn __repr__(&self) -> String {
-        format!("PushResult(blob_id='{}', cursor={})", self.blob_id, self.cursor)
+        format!(
+            "PushResult(blob_id='{}', cursor={})",
+            self.blob_id, self.cursor
+        )
     }
 }
 
@@ -110,7 +112,9 @@ impl SyncBlob {
     fn __repr__(&self) -> String {
         format!(
             "SyncBlob(blob_id='{}', cursor={}, len={})",
-            self.blob_id, self.cursor, self.data.len()
+            self.blob_id,
+            self.cursor,
+            self.data.len()
         )
     }
 }
@@ -244,9 +248,7 @@ impl SyncClient {
     fn create<'py>(py: Python<'py>, config: &SyncConfig) -> PyResult<Bound<'py, PyAny>> {
         let bridge_config = py_config_to_bridge(config)?;
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let handle = SyncHandle::create(bridge_config)
-                .await
-                .map_err(to_py_err)?;
+            let handle = SyncHandle::create(bridge_config).await.map_err(to_py_err)?;
             Ok(SyncClient {
                 handle: Arc::new(handle),
             })
@@ -256,9 +258,10 @@ impl SyncClient {
     /// Check if connected to a relay.
     fn is_connected<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let handle = Arc::clone(&self.handle);
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            Ok(handle.is_connected().await)
-        })
+        pyo3_async_runtimes::tokio::future_into_py(
+            py,
+            async move { Ok(handle.is_connected().await) },
+        )
     }
 
     /// Get the current cursor position.
@@ -272,9 +275,10 @@ impl SyncClient {
     /// Get the address of the active relay (if connected).
     fn active_relay<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let handle = Arc::clone(&self.handle);
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            Ok(handle.active_relay().await)
-        })
+        pyo3_async_runtimes::tokio::future_into_py(
+            py,
+            async move { Ok(handle.active_relay().await) },
+        )
     }
 
     /// Connect to the relay(s).
@@ -317,10 +321,7 @@ impl SyncClient {
     fn pull_after<'py>(&self, py: Python<'py>, cursor: i64) -> PyResult<Bound<'py, PyAny>> {
         let handle = Arc::clone(&self.handle);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let blobs = handle
-                .pull_after(cursor as u64)
-                .await
-                .map_err(to_py_err)?;
+            let blobs = handle.pull_after(cursor as u64).await.map_err(to_py_err)?;
             Ok(blobs.into_iter().map(bridge_blob_to_py).collect::<Vec<_>>())
         })
     }

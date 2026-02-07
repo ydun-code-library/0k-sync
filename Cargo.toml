@@ -70,6 +70,8 @@ dashmap = "6"                    # Concurrent HashMap for session tracking
 
 # Chaos testing infrastructure
 bollard = "0.16"                 # Docker API client for topology management
+futures-util = "0.3"             # StreamExt for bollard log/exec streams
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }  # HTTP client for Toxiproxy API
 
 # Internal crates (package names use zerok-sync-* prefix for crates.io)
 sync-types = { path = "sync-types", package = "zerok-sync-types" }

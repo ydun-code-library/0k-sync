@@ -1,5 +1,7 @@
 # Dockerfile for sync-cli chaos testing
 # Build context: ../.. (workspace root)
+# Runs as root for tc netem support (NET_ADMIN capability)
+# Entrypoint is sleep infinity — test harness controls via docker exec
 
 # ---- Builder ----
 FROM rust:1-slim-bookworm AS builder
@@ -19,17 +21,17 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system synccli && useradd --system --gid synccli --home-dir /data --shell /usr/sbin/nologin synccli
-RUN mkdir -p /data && chown synccli:synccli /data
+RUN mkdir -p /data
 
 COPY --from=builder /app/target/release/sync-cli /usr/local/bin/sync-cli
 
-USER synccli
+# Run as root for tc netem support (chaos testing only)
 VOLUME /data
 
 ENV RUST_LOG=sync_cli=info
 
-ENTRYPOINT ["sync-cli"]
-CMD ["--help"]
+# Keep container alive for docker exec orchestration
+CMD ["sleep", "infinity"]

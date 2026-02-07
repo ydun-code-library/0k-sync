@@ -2,6 +2,10 @@
 //!
 //! Toxiproxy is a framework for simulating network conditions. This module
 //! provides a client for its HTTP API to add/remove toxics during tests.
+//!
+//! **Note:** Toxiproxy only supports TCP. For QUIC/UDP chaos, use the
+//! `netem` module with `tc qdisc` instead. Toxiproxy is still useful for
+//! chaosing the relay's HTTP health/metrics endpoint.
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -24,6 +28,16 @@ pub enum ToxiproxyError {
     /// Connection to Toxiproxy failed
     #[error("connection failed: {0}")]
     ConnectionFailed(String),
+}
+
+impl From<reqwest::Error> for ToxiproxyError {
+    fn from(e: reqwest::Error) -> Self {
+        if e.is_connect() {
+            ToxiproxyError::ConnectionFailed(e.to_string())
+        } else {
+            ToxiproxyError::Http(e.to_string())
+        }
+    }
 }
 
 /// Direction for a toxic (upstream = client→server, downstream = server→client).
@@ -105,12 +119,16 @@ impl Default for ToxiproxyConfig {
 /// Client for the Toxiproxy HTTP API.
 pub struct ToxiproxyClient {
     config: ToxiproxyConfig,
+    http: reqwest::Client,
 }
 
 impl ToxiproxyClient {
     /// Create a new Toxiproxy client.
     pub fn new(config: ToxiproxyConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            http: reqwest::Client::new(),
+        }
     }
 
     /// Get the base URL.
@@ -133,8 +151,18 @@ impl ToxiproxyClient {
 
     /// Add a toxic to a proxy.
     pub async fn add_toxic(&self, proxy_name: &str, toxic: &Toxic) -> Result<(), ToxiproxyError> {
-        // TODO: Implement HTTP POST
-        let _ = (proxy_name, toxic);
+        let url = self.toxics_url(proxy_name);
+        let response = self.http.post(&url).json(toxic).send().await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(ToxiproxyError::ProxyNotFound(proxy_name.to_string()));
+        }
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(ToxiproxyError::InvalidToxic(body));
+        }
+
         Ok(())
     }
 
@@ -144,16 +172,40 @@ impl ToxiproxyClient {
         proxy_name: &str,
         toxic_name: &str,
     ) -> Result<(), ToxiproxyError> {
-        // TODO: Implement HTTP DELETE
-        let _ = (proxy_name, toxic_name);
+        let url = self.toxic_url(proxy_name, toxic_name);
+        let response = self.http.delete(&url).send().await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(ToxiproxyError::ProxyNotFound(format!(
+                "{}/{}",
+                proxy_name, toxic_name
+            )));
+        }
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(ToxiproxyError::Http(body));
+        }
+
         Ok(())
     }
 
     /// List all toxics on a proxy.
     pub async fn list_toxics(&self, proxy_name: &str) -> Result<Vec<Toxic>, ToxiproxyError> {
-        // TODO: Implement HTTP GET
-        let _ = proxy_name;
-        Ok(vec![])
+        let url = self.toxics_url(proxy_name);
+        let response = self.http.get(&url).send().await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(ToxiproxyError::ProxyNotFound(proxy_name.to_string()));
+        }
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(ToxiproxyError::Http(body));
+        }
+
+        let toxics: Vec<Toxic> = response.json().await?;
+        Ok(toxics)
     }
 }
 

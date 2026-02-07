@@ -18,7 +18,7 @@ highlights:
   - "Zero-knowledge relay — the server can't read your data, even if compromised"
   - "No accounts — devices pair via passphrase or QR code"
   - "Multi-relay failover — connect failover, push fan-out, per-relay cursor tracking"
-  - "428 tests passing across 9 crates (Rust + JS + Python), 2 security audits completed"
+  - "446 tests passing across 9 crates + chaos harness (Rust + JS + Python), 2 security audits completed"
   - "Transport-agnostic core — sync-types and sync-core have zero iroh dependencies"
   - "Multi-language bindings — Node.js/Bun (napi-rs) and Python (PyO3)"
   - "Large file support with content-addressed hashing (BLAKE3) and chunked transfer"

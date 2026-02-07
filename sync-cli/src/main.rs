@@ -73,6 +73,10 @@ enum Commands {
         /// Join an existing sync group with invite code
         #[arg(long, conflicts_with = "create")]
         join: Option<String>,
+
+        /// Passphrase for the sync group (reads from stdin if omitted)
+        #[arg(long)]
+        passphrase: Option<String>,
     },
 
     /// Push data to the sync group
@@ -123,11 +127,15 @@ async fn main() -> Result<()> {
         Commands::Init { name } => {
             init::run(&data_dir, &name).await?;
         }
-        Commands::Pair { create, join } => {
+        Commands::Pair {
+            create,
+            join,
+            passphrase,
+        } => {
             if create {
-                pair::create(&data_dir, None).await?;
+                pair::create(&data_dir, passphrase.as_deref()).await?;
             } else if let Some(code) = join {
-                pair::join(&data_dir, &code, None).await?;
+                pair::join(&data_dir, &code, passphrase.as_deref()).await?;
             } else {
                 anyhow::bail!("Must specify either --create or --join");
             }

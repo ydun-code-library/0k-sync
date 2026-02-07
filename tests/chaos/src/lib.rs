@@ -12,6 +12,8 @@
 #![warn(clippy::all)]
 
 pub mod assertions;
+pub mod harness;
+pub mod netem;
 pub mod pumba;
 pub mod topology;
 pub mod toxiproxy;

@@ -1,6 +1,6 @@
 # Dockerfile for sync-relay chaos testing
 # Build context: ../.. (workspace root)
-# Same as root Dockerfile — diverge if chaos needs debug builds
+# Runs as root for tc netem (NET_ADMIN capability)
 
 # ---- Builder ----
 FROM rust:1-slim-bookworm AS builder
@@ -21,15 +21,15 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system relay && useradd --system --gid relay --home-dir /data --shell /usr/sbin/nologin relay
-RUN mkdir -p /data /etc/0k-sync && chown relay:relay /data
+RUN mkdir -p /data /etc/0k-sync
 
 COPY --from=builder /app/target/release/zerok-sync-relay /usr/local/bin/zerok-sync-relay
 COPY --from=builder /app/sync-relay/relay.docker.toml /etc/0k-sync/relay.toml
 
-USER relay
+# Run as root for tc netem support (chaos testing only)
 VOLUME /data
 EXPOSE 8080
 

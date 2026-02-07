@@ -1,5 +1,5 @@
 # Chaos Testing Docker Compose Configuration
-# Version: 1.1
+# Version: 2.0
 #
 # Topologies:
 # - Pair: 1 relay, 2 clients (default)
@@ -8,9 +8,10 @@
 # NOTE: Toxiproxy only supports TCP. The iroh QUIC transport uses UDP,
 # so toxiproxy cannot inject chaos into the QUIC path. The HTTP
 # health/metrics endpoint (port 8080) can still be chaosed via TCP.
+# Network chaos on QUIC uses `tc netem` via docker exec (NET_ADMIN).
 
 services:
-  # Toxiproxy for network chaos injection
+  # Toxiproxy for HTTP endpoint chaos injection (TCP only)
   toxiproxy:
     image: ghcr.io/shopify/toxiproxy:latest
     ports:
@@ -32,6 +33,8 @@ services:
     ports:
       - "8080:8080"
     stop_signal: SIGINT
+    cap_add:
+      - NET_ADMIN
     networks:
       - chaos-net
     volumes:
@@ -46,29 +49,32 @@ services:
       retries: 5
       start_period: 10s
 
-  # Client A
+  # Client A — stays alive via sleep infinity, controlled via docker exec
   client-a:
     build:
       context: ../..
       dockerfile: tests/chaos/Dockerfile.cli
+    cap_add:
+      - NET_ADMIN
     networks:
       - chaos-net
     depends_on:
       relay:
         condition: service_healthy
     environment:
-      # iroh uses NodeId-based discovery, not URL connections.
-      # Chaos test harness passes relay NodeId via command args.
       - CLIENT_NAME=client-a
       - DATA_DIR=/data
     volumes:
       - client-a-data:/data
+    command: ["sleep", "infinity"]
 
-  # Client B
+  # Client B — stays alive via sleep infinity, controlled via docker exec
   client-b:
     build:
       context: ../..
       dockerfile: tests/chaos/Dockerfile.cli
+    cap_add:
+      - NET_ADMIN
     networks:
       - chaos-net
     depends_on:
@@ -79,6 +85,7 @@ services:
       - DATA_DIR=/data
     volumes:
       - client-b-data:/data
+    command: ["sleep", "infinity"]
 
 networks:
   chaos-net:

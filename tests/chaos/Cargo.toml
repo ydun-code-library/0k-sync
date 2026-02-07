@@ -17,9 +17,18 @@ serde_json = { workspace = true }
 
 # Docker management
 bollard = { workspace = true }
+futures-util = { workspace = true }
+
+# HTTP client for Toxiproxy API
+reqwest = { workspace = true }
 
 # Sync client for chaos testing
 sync-client = { workspace = true }
 sync-core = { workspace = true }
+
+# Unique IDs for test isolation
+uuid = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
