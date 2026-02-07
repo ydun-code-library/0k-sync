@@ -8,9 +8,34 @@ use crate::storage::SqliteStorage;
 use dashmap::DashMap;
 use iroh::endpoint::Connection;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use sync_types::{Cursor, DeviceId, GroupId, Message, Notify};
 use tokio::sync::RwLock;
+
+/// Operational metrics for monitoring relay activity.
+///
+/// All counters are monotonically increasing (reset only on restart).
+/// Thread-safe via `AtomicU64` — no locks needed for incrementing.
+#[derive(Debug, Default)]
+pub struct RelayMetrics {
+    /// Total PUSH requests handled successfully.
+    pub pushes_total: AtomicU64,
+    /// Total PULL requests handled successfully.
+    pub pulls_total: AtomicU64,
+    /// Total connections accepted (before session establishment).
+    pub connections_total: AtomicU64,
+    /// Total ciphertext bytes received (push payloads).
+    pub bytes_received: AtomicU64,
+    /// Total ciphertext bytes sent (pull response payloads).
+    pub bytes_sent: AtomicU64,
+    /// Total blobs stored in the database.
+    pub blobs_stored: AtomicU64,
+    /// Total rate limit rejections (connection + message + global).
+    pub rate_limit_hits: AtomicU64,
+    /// Total protocol errors (invalid messages, auth failures, etc.).
+    pub errors_total: AtomicU64,
+}
 
 /// Active session tracking for a group.
 #[derive(Debug, Default)]
@@ -25,6 +50,8 @@ pub struct SyncRelay {
     storage: Arc<SqliteStorage>,
     /// Rate limiters for connections and messages.
     rate_limits: RateLimits,
+    /// Operational metrics (counters, gauges).
+    metrics: RelayMetrics,
     /// Active sessions per group.
     sessions: DashMap<GroupId, Arc<RwLock<GroupSessions>>>,
     /// Active connections for NOTIFY delivery (stored separately to preserve Debug on GroupSessions).
@@ -36,6 +63,7 @@ impl std::fmt::Debug for SyncRelay {
         f.debug_struct("SyncRelay")
             .field("config", &self.config)
             .field("rate_limits", &self.rate_limits)
+            .field("metrics", &self.metrics)
             .field("sessions_count", &self.sessions.len())
             .finish_non_exhaustive()
     }
@@ -49,6 +77,7 @@ impl SyncRelay {
             config,
             storage: Arc::new(storage),
             rate_limits,
+            metrics: RelayMetrics::default(),
             sessions: DashMap::new(),
             notify_connections: DashMap::new(),
         }
@@ -72,6 +101,11 @@ impl SyncRelay {
     /// Get access to the rate limiters.
     pub fn rate_limits(&self) -> &RateLimits {
         &self.rate_limits
+    }
+
+    /// Get access to the operational metrics.
+    pub fn metrics(&self) -> &RelayMetrics {
+        &self.metrics
     }
 
     /// Register a session (device connected to a group).

@@ -150,6 +150,35 @@ impl SqliteStorage {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0)
     }
+
+    /// Get total number of blobs across all groups.
+    pub async fn get_total_blobs(&self) -> Result<u64, StorageError> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM blobs")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(StorageError::Database)?;
+        Ok(count as u64)
+    }
+
+    /// Get total storage used across all groups (sum of payload sizes in bytes).
+    pub async fn get_total_storage_bytes(&self) -> Result<u64, StorageError> {
+        let size: Option<i64> =
+            sqlx::query_scalar("SELECT SUM(LENGTH(payload)) FROM blobs")
+                .fetch_one(&self.pool)
+                .await
+                .map_err(StorageError::Database)?;
+        Ok(size.unwrap_or(0) as u64)
+    }
+
+    /// Get total number of distinct groups with stored blobs.
+    pub async fn get_total_groups_with_data(&self) -> Result<u64, StorageError> {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(DISTINCT group_id) FROM blobs")
+                .fetch_one(&self.pool)
+                .await
+                .map_err(StorageError::Database)?;
+        Ok(count as u64)
+    }
 }
 
 #[async_trait]

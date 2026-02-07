@@ -12,6 +12,8 @@ services:
       dockerfile: tests/chaos/Dockerfile.relay
     ports:
       - "8090:8080"
+    environment:
+      - RUST_LOG=sync_relay=debug,iroh=warn
     stop_signal: SIGINT
     cap_add:
       - NET_ADMIN
@@ -30,6 +32,8 @@ services:
       dockerfile: tests/chaos/Dockerfile.relay
     ports:
       - "8091:8080"
+    environment:
+      - RUST_LOG=sync_relay=debug,iroh=warn
     stop_signal: SIGINT
     cap_add:
       - NET_ADMIN
@@ -48,6 +52,8 @@ services:
       dockerfile: tests/chaos/Dockerfile.relay
     ports:
       - "8092:8080"
+    environment:
+      - RUST_LOG=sync_relay=debug,iroh=warn
     stop_signal: SIGINT
     cap_add:
       - NET_ADMIN

@@ -1,13 +1,31 @@
 //! Distributed chaos test harness — multi-machine orchestrator.
 //!
-//! Manages 3 relay instances on Beast, clients on Q/Beast/Guardian,
-//! and chaos injection across the Tailscale mesh.
+//! Connects to 3 permanent relay instances on Beast (project `dist-chaos`).
+//! Each test gets fresh client state (passphrase, data dirs) but shares
+//! the same relays. Tests that kill/restart relays restore them before returning.
+//!
+//! ## Relay Lifecycle
+//!
+//! Relays are started ONCE and left running:
+//! ```bash
+//! ssh jimmyb@100.71.79.25 "cd ~/0k-sync && docker compose \
+//!     -f tests/chaos/docker-compose.distributed.yml -p dist-chaos up -d --build --wait"
+//! ```
+//!
+//! To stop them:
+//! ```bash
+//! ssh jimmyb@100.71.79.25 "cd ~/0k-sync && docker compose \
+//!     -f tests/chaos/docker-compose.distributed.yml -p dist-chaos down -v"
+//! ```
 
 use thiserror::Error;
 
 use super::config;
 use super::ssh::SshError;
 use crate::netem::NetemConfig;
+
+/// Fixed Docker Compose project name for the permanent relays.
+const COMPOSE_PROJECT: &str = "dist-chaos";
 
 /// Errors from distributed harness operations.
 #[derive(Debug, Error)]
@@ -50,6 +68,10 @@ pub enum DistributedError {
         /// Error detail.
         detail: String,
     },
+
+    /// Relays not running.
+    #[error("relays not running — start them first: ssh jimmyb@100.71.79.25 \"cd ~/0k-sync && docker compose -f tests/chaos/docker-compose.distributed.yml -p dist-chaos up -d --build --wait\"")]
+    RelaysNotRunning,
 }
 
 /// Which machine to target for client operations.
@@ -84,59 +106,46 @@ pub enum ChaosTarget {
 
 /// Multi-machine distributed chaos test orchestrator.
 ///
-/// Manages:
-/// - 3 relay instances on Beast (Docker Compose)
-/// - Client on Q (local process)
-/// - Client on Beast (Docker container)
-/// - Client on Guardian (SSH + cross-compiled binary)
-/// - Chaos injection (tc netem, iptables)
+/// Connects to 3 permanent relays on Beast (`dist-chaos` project).
+/// Each harness instance gets a unique passphrase and data directories
+/// for test isolation, but shares the same relay infrastructure.
 pub struct DistributedHarness {
     /// Random passphrase for this test's sync group.
     passphrase: String,
     /// Discovered Endpoint IDs for each relay (index 0-2).
     relay_endpoint_ids: Vec<String>,
-    /// Unique Docker Compose project name on Beast.
-    compose_project: String,
     /// Local temp directory for Q's client state.
     q_data_dir: tempfile::TempDir,
-    /// Per-machine data directories (for cleanup tracking).
+    /// Guardian data directory for this test.
     guardian_data_dir: String,
+    /// Unique test ID (for data dir isolation).
+    test_id: String,
 }
 
 impl DistributedHarness {
-    /// Start 3 relays on Beast and discover their Endpoint IDs.
-    pub async fn setup() -> Result<Self, DistributedError> {
-        let compose_project = format!("dist-{}", &uuid::Uuid::new_v4().as_simple().to_string()[..12]);
-        let passphrase = format!("dist-test-{}", &compose_project[5..]);
+    /// Connect to the permanent relays and create fresh client state.
+    ///
+    /// Does NOT start relays — they must already be running.
+    /// Fails fast with `RelaysNotRunning` if they're down.
+    pub async fn connect() -> Result<Self, DistributedError> {
+        let test_id = uuid::Uuid::new_v4().as_simple().to_string()[..12].to_string();
+        let passphrase = format!("dist-test-{}", &test_id);
         let q_data_dir = tempfile::tempdir()?;
-        let guardian_data_dir = format!("{}/{}", config::GUARDIAN_DATA_DIR, &compose_project);
+        let guardian_data_dir = format!("{}/dist-{}", config::GUARDIAN_DATA_DIR, &test_id);
 
-        // Ensure Beast repo is up to date
-        config::BEAST
-            .exec_ok(&format!("cd {} && git pull --ff-only", config::BEAST_REPO))
-            .await
-            .map_err(|e| DistributedError::Compose(format!("git pull on Beast failed: {}", e)))?;
-
-        // Start 3 relays on Beast via docker compose
-        let compose_cmd = format!(
-            "cd {} && docker compose -f {} -p {} up -d --build --wait",
-            config::BEAST_REPO,
-            config::DISTRIBUTED_COMPOSE,
-            compose_project,
-        );
-        let result = config::BEAST.exec(&compose_cmd).await?;
-        if !result.success() {
-            return Err(DistributedError::Compose(format!(
-                "docker compose up failed: {}",
-                result.stderr
-            )));
+        // Verify relays are running by checking health
+        let health = config::BEAST
+            .exec("curl -sf http://localhost:8090/health")
+            .await?;
+        if !health.success() {
+            return Err(DistributedError::RelaysNotRunning);
         }
 
-        // Discover Endpoint IDs from each relay's logs
+        // Discover Endpoint IDs from existing relay logs
         let mut relay_endpoint_ids = Vec::new();
         for i in 0..3 {
             let service = format!("relay-{}", i + 1);
-            let id = Self::discover_endpoint_id_on_beast(&compose_project, &service).await?;
+            let id = Self::discover_endpoint_id(&service).await?;
             relay_endpoint_ids.push(id);
         }
 
@@ -148,26 +157,26 @@ impl DistributedHarness {
         Ok(Self {
             passphrase,
             relay_endpoint_ids,
-            compose_project,
             q_data_dir,
             guardian_data_dir,
+            test_id,
         })
     }
 
-    /// Tear down all relays and clean up client state everywhere.
-    pub async fn teardown(&self) -> Result<(), DistributedError> {
-        // Stop relays on Beast
-        let compose_cmd = format!(
-            "cd {} && docker compose -f {} -p {} down -v --remove-orphans",
-            config::BEAST_REPO,
-            config::DISTRIBUTED_COMPOSE,
-            self.compose_project,
-        );
-        config::BEAST.exec(&compose_cmd).await?;
-
-        // Clean Guardian data
+    /// Clean up client state only. Does NOT touch relays.
+    pub async fn cleanup(&self) -> Result<(), DistributedError> {
+        // Clean Guardian data for this test
         config::GUARDIAN
             .exec(&format!("rm -rf {}", self.guardian_data_dir))
+            .await?;
+
+        // Clean Beast client-beast container data for this test
+        // (The container persists, but we can clean /data between tests)
+        config::BEAST
+            .exec(&format!(
+                "docker exec {}-client-beast-1 sh -c 'rm -rf /data/*'",
+                COMPOSE_PROJECT
+            ))
             .await?;
 
         // Q data dir cleaned up by TempDir drop
@@ -184,11 +193,6 @@ impl DistributedHarness {
         &self.relay_endpoint_ids
     }
 
-    /// Get the compose project name.
-    pub fn compose_project(&self) -> &str {
-        &self.compose_project
-    }
-
     /// Get Q's data directory path.
     pub fn q_data_dir(&self) -> &std::path::Path {
         self.q_data_dir.path()
@@ -199,21 +203,54 @@ impl DistributedHarness {
         &self.guardian_data_dir
     }
 
+    /// Get the test ID.
+    pub fn test_id(&self) -> &str {
+        &self.test_id
+    }
+
     // ========================================================================
-    // Relay management
+    // Relay management (for tests that need to kill/restart)
     // ========================================================================
+
+    /// Start all 3 relays on Beast (one-time setup).
+    ///
+    /// Run this once before a test session, not per test.
+    pub async fn start_relays() -> Result<(), DistributedError> {
+        let cmd = format!(
+            "cd {} && docker compose -f {} -p {} up -d --build --wait",
+            config::BEAST_REPO,
+            config::DISTRIBUTED_COMPOSE,
+            COMPOSE_PROJECT,
+        );
+        let result = config::BEAST.exec(&cmd).await?;
+        if !result.success() {
+            return Err(DistributedError::Compose(format!(
+                "docker compose up failed: {}",
+                result.stderr
+            )));
+        }
+        Ok(())
+    }
+
+    /// Stop all relays on Beast (end of session cleanup).
+    pub async fn stop_relays() -> Result<(), DistributedError> {
+        let cmd = format!(
+            "cd {} && docker compose -f {} -p {} down -v --remove-orphans",
+            config::BEAST_REPO,
+            config::DISTRIBUTED_COMPOSE,
+            COMPOSE_PROJECT,
+        );
+        config::BEAST.exec(&cmd).await?;
+        Ok(())
+    }
 
     /// Discover a relay's Endpoint ID from its Docker logs on Beast.
-    async fn discover_endpoint_id_on_beast(
-        project: &str,
-        service: &str,
-    ) -> Result<String, DistributedError> {
+    async fn discover_endpoint_id(service: &str) -> Result<String, DistributedError> {
         let cmd = format!(
             "docker compose -p {} logs {} 2>&1",
-            project, service
+            COMPOSE_PROJECT, service
         );
 
-        // Retry for up to ENDPOINT_ID_TIMEOUT_SECS
         let deadline = tokio::time::Instant::now()
             + tokio::time::Duration::from_secs(config::ENDPOINT_ID_TIMEOUT_SECS);
 
@@ -225,7 +262,6 @@ impl DistributedHarness {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
 
-        // Parse index from service name (e.g., "relay-1" -> 0)
         let index = service
             .strip_prefix("relay-")
             .and_then(|s| s.parse::<usize>().ok())
@@ -238,10 +274,7 @@ impl DistributedHarness {
     /// Check health of a specific relay via its HTTP endpoint.
     pub async fn relay_health(&self, index: usize) -> Result<bool, DistributedError> {
         let port = config::RELAY_HTTP_PORTS[index];
-        let cmd = format!(
-            "curl -sf http://localhost:{}/health",
-            port
-        );
+        let cmd = format!("curl -sf http://localhost:{}/health", port);
         let result = config::BEAST.exec(&cmd).await?;
         Ok(result.success())
     }
@@ -249,10 +282,7 @@ impl DistributedHarness {
     /// Kill a specific relay container on Beast.
     pub async fn kill_relay(&self, index: usize) -> Result<(), DistributedError> {
         let service = format!("relay-{}", index + 1);
-        let cmd = format!(
-            "docker compose -p {} kill {}",
-            self.compose_project, service
-        );
+        let cmd = format!("docker compose -p {} kill {}", COMPOSE_PROJECT, service);
         config::BEAST.exec_ok(&cmd).await?;
         Ok(())
     }
@@ -261,12 +291,13 @@ impl DistributedHarness {
     pub async fn restart_relay(&self, index: usize) -> Result<String, DistributedError> {
         let service = format!("relay-{}", index + 1);
         let cmd = format!(
-            "docker compose -f {} -p {} up -d --wait {}",
+            "cd {} && docker compose -f {} -p {} up -d --wait {}",
+            config::BEAST_REPO,
             config::DISTRIBUTED_COMPOSE,
-            self.compose_project,
+            COMPOSE_PROJECT,
             service,
         );
-        let result = config::BEAST.exec(&format!("cd {} && {}", config::BEAST_REPO, cmd)).await?;
+        let result = config::BEAST.exec(&cmd).await?;
         if !result.success() {
             return Err(DistributedError::Compose(format!(
                 "relay restart failed: {}",
@@ -274,9 +305,8 @@ impl DistributedHarness {
             )));
         }
 
-        // Wait for new Endpoint ID
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        Self::discover_endpoint_id_on_beast(&self.compose_project, &service).await
+        Self::discover_endpoint_id(&service).await
     }
 
     /// Collect logs from all 3 relays.
@@ -286,7 +316,7 @@ impl DistributedHarness {
             let service = format!("relay-{}", i);
             let cmd = format!(
                 "docker compose -p {} logs {} 2>&1",
-                self.compose_project, service
+                COMPOSE_PROJECT, service
             );
             let result = config::BEAST.exec(&cmd).await?;
             logs.push(result.stdout);
@@ -302,7 +332,6 @@ impl DistributedHarness {
     ///
     /// Checks if the binary exists. If not, cross-compiles on Beast and SCPs.
     pub async fn ensure_guardian_binary() -> Result<(), DistributedError> {
-        // Check if binary exists on Guardian
         let check = config::GUARDIAN
             .exec(&format!("{} --version", config::GUARDIAN_CLI))
             .await?;
@@ -311,7 +340,6 @@ impl DistributedHarness {
             return Ok(());
         }
 
-        // Cross-compile on Beast
         let build_cmd = format!(
             "export PATH=$HOME/.cargo/bin:$PATH && cd {} && \
              cargo install cross 2>/dev/null || true && \
@@ -322,7 +350,6 @@ impl DistributedHarness {
             DistributedError::GuardianBinary(format!("cross-compile failed: {}", e))
         })?;
 
-        // SCP from Beast to Guardian
         let scp_cmd = format!(
             "scp {}/target/aarch64-unknown-linux-gnu/release/sync-cli {}@{}:{}",
             config::BEAST_REPO,
@@ -334,7 +361,6 @@ impl DistributedHarness {
             DistributedError::GuardianBinary(format!("SCP to Guardian failed: {}", e))
         })?;
 
-        // Make executable
         config::GUARDIAN
             .exec_ok(&format!("chmod +x {}", config::GUARDIAN_CLI))
             .await?;
@@ -378,12 +404,11 @@ impl DistributedHarness {
 
     /// Push data from a specific machine.
     pub async fn push(&self, machine: Machine, data: &str) -> Result<String, DistributedError> {
-        let result = match machine {
-            Machine::Q => self.run_cli_q(&["push", data]).await?,
-            Machine::Beast => self.run_cli_beast(&["push", data]).await?,
-            Machine::Guardian => self.run_cli_guardian(&["push", data]).await?,
-        };
-        Ok(result)
+        match machine {
+            Machine::Q => self.run_cli_q(&["push", data]).await,
+            Machine::Beast => self.run_cli_beast(&["push", data]).await,
+            Machine::Guardian => self.run_cli_guardian(&["push", data]).await,
+        }
     }
 
     /// Pull data from a specific machine.
@@ -433,7 +458,7 @@ impl DistributedHarness {
 
     /// Run sync-cli in the client-beast Docker container on Beast.
     async fn run_cli_beast(&self, args: &[&str]) -> Result<String, DistributedError> {
-        let container = format!("{}-client-beast-1", self.compose_project);
+        let container = format!("{}-client-beast-1", COMPOSE_PROJECT);
         let mut cmd_parts = vec![
             "docker", "exec", &container,
             "sync-cli", "--data-dir", "/data",
@@ -461,7 +486,6 @@ impl DistributedHarness {
         );
         for arg in args {
             cmd.push(' ');
-            // Quote args that might contain spaces
             if arg.contains(' ') {
                 cmd.push('"');
                 cmd.push_str(arg);
@@ -484,24 +508,16 @@ impl DistributedHarness {
     // ========================================================================
 
     /// Inject all relay Endpoint IDs into a client's group.json.
-    ///
-    /// After `pair --join <relay1>`, group.json has only relay-1's address.
-    /// This patches it to include all 3 relays for failover testing.
     async fn inject_multi_relay_config(&self, machine: Machine) -> Result<(), DistributedError> {
-        let all_ids: Vec<&str> = self.relay_endpoint_ids.iter().map(|s| s.as_str()).collect();
-        // Build JSON array string
         let json_array = format!(
             "[{}]",
-            all_ids
+            self.relay_endpoint_ids
                 .iter()
                 .map(|id| format!("\"{}\"", id))
                 .collect::<Vec<_>>()
                 .join(",")
         );
 
-        // Use Python-style sed to replace the relay_addresses array
-        // The group.json has: "relay_node_ids":["<id1>"]  or  "relay_addresses":["<id1>"]
-        // We need to replace it with all relay IDs
         let sed_cmd = format!(
             r#"sed -i 's/"relay_node_ids":\[[^]]*\]/"relay_node_ids":{}/g' "#,
             json_array,
@@ -511,7 +527,6 @@ impl DistributedHarness {
             Machine::Q => {
                 let group_json = self.q_data_dir.path().join("group.json");
                 let path = group_json.to_str().unwrap_or("");
-                // macOS sed requires '' after -i
                 let mac_sed = format!(
                     r#"sed -i '' 's/"relay_node_ids":\[[^]]*\]/"relay_node_ids":{}/g' "{}""#,
                     json_array, path,
@@ -528,7 +543,7 @@ impl DistributedHarness {
                 }
             }
             Machine::Beast => {
-                let container = format!("{}-client-beast-1", self.compose_project);
+                let container = format!("{}-client-beast-1", COMPOSE_PROJECT);
                 let cmd = format!(
                     "docker exec {} sh -c '{}\"/data/group.json\"'",
                     container, sed_cmd
@@ -571,7 +586,7 @@ impl DistributedHarness {
 
         match target {
             ChaosTarget::Relay(index) => {
-                let container = format!("{}-relay-{}-1", self.compose_project, index + 1);
+                let container = format!("{}-relay-{}-1", COMPOSE_PROJECT, index + 1);
                 let cmd = format!("docker exec {} tc {}", container, tc_args);
                 config::BEAST.exec_ok(&cmd).await?;
             }
@@ -591,9 +606,9 @@ impl DistributedHarness {
 
         match target {
             ChaosTarget::Relay(index) => {
-                let container = format!("{}-relay-{}-1", self.compose_project, index + 1);
+                let container = format!("{}-relay-{}-1", COMPOSE_PROJECT, index + 1);
                 let cmd = format!("docker exec {} tc {}", container, tc_args);
-                config::BEAST.exec(&cmd).await?; // Don't fail if no qdisc
+                config::BEAST.exec(&cmd).await?;
             }
             ChaosTarget::Guardian => {
                 let cmd = format!("sudo tc {}", tc_args);
@@ -627,10 +642,7 @@ impl DistributedHarness {
     }
 }
 
-/// Extract an iroh Endpoint ID from a log line.
-///
-/// Looks for `Endpoint ID: <64-char hex>` pattern. Reuses the same
-/// regex logic as `crate::harness::extract_endpoint_id`.
+/// Extract an iroh Endpoint ID from log text.
 fn extract_endpoint_id(text: &str) -> Option<String> {
     for line in text.lines() {
         if let Some(pos) = line.find("Endpoint ID: ") {
@@ -675,28 +687,19 @@ mod tests {
     }
 
     // ====================================================================
-    // Sprint 2: Remote relay management
+    // Relay connectivity (requires relays already running)
     // ====================================================================
 
     #[tokio::test]
     #[ignore = "requires distributed"]
-    async fn distributed_start_3_relays() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+    async fn distributed_connect_to_relays() {
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
-        // All 3 relays should be running
         assert_eq!(
             harness.relay_endpoint_ids().len(),
             3,
             "Expected 3 relay Endpoint IDs"
         );
-
-        harness.teardown().await.expect("teardown failed");
-    }
-
-    #[tokio::test]
-    #[ignore = "requires distributed"]
-    async fn distributed_discover_endpoint_ids() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
 
         // All 3 IDs should be distinct 64-char hex
         let ids = harness.relay_endpoint_ids();
@@ -710,18 +713,17 @@ mod tests {
             );
         }
 
-        // All distinct
         let unique: std::collections::HashSet<&str> =
             ids.iter().map(|s| s.as_str()).collect();
         assert_eq!(unique.len(), 3, "Endpoint IDs not unique: {:?}", ids);
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_relay_health_checks() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         for i in 0..3 {
             let healthy = harness
@@ -731,31 +733,11 @@ mod tests {
             assert!(healthy, "Relay {} not healthy", i);
         }
 
-        harness.teardown().await.expect("teardown failed");
-    }
-
-    #[tokio::test]
-    #[ignore = "requires distributed"]
-    async fn distributed_teardown_cleans_up() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
-        let project = harness.compose_project().to_string();
-
-        harness.teardown().await.expect("teardown failed");
-
-        // Verify containers are gone
-        let result = config::BEAST
-            .exec(&format!("docker compose -p {} ps -q", project))
-            .await
-            .expect("ps check failed");
-        assert!(
-            result.stdout.trim().is_empty(),
-            "Containers still running after teardown: {}",
-            result.stdout
-        );
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     // ====================================================================
-    // Sprint 3: Guardian binary
+    // Guardian binary
     // ====================================================================
 
     #[tokio::test]
@@ -798,7 +780,6 @@ mod tests {
 
         let data_dir = format!("{}/init-test-{}", config::GUARDIAN_DATA_DIR, uuid::Uuid::new_v4());
 
-        // Init on Guardian
         let result = config::GUARDIAN
             .exec_ok(&format!(
                 "{} --data-dir {} init --name test-guardian",
@@ -808,7 +789,6 @@ mod tests {
             .expect("init failed");
         assert!(result.success(), "init failed on Guardian");
 
-        // Clean up
         config::GUARDIAN
             .exec(&format!("rm -rf {}", data_dir))
             .await
@@ -816,15 +796,14 @@ mod tests {
     }
 
     // ====================================================================
-    // Sprint 4: Client orchestration
+    // Client orchestration
     // ====================================================================
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_init_pair_q() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
-        // Init and pair on Q only
         let primary_relay = &harness.relay_endpoint_ids()[0].clone();
         harness.run_cli_q(&["init", "--name", "test-q"]).await.expect("init Q failed");
         harness
@@ -832,13 +811,13 @@ mod tests {
             .await
             .expect("pair Q failed");
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_init_pair_guardian() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         DistributedHarness::ensure_guardian_binary()
             .await
@@ -854,13 +833,13 @@ mod tests {
             .await
             .expect("pair Guardian failed");
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_init_pair_beast_container() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         let primary_relay = &harness.relay_endpoint_ids()[0].clone();
         harness
@@ -872,19 +851,18 @@ mod tests {
             .await
             .expect("pair Beast container failed");
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_push_pull_q_to_guardian() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         DistributedHarness::ensure_guardian_binary()
             .await
             .expect("ensure_guardian_binary failed");
 
-        // Init and pair Q + Guardian
         let primary_relay = &harness.relay_endpoint_ids()[0].clone();
         harness.run_cli_q(&["init", "--name", "test-q"]).await.unwrap();
         harness
@@ -900,14 +878,11 @@ mod tests {
             .await
             .unwrap();
 
-        // Push from Q
         let msg = format!("dist-test-{}", uuid::Uuid::new_v4());
         harness.push(Machine::Q, &msg).await.expect("push from Q failed");
 
-        // Wait for relay propagation
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
-        // Pull on Guardian
         let output = harness.pull(Machine::Guardian).await.expect("pull on Guardian failed");
         assert!(
             output.contains(&msg),
@@ -915,13 +890,13 @@ mod tests {
             output
         );
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_configure_multi_relay() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         DistributedHarness::ensure_guardian_binary()
             .await
@@ -929,7 +904,6 @@ mod tests {
 
         harness.init_and_pair_all().await.expect("init_and_pair_all failed");
 
-        // Verify Q's group.json has all 3 relay IDs
         let group_json_path = harness.q_data_dir().join("group.json");
         let content = tokio::fs::read_to_string(&group_json_path)
             .await
@@ -943,17 +917,17 @@ mod tests {
             );
         }
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     // ====================================================================
-    // Sprint 5: Chaos injection
+    // Chaos injection
     // ====================================================================
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_netem_relay_latency() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         let netem = NetemConfig::new().delay(200);
         harness
@@ -961,8 +935,7 @@ mod tests {
             .await
             .expect("inject netem failed");
 
-        // Verify qdisc was applied
-        let container = format!("{}-relay-1-1", harness.compose_project());
+        let container = format!("{}-relay-1-1", COMPOSE_PROJECT);
         let result = config::BEAST
             .exec_ok(&format!("docker exec {} tc qdisc show dev eth0", container))
             .await
@@ -974,13 +947,13 @@ mod tests {
         );
 
         harness.clear_netem(ChaosTarget::Relay(0)).await.ok();
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_netem_guardian_loss() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
         let netem = NetemConfig::new().loss(10.0);
         harness
@@ -988,7 +961,6 @@ mod tests {
             .await
             .expect("inject netem on Guardian failed");
 
-        // Verify — tc show on Guardian
         let result = config::GUARDIAN
             .exec_ok("sudo tc qdisc show dev eth0")
             .await
@@ -1000,21 +972,19 @@ mod tests {
         );
 
         harness.clear_netem(ChaosTarget::Guardian).await.ok();
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_partition_beast_guardian() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
-        // Partition
         harness
             .partition(config::GUARDIAN_IP, config::BEAST_IP)
             .await
             .expect("partition failed");
 
-        // Verify iptables rule exists
         let result = config::BEAST
             .exec_ok("sudo iptables -L INPUT -n")
             .await
@@ -1024,21 +994,19 @@ mod tests {
             "iptables rule not found for Guardian IP"
         );
 
-        // Heal
         harness
             .heal_partition(config::GUARDIAN_IP, config::BEAST_IP)
             .await
             .expect("heal failed");
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 
     #[tokio::test]
     #[ignore = "requires distributed"]
     async fn distributed_heal_partition() {
-        let harness = DistributedHarness::setup().await.expect("setup failed");
+        let harness = DistributedHarness::connect().await.expect("connect failed");
 
-        // Create and immediately heal
         harness
             .partition(config::GUARDIAN_IP, config::BEAST_IP)
             .await
@@ -1048,13 +1016,10 @@ mod tests {
             .await
             .expect("heal failed");
 
-        // Verify rule is gone — Guardian IP should not be in iptables DROP rules
         let result = config::BEAST
             .exec_ok("sudo iptables -L INPUT -n")
             .await
             .expect("iptables list failed");
-        // After heal, the DROP rule for Guardian should be removed
-        // (Note: there may be other rules, but our specific rule should be gone)
         let drop_lines: Vec<&str> = result
             .stdout
             .lines()
@@ -1066,6 +1031,6 @@ mod tests {
             drop_lines
         );
 
-        harness.teardown().await.expect("teardown failed");
+        harness.cleanup().await.expect("cleanup failed");
     }
 }

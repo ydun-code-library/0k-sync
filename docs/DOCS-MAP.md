@@ -1,6 +1,6 @@
 # Sync-Relay Documentation Map
 
-**Version**: 1.6
+**Version**: 1.7
 **Last Updated**: 2026-02-07
 **Purpose**: Navigation index for humans and AI assistants
 
@@ -57,6 +57,7 @@
 | `04-RESEARCH-VALIDATION.md` | 652 | Technology choices | Understanding "why" decisions |
 | `05-RELEASE-STRATEGY.md` | 930 | Versioning, publishing, CI/CD | Before release activities |
 | `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 core + 17 binding scenarios | Building chaos test harness |
+| `07-DISTRIBUTED-TESTING-GUIDE.md` | ~350 | Distributed testing across Q/Beast/Guardian mesh | Running distributed tests, relay ops |
 | `E2E-TESTING-GUIDE.md` | ~150 | Manual E2E testing Q ↔ Beast | Running integration tests |
 | `MULTI-RELAY-SPEC.md` | ~200 | Multi-relay fan-out architecture (Phase 6.5) | Multi-relay implementation |
 
@@ -119,7 +120,15 @@ research/tactical-mesh-profile-appendix-d.md
 ├── defines → Test environment (The Beast)
 ├── integrates with → CI/CD pipeline (smoke chaos in PRs)
 ├── phased with → 03-IMPLEMENTATION-PLAN.md (chaos per impl phase)
-└── extended by → 03-IMPLEMENTATION-PLAN.md Phase 8 (17 binding chaos scenarios: B-FFI, B-RT, B-ERR)
+└── extended by → 07-DISTRIBUTED-TESTING-GUIDE.md (37 multi-machine scenarios)
+
+07-DISTRIBUTED-TESTING-GUIDE.md (Distributed Testing)
+├── extends → 06-CHAOS-TESTING-STRATEGY.md (multi-machine layer)
+├── defines → 37 distributed scenarios (MR, CM, EDGE, NET, CONV)
+├── defines → 3-relay permanent infrastructure on Beast
+├── defines → Relay observability (/health, /metrics, Prometheus)
+├── operations → Relay startup, monitoring, troubleshooting
+└── machines → Q (orchestrator), Beast (relays), Guardian (edge)
 
 Dockerfile + Docker files (Containerization)
 ├── builds → sync-relay binary (multi-stage)
@@ -180,6 +189,7 @@ Dockerfile + Docker files (Containerization)
 ### Release & Quality Documents
 - `05-RELEASE-STRATEGY.md` — Versioning, publishing, CI/CD, quality gates
 - `06-CHAOS-TESTING-STRATEGY.md` — Chaos testing, 68 core + 17 binding failure scenarios
+- `07-DISTRIBUTED-TESTING-GUIDE.md` — Distributed testing across Q/Beast/Guardian, relay operations
 
 ### Docker & Deployment Files
 - `../Dockerfile` — Production relay image (multi-stage build)
@@ -190,6 +200,7 @@ Dockerfile + Docker files (Containerization)
 - `../tests/chaos/Dockerfile.relay` — Relay image for chaos testing
 - `../tests/chaos/Dockerfile.cli` — CLI image for chaos testing
 - `../tests/chaos/docker-compose.chaos.yml` — Chaos testing topology (toxiproxy)
+- `../tests/chaos/docker-compose.distributed.yml` — Distributed testing topology (3-relay on Beast)
 
 ### Workflow Documents
 - `AGENTS.md` — AI guidelines
@@ -238,6 +249,6 @@ Dockerfile + Docker files (Containerization)
 
 ---
 
-**Navigation Index Version**: 1.6
-**Active Documents**: 30 (excludes archive/ and reference/; includes Docker files, audit reports, handoffs)
+**Navigation Index Version**: 1.7
+**Active Documents**: 32 (excludes archive/ and reference/; includes Docker files, audit reports, handoffs)
 **Last Audit**: 2026-02-07

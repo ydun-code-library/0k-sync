@@ -6,6 +6,7 @@ use crate::server::SyncRelay;
 use crate::session::Session;
 use iroh::endpoint::Connection;
 use iroh::protocol::{AcceptError, ProtocolHandler};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 /// Protocol identifier for 0k-Sync.
@@ -38,7 +39,7 @@ impl ProtocolHandler for SyncProtocol {
             let remote_id = connection.remote_id();
             if let Err(e) = relay.rate_limits().check_connection(remote_id.as_bytes()) {
                 tracing::warn!("Connection rate limited for {}: {}", remote_id, e);
-                // Close connection immediately
+                relay.metrics().rate_limit_hits.fetch_add(1, Ordering::Relaxed);
                 connection.close(1u32.into(), b"rate limited");
                 return Ok(());
             }
@@ -55,6 +56,8 @@ impl ProtocolHandler for SyncProtocol {
                 connection.close(2u32.into(), b"too many sessions");
                 return Ok(());
             }
+
+            relay.metrics().connections_total.fetch_add(1, Ordering::Relaxed);
 
             let session = Session::new(relay, connection);
             // Spawn session handler - don't block the accept loop

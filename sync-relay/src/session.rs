@@ -7,6 +7,7 @@ use crate::protocol::MAX_MESSAGE_SIZE;
 use crate::server::SyncRelay;
 use crate::storage::{BlobStorage, StoreBlobRequest, StoredBlob};
 use iroh::endpoint::Connection;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sync_types::{Cursor, DeviceId, GroupId, Message, PullBlob, PullResponse, PushAck, Welcome};
@@ -127,12 +128,14 @@ impl Session {
                 // SR-001: Global rate limit check (aggregate across all clients)
                 if let Err(e) = self.relay.rate_limits().check_global() {
                     tracing::warn!("Global rate limit exceeded: {}", e);
+                    self.relay.metrics().rate_limit_hits.fetch_add(1, Ordering::Relaxed);
                     return Err(ProtocolError::RateLimited {
                         reason: e.to_string(),
                     });
                 }
                 if let Err(e) = self.relay.rate_limits().check_message(device_id.as_bytes()) {
                     tracing::warn!("Message rate limited for device {:?}: {}", device_id, e);
+                    self.relay.metrics().rate_limit_hits.fetch_add(1, Ordering::Relaxed);
                     return Err(ProtocolError::RateLimited {
                         reason: e.to_string(),
                     });
@@ -352,11 +355,14 @@ impl Session {
             push.ttl as u64
         };
 
+        let payload_len = push.payload.len() as u64;
+        let blob_id = push.blob_id;
+
         let cursor = self
             .relay
             .storage()
             .store_blob(StoreBlobRequest {
-                blob_id: push.blob_id,
+                blob_id,
                 group_id,
                 sender_id: device_id,
                 payload: push.payload,
@@ -367,17 +373,23 @@ impl Session {
             .map_err(|e: StorageError| ProtocolError::Internal(e.to_string()))?;
 
         tracing::debug!(
-            "Stored blob {:?} at cursor {} for group {:?}",
-            push.blob_id,
+            "Stored blob {:?} at cursor {} for group {:?} ({} bytes)",
+            blob_id,
             cursor,
-            group_id
+            group_id,
+            payload_len
         );
+
+        // Update operational metrics
+        self.relay.metrics().pushes_total.fetch_add(1, Ordering::Relaxed);
+        self.relay.metrics().bytes_received.fetch_add(payload_len, Ordering::Relaxed);
+        self.relay.metrics().blobs_stored.fetch_add(1, Ordering::Relaxed);
 
         // Notify other online devices (fire and forget)
         self.relay.notify_group(&group_id, &device_id, cursor).await;
 
         Ok(Message::PushAck(PushAck {
-            blob_id: push.blob_id,
+            blob_id,
             cursor,
         }))
     }
@@ -418,12 +430,19 @@ impl Session {
             })
             .collect();
 
+        let total_bytes_sent: u64 = pull_blobs.iter().map(|b| b.payload.len() as u64).sum();
+
         tracing::debug!(
-            "Pulled {} blobs for {:?} after cursor {}",
+            "Pulled {} blobs ({} bytes) for {:?} after cursor {}",
             pull_blobs.len(),
+            total_bytes_sent,
             group_id,
             pull.after_cursor
         );
+
+        // Update operational metrics
+        self.relay.metrics().pulls_total.fetch_add(1, Ordering::Relaxed);
+        self.relay.metrics().bytes_sent.fetch_add(total_bytes_sent, Ordering::Relaxed);
 
         Ok(Message::PullResponse(PullResponse {
             blobs: pull_blobs,

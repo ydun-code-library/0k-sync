@@ -31,7 +31,7 @@ async fn setup_full_harness() -> DistributedHarness {
         .await
         .expect("ensure_guardian_binary failed");
 
-    let harness = DistributedHarness::setup().await.expect("setup failed");
+    let harness = DistributedHarness::connect().await.expect("connect to relays failed");
     harness.init_and_pair_all().await.expect("init_and_pair_all failed");
     harness
 }
@@ -87,7 +87,7 @@ async fn mr_01_relay_crash_failover() {
         assert!(result.passed, "Relay log leak: {:?}", result.failure_details);
     }
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// MR_02: Push from Q, verify data reachable from all 3 relays.
@@ -127,7 +127,7 @@ async fn mr_02_fan_out_all_relays() {
         guardian_output
     );
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// MR_03: Restart relay-1, verify new Endpoint ID, reconfigure, push/pull works.
@@ -170,7 +170,7 @@ async fn mr_03_relay_restart_new_endpoint() {
         output
     );
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// MR_04: Kill all 3 relays, verify error, restart 1, verify recovery.
@@ -218,7 +218,7 @@ async fn mr_04_all_relays_down() {
         output
     );
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 // ========================================================================
@@ -254,7 +254,7 @@ async fn cm_01_q_push_guardian_pull() {
         );
     }
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// CM_02: Q pushes 5, Guardian pushes 5, both see all 10.
@@ -288,7 +288,7 @@ async fn cm_02_bidirectional_sync() {
         assert!(g_output.contains(msg.as_str()), "Guardian missing: {}", msg);
     }
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// CM_03: Q, Beast container, Guardian all push, all see all messages.
@@ -321,7 +321,7 @@ async fn cm_03_three_way_sync() {
         assert!(result.passed, "Relay log leak: {:?}", result.failure_details);
     }
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// CM_04: Q pushes continuously, Guardian pulls continuously, no data loss.
@@ -362,7 +362,7 @@ async fn cm_04_concurrent_push_pull() {
         messages.len()
     );
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 // ========================================================================
@@ -404,7 +404,7 @@ async fn edge_01_guardian_high_latency() {
     );
 
     harness.clear_netem(ChaosTarget::Guardian).await.ok();
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// EDGE_02: 128kbps bandwidth limit on Guardian, small messages still sync.
@@ -445,7 +445,7 @@ async fn edge_02_guardian_bandwidth_limit() {
     }
 
     harness.clear_netem(ChaosTarget::Guardian).await.ok();
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// EDGE_03: Block Guardian, Q pushes 10 messages, unblock, Guardian catches up.
@@ -492,7 +492,7 @@ async fn edge_03_guardian_partition_recovery() {
         );
     }
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// EDGE_04: 200ms on relay-1, Guardian pushes, Q pulls — bidirectional under chaos.
@@ -532,7 +532,7 @@ async fn edge_04_guardian_slow_relay_fast_client() {
     assert!(g_output.contains(&msg_q), "Guardian missing Q message");
 
     harness.clear_netem(ChaosTarget::Relay(0)).await.ok();
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 // ========================================================================
@@ -587,7 +587,7 @@ async fn net_01_partition_q_beast() {
         output
     );
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// NET_02: Block relay-1 from Guardian only, Guardian fails over to relay-2.
@@ -626,7 +626,7 @@ async fn net_02_selective_relay_partition() {
     );
 
     harness.clear_netem(ChaosTarget::Relay(0)).await.ok();
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// NET_03: Relay-1: 200ms latency, Relay-2: 10% loss, Relay-3: clean — verify convergence.
@@ -669,7 +669,7 @@ async fn net_03_asymmetric_chaos() {
     // Clean up chaos
     harness.clear_netem(ChaosTarget::Relay(0)).await.ok();
     harness.clear_netem(ChaosTarget::Relay(1)).await.ok();
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
 
 /// CONV_01: Kill relay-1, partition Guardian, Q pushes. Restart relay-1,
@@ -733,5 +733,5 @@ async fn conv_01_convergence_after_multi_failure() {
         assert!(result.passed, "Relay log leak: {:?}", result.failure_details);
     }
 
-    harness.teardown().await.expect("teardown failed");
+    harness.cleanup().await.expect("cleanup failed");
 }
