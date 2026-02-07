@@ -1,0 +1,24 @@
+[package]
+name = "zerok-sync-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Node.js/Bun native addon for 0k-Sync via napi-rs"
+keywords = ["sync", "zero-knowledge", "napi", "nodejs", "bun"]
+categories = ["api-bindings"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Our bridge crate
+zerok-sync-bridge = { path = "../sync-bridge", package = "zerok-sync-bridge" }
+
+# napi-rs bindings
+napi = { version = "2", default-features = false, features = ["async", "tokio_rt", "napi6"] }
+napi-derive = { version = "2", features = ["type-def"] }
+
+[build-dependencies]
+napi-build = "2"

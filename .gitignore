@@ -18,6 +18,11 @@ Thumbs.db
 .env
 .env.local
 
+# Node.js / napi-rs
+node_modules/
+*.node
+package-lock.json
+
 # Test artifacts
 *.log
 
