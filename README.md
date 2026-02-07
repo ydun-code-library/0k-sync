@@ -1,3 +1,29 @@
+---
+tagline: "Zero-knowledge sync for local-first apps"
+description: >
+  The relay never sees your data. Not encrypted-at-rest-but-we-have-the-keys.
+  Actually zero knowledge. The relay is a dumb pipe that routes ciphertext
+  between your devices. No accounts, no key escrow. Keys derive from your
+  passphrase via Argon2id. Pure Rust, no runtime, designed for edge hardware,
+  slow networks, and battery-constrained devices.
+status: development
+icon: 0k-sync.svg
+tech:
+  - Rust
+  - iroh
+  - QUIC
+  - XChaCha20-Poly1305
+  - Argon2id
+  - BLAKE3
+highlights:
+  - "Zero-knowledge relay — the server can't read your data, even if compromised"
+  - "No accounts — devices pair via passphrase or QR code"
+  - "Multi-relay failover — connect failover, push fan-out, per-relay cursor tracking"
+  - "428 tests passing across 9 crates (Rust + JS + Python), 2 security audits completed"
+  - "Transport-agnostic core — sync-types and sync-core have zero iroh dependencies"
+  - "Multi-language bindings — Node.js/Bun (napi-rs) and Python (PyO3)"
+  - "Large file support with content-addressed hashing (BLAKE3) and chunked transfer"
+---
 <p align="center">
   <img src="assets/0k-sync.svg" alt="0k-Sync" width="400">
 </p>
@@ -217,8 +243,11 @@ let blobs = client.pull().await?;
 | `sync-content` | Large file transfer (encrypt-then-hash) | 24 |
 | `sync-cli` | CLI tool for testing/debugging | 30 |
 | `sync-relay` | Relay server | 51 |
+| `sync-bridge` | FFI-friendly bridge layer | 34 |
+| `sync-node` | Node.js/Bun bindings (napi-rs) | 10 + 21 JS |
+| `sync-python` | Python bindings (PyO3) | 11 + 31 pytest |
 
-**321 tests passing.** Chaos test harness in progress (50 passing, 28 stubs awaiting infrastructure).
+**376 Rust tests + 21 JS + 31 Python = 428 total.** Chaos test harness in progress (50 passing, 28 stubs awaiting infrastructure).
 
 ---
 
@@ -285,7 +314,7 @@ The client library is identical across all tiers. Only the relay endpoint change
 
 ## Status
 
-**Where we're at:** Phase 6.5 complete. The core protocol works end-to-end with multi-relay redundancy.
+**Where we're at:** Phase 8 complete. Core protocol with multi-relay redundancy + multi-language bindings (JavaScript/Bun, Python).
 
 | What | Status |
 |------|--------|
@@ -295,6 +324,9 @@ The client library is identical across all tiers. Only the relay endpoint change
 | Large file transfer (sync-content) | ✅ Done — 24 tests |
 | CLI tool (sync-cli) | ✅ Done — 30 tests |
 | Relay server (sync-relay) | ✅ Done — 51 tests |
+| FFI bridge (sync-bridge) | ✅ Phase 8A — 34 tests |
+| Node.js/Bun bindings (sync-node) | ✅ Phase 8B — 10 Rust + 21 JS tests |
+| Python bindings (sync-python) | ✅ Phase 8C — 11 Rust + 31 pytest tests |
 | Multi-relay fan-out | ✅ Done — connect failover, push fan-out, per-relay cursors |
 | E2E cross-machine testing | ✅ Verified Q ↔ Beast |
 | Security audit | ✅ 2 audits, 0 critical/high remaining |
@@ -303,7 +335,7 @@ The client library is identical across all tiers. Only the relay endpoint change
 | Crates.io publish | 🔜 After chaos hardening |
 | Hybrid post-quantum (Noise + ML-KEM) | 📋 Designed, not implemented |
 
-**321 tests passing.** This isn't vaporware — it's working code.
+**428 tests passing (376 Rust + 21 JS + 31 Python).** This isn't vaporware — it's working code.
 
 **What's next:**
 - Chaos test harness (network fault injection for QUIC)

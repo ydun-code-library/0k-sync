@@ -1,6 +1,6 @@
 # Sync-Relay Documentation Map
 
-**Version**: 1.5
+**Version**: 1.6
 **Last Updated**: 2026-02-07
 **Purpose**: Navigation index for humans and AI assistants
 
@@ -53,7 +53,7 @@
 | `00-PLAN.md` | 174 | Documentation planning | Understanding doc structure |
 | `01-EXECUTIVE-SUMMARY.md` | 265 | Technical overview (v2.4.0) | High-level understanding |
 | `02-SPECIFICATION.md` | 2,200+ | **PRIMARY SPEC** — Full protocol (v2.5.0, incl. Section 18 bindings) | Implementation reference |
-| `03-IMPLEMENTATION-PLAN.md` | 3,400+ | TDD implementation guide (v2.5.0, incl. Phase 8 bindings) | Before writing code |
+| `03-IMPLEMENTATION-PLAN.md` | 3,400+ | TDD implementation guide (v2.5.0, Phase 8A/8B/8C COMPLETE) | Before writing code |
 | `04-RESEARCH-VALIDATION.md` | 652 | Technology choices | Understanding "why" decisions |
 | `05-RELEASE-STRATEGY.md` | 930 | Versioning, publishing, CI/CD | Before release activities |
 | `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 core + 17 binding scenarios | Building chaos test harness |
