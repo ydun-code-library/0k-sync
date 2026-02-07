@@ -64,7 +64,7 @@ Chaos tests are not exploratory. They are automated, repeatable, and part of the
 
 This document covers chaos testing of the 0k-Sync protocol and its components. It does not cover:
 
-- Application-level testing (CashTable, Private Suite) — those projects own their own chaos strategies
+- Application-level testing (CashTable, VardKista Suite) — those projects own their own chaos strategies
 - Tauri framework testing — covered by Q-Labs verification
 - Load/performance testing — separate document (future)
 - Penetration testing — separate engagement (future)
@@ -336,7 +336,7 @@ These test the hybrid Noise handshake (clatter: ML-KEM-768 + X25519) and session
 
 These test the 0k-Sync protocol logic — state machine, blob exchange, and eventual consistency.
 
-**Architectural note:** 0k-Sync uses content-addressed immutable blobs. The relay is a dumb pipe — it stores encrypted blobs and has no knowledge of their contents. There is no conflict resolution at the protocol level because there are no conflicts: every blob is unique (identified by hash) and immutable. Merge semantics (LWW, CRDT, or otherwise) are the responsibility of the application layer (CashTable, Innermost, etc.). What 0k-Sync guarantees is that all blobs reach all paired clients and that version vectors converge.
+**Architectural note:** 0k-Sync uses content-addressed immutable blobs. The relay is a dumb pipe — it stores encrypted blobs and has no knowledge of their contents. There is no conflict resolution at the protocol level because there are no conflicts: every blob is unique (identified by hash) and immutable. Merge semantics (LWW, CRDT, or otherwise) are the responsibility of the application layer (CashTable, VardKista Journal, etc.). What 0k-Sync guarantees is that all blobs reach all paired clients and that version vectors converge.
 
 ### 7.1 Sync State Machine
 

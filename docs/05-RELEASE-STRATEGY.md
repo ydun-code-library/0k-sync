@@ -324,7 +324,7 @@ The landing page serves as the public-facing entry point for developers and eval
 - Use case examples: Tauri apps, cross-device sync, self-hosted relays
 - License badge (MIT/Apache-2.0)
 
-**ydun.io integration:** 0k-Sync listed as a product/project on the main Ydun.io site with brief description and link to the landing page. Positioned within the Ydun.io portfolio alongside Private Suite and other projects.
+**ydun.io integration:** 0k-Sync listed as a product/project on the main Ydun.io site with brief description and link to the landing page. Positioned within the Ydun.io portfolio alongside VardKista Suite and other projects.
 
 **Domain:** `0ksync.io` — registered as the branded short URL. Redirects (302 temporary) to `ydun.io/0k-sync`. All external-facing URLs (crate metadata, GitHub About, README badges, conference slides) use `0ksync.io` as the canonical link. Content stays on ydun.io — one site to maintain, full SEO weight on the parent domain. Use 302 (not 301) so the redirect destination can change later without fighting browser/search engine caches. If the project ever warrants a standalone site, the domain is already in circulation and just needs repointing.
 

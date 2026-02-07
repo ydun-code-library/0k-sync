@@ -153,7 +153,7 @@ Multi-writer CRDT key-value store.
 
 **From iroh's FAQ (verbatim finding):** They explicitly state they do NOT support post-quantum cryptography. They acknowledge the 37× key size increase of Xyber, impact on UDP packet sizes, DNS discovery fragmentation, and EndpointId length. Their position: serving existing use cases efficiently today is more important than quantum resistance.
 
-**Our position:** This is exactly the gap our Appendix B (Hybrid Cryptographic Compliance) fills. For financial data (CashTable, Vault Ledger), defense/enterprise contexts (ZK-Vault), and health data (PrivateHealth), the "harvest now, decrypt later" threat model makes hybrid PQ compliance from day one a hard requirement. iroh's transport encryption is fine for the wire, but our E2E layer must be hybrid-compliant independently.
+**Our position:** This is exactly the gap our Appendix B (Hybrid Cryptographic Compliance) fills. For financial data (CashTable, VardKista Ledger), defense/enterprise contexts (ZK-Vault), and health data (VardKista Health), the "harvest now, decrypt later" threat model makes hybrid PQ compliance from day one a hard requirement. iroh's transport encryption is fine for the wire, but our E2E layer must be hybrid-compliant independently.
 
 ### 2.7 iroh 1.0 Timeline & Version Strategy
 
@@ -208,20 +208,20 @@ Multi-writer CRDT key-value store.
 
 ### 4.1 The Problem
 
-Our sync protocol is designed for small encrypted blobs (app state, JSON entries, ~100 KB sweet spot). The moment a Private Suite app needs to sync a photo (2-10 MB), a voice memo (1-5 MB), a document scan (0.5-3 MB), or a PDF attachment, we're pushing megabytes through a protocol optimized for kilobytes.
+Our sync protocol is designed for small encrypted blobs (app state, JSON entries, ~100 KB sweet spot). The moment a VardKista Suite app needs to sync a photo (2-10 MB), a voice memo (1-5 MB), a document scan (0.5-3 MB), or a PDF attachment, we're pushing megabytes through a protocol optimized for kilobytes.
 
 ### 4.2 Affected Applications
 
 | App | Content Type | Size Range | Frequency |
 |-----|------------|------------|-----------|
-| Innermost | Journal photos, voice memos | 1-15 MB | High (daily entries) |
-| PrivateHealth | Meal photos, progress pics, medical doc scans | 1-10 MB | High |
-| Vault Ledger | Receipt scans, invoice PDFs | 0.5-5 MB | Medium |
-| Stash | Saved article images, PDF attachments | 0.5-20 MB | Medium |
-| Circle | Contact photos | 50-500 KB | Low (small enough for sync relay) |
-| KeyVault | None | — | None |
+| VardKista Journal | Journal photos, voice memos | 1-15 MB | High (daily entries) |
+| VardKista Health | Meal photos, progress pics, medical doc scans | 1-10 MB | High |
+| VardKista Ledger | Receipt scans, invoice PDFs | 0.5-5 MB | Medium |
+| VardKista Bookmarks | Saved article images, PDF attachments | 0.5-20 MB | Medium |
+| VardKista Contacts | Contact photos | 50-500 KB | Low (small enough for sync relay) |
+| VardKista Keys | None | — | None |
 
-At least 4 of 6 apps need a large content transfer mechanism.
+At least 4 of 7 apps need a large content transfer mechanism.
 
 ### 4.3 Proposed Architecture: Encrypt-Then-Hash with iroh-blobs
 
@@ -315,7 +315,7 @@ Same key for all devices in the group. Same rotation lifecycle as the group key.
 
 **Why defer:** Our NOTIFY/PRESENCE are simple, well-specified, and tightly integrated with the sync state machine. Replacing them with gossip adds a dependency (gossip needs bootstrap peers, swarm management) for minimal benefit when we only have 2-5 devices in a sync group. Gossip shines at scale (hundreds of peers) which isn't our scenario.
 
-**Future value:** If Private Suite ever supports shared spaces (e.g., family photo sharing, team vaults), gossip becomes more interesting for multi-user notification.
+**Future value:** If VardKista Suite ever supports shared spaces (e.g., family photo sharing, team vaults), gossip becomes more interesting for multi-user notification.
 
 ### 5.3 iroh-docs (Do NOT Adopt)
 
@@ -334,8 +334,8 @@ Our custom protocol is the right choice. iroh-docs would be useful if we were bu
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Private Suite App                      │
-│                  (Innermost, Stash, etc.)                │
+│                    VardKista Suite App                     │
+│                  (Journal, Bookmarks, etc.)               │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 4: Application Sync Logic                         │
 │  - App-specific merge strategies                         │
@@ -658,7 +658,7 @@ Building on the existing self-hosted stack, the iroh infrastructure slots in nat
 - All services on The Beast via Cloudflare Tunnel
 - Single region (Linköping, Sweden)
 - Cost: $0/month
-- Suitable for: personal use, Private Suite alpha testing, CashTable prototype
+- Suitable for: personal use, VardKista Suite alpha testing, CashTable prototype
 
 **Tier 1: MVP / Beta Launch**
 - iroh-relay + iroh-dns-server + sync-relay on The Beast (primary)
@@ -694,7 +694,7 @@ A critical differentiator for enterprise/defense markets: the entire stack can r
 - sync-relay on local network
 - All devices on same LAN or connected via internal network
 
-**What this means:** A defense contractor can deploy Private Suite applications on a classified network with no external connections. Devices discover each other via mDNS, sync through a locally-hosted relay, and all data stays within the security perimeter. No cloud, no SaaS, no external DNS queries.
+**What this means:** A defense contractor can deploy VardKista Suite applications on a classified network with no external connections. Devices discover each other via mDNS, sync through a locally-hosted relay, and all data stays within the security perimeter. No cloud, no SaaS, no external DNS queries.
 
 This is impossible with any cloud-first sync solution (iCloud, Google, Dropbox). It's our structural advantage for regulated markets.
 

@@ -81,7 +81,7 @@ The network's job is different. The network keeps those onboard AI systems *cont
 
 This information is measured in seconds of acceptable latency, not milliseconds. A threat library update that arrives 3 seconds later is still perfectly useful — the onboard AI was already using the previous version to make autonomous decisions. A target package that syncs in 5 seconds is fine — the strike drone wasn't going to fire until it received the package anyway.
 
-**This is literally the same pattern as Private Suite's Personal AI architecture.** The drone's onboard AI is the Personal AI. The relay-sync network is the context pipeline feeding it indexed, encrypted, locally-stored knowledge. "Phone was offline, comes back and syncs its journal" becomes "Drone was out of range, flies back and its onboard AI catches up on everything it missed."
+**This is literally the same pattern as VardKista Suite's Personal AI architecture.** The drone's onboard AI is the Personal AI. The relay-sync network is the context pipeline feeding it indexed, encrypted, locally-stored knowledge. "Phone was offline, comes back and syncs its journal" becomes "Drone was out of range, flies back and its onboard AI catches up on everything it missed."
 
 We are not designing a drone protocol. We are documenting how an existing privacy protocol, when deployed on airborne nodes with onboard intelligence, naturally provides the context distribution that purpose-built military C2 systems struggle with — because those C2 systems were designed for an era when drones were dumb actuators that needed real-time remote control. That era is ending.
 
@@ -246,7 +246,7 @@ The topology is self-healing. iroh endpoints automatically handle relay failover
 
 **Protocol mapping:**
 - Runs sync-client for all sync groups (the only node with full visibility)
-- Runs analysis pipeline (potentially the same AI pipeline as Private Suite's Personal AI — same RAG architecture, different domain)
+- Runs analysis pipeline (potentially the same AI pipeline as VardKista Suite's Personal AI — same RAG architecture, different domain)
 - Archives all mission data locally (local-first, no cloud dependency)
 - Operator console presents sync status across all groups
 
@@ -750,7 +750,7 @@ flowchart LR
     end
 
     %% CONSUMER LAYER
-    subgraph CONSUMER [<b>CONSUMER</b>: Private Suite]
+    subgraph CONSUMER [<b>CONSUMER</b>: VardKista Suite]
         direction LR
         Phone(<b>Phone</b><br/>Journal App):::node <-->|WiFi / 5G| VPS(<b>Relay VPS</b><br/>Zero-Knowledge):::relay
         VPS <-->|WiFi / 5G| Laptop(<b>Laptop</b><br/>Journal App):::node
