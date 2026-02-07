@@ -5219,6 +5219,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zerok-sync-bridge"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "thiserror 1.0.69",
+ "tokio",
+ "zeroize",
+ "zerok-sync-client",
+ "zerok-sync-core",
+ "zerok-sync-types",
+]
+
+[[package]]
 name = "zerok-sync-cli"
 version = "0.1.0"
 dependencies = [

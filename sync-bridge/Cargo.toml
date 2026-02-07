@@ -1,0 +1,31 @@
+[package]
+name = "zerok-sync-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "FFI-friendly bridge layer for 0k-Sync multi-language bindings"
+keywords = ["sync", "zero-knowledge", "ffi", "bridge", "bindings"]
+categories = ["network-programming", "api-bindings"]
+
+[dependencies]
+# Our crates
+zerok-sync-client = { path = "../sync-client", package = "zerok-sync-client" }
+zerok-sync-types = { path = "../sync-types", package = "zerok-sync-types" }
+zerok-sync-core = { path = "../sync-core", package = "zerok-sync-core" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Memory safety for key material
+zeroize = { workspace = true }
+
+# Hashing for address-to-NodeId conversion
+blake3 = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -5,6 +5,7 @@ members = [
     "sync-core",
     "sync-client",
     "sync-content",
+    "sync-bridge",
     "sync-cli",
     "sync-relay",
     "tauri-plugin-sync",
