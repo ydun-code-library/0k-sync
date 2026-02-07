@@ -20,7 +20,7 @@ services:
     networks:
       - chaos-net
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8474/version"]
+      test: ["CMD", "/toxiproxy-cli", "list"]
       interval: 5s
       timeout: 3s
       retries: 3
