@@ -348,16 +348,19 @@ impl ChaosHarness {
         .await
     }
 
-    /// Initialize and pair both clients (A creates, B joins).
+    /// Initialize and pair both clients (both join with relay endpoint ID).
+    ///
+    /// Both clients use `pair --join <endpoint_id>` with the same passphrase
+    /// so they derive identical group credentials AND store the real relay
+    /// address. Using `pair --create` would store a placeholder relay address,
+    /// causing push/pull to fail.
     pub async fn init_and_pair(&self) -> Result<(), HarnessError> {
         // Init both clients
         self.init_client("client-a", "client-a").await?;
         self.init_client("client-b", "client-b").await?;
 
-        // Client A creates group
-        self.pair_create("client-a").await?;
-
-        // Client B joins with relay endpoint ID
+        // Both clients join with relay endpoint ID (same passphrase = same group)
+        self.pair_join("client-a").await?;
         self.pair_join("client-b").await?;
 
         Ok(())
