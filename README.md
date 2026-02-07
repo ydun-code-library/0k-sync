@@ -1,8 +1,14 @@
-# 0k-Sync
+<p align="center">
+  <img src="assets/0k-sync.svg" alt="0k-Sync" width="400">
+</p>
 
-**Zero-knowledge sync for local-first apps.**
+<p align="center">
+  <strong>Zero-knowledge sync for local-first apps.</strong>
+</p>
 
-The relay never sees your data. Not encrypted-at-rest-but-we-have-the-keys. Actually zero knowledge. The relay is a dumb pipe that routes ciphertext between your devices.
+<p align="center">
+  <em>The relay never sees your data. Not encrypted-at-rest-but-we-have-the-keys.<br>Actually zero knowledge. The relay is a dumb pipe that routes ciphertext between your devices.</em>
+</p>
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -327,6 +333,6 @@ MIT OR Apache-2.0 (your choice).
 ---
 
 <p align="center">
-  <strong>0k-Sync</strong><br>
+  <img src="assets/0k-sync.svg" alt="0k-Sync" width="120"><br>
   <em>Because "trust us" isn't a security model.</em>
 </p>
