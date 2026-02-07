@@ -1,7 +1,7 @@
 # 0k-Sync - Test-Driven Implementation Plan
 
-**Version:** 2.4.0
-**Date:** 2026-02-03
+**Version:** 2.5.0
+**Date:** 2026-02-07
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementing Developers
 **Methodology:** Test-Driven Development (TDD) + Jimmy's Workflow
@@ -21,9 +21,10 @@
 8. [Phase 5: IrohTransport + Transport Chaos](#8-phase-5-irohtransport--transport-chaos)
 9. [Phase 6: sync-relay + Full Topology Chaos](#9-phase-6-sync-relay--full-topology-chaos)
 10. [Phase 7: Framework Integration (Optional)](#10-phase-7-framework-integration-optional)
-11. [Testing Strategy](#11-testing-strategy)
-12. [Validation Gates](#12-validation-gates)
-13. [Rollback Procedures](#13-rollback-procedures)
+11. [Phase 8: Multi-Language Bindings](#11-phase-8-multi-language-bindings)
+12. [Testing Strategy](#12-testing-strategy)
+13. [Validation Gates](#13-validation-gates)
+14. [Rollback Procedures](#14-rollback-procedures)
 
 ---
 
@@ -147,7 +148,7 @@ Each phase follows:
 │   │       └── index.ts
 │   └── build.rs
 │
-├── sync-relay/                    # Phase 6: Custom relay (future)
+├── sync-relay/                    # Phase 6: Custom relay
 │   ├── Cargo.toml
 │   ├── src/
 │   │   ├── main.rs
@@ -155,6 +156,35 @@ Each phase follows:
 │   │   ├── storage.rs
 │   │   └── config.rs
 │   └── Dockerfile
+│
+├── sync-bridge/                   # Phase 8A: FFI bridge (keystone)
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs
+│       ├── handle.rs              # SyncHandle (concrete SyncClient<IrohTransport>)
+│       ├── types.rs               # FFI-friendly types
+│       └── error.rs               # SyncBridgeError
+│
+├── sync-node/                     # Phase 8B: napi-rs (JS/TS bindings)
+│   ├── Cargo.toml
+│   ├── package.json
+│   ├── build.rs
+│   ├── src/
+│   │   └── lib.rs                 # #[napi] exports
+│   └── __tests__/
+│       └── client.test.ts         # Bun/Node integration tests
+│
+├── sync-python/                   # Phase 8C: PyO3 (Python bindings)
+│   ├── Cargo.toml
+│   ├── pyproject.toml             # maturin build config
+│   ├── src/
+│   │   └── lib.rs                 # #[pymodule] exports
+│   ├── python/
+│   │   └── zerok_sync/
+│   │       ├── __init__.py
+│   │       └── _zerok_sync.pyi    # Type stubs
+│   └── tests/
+│       └── test_client.py         # pytest integration tests
 │
 └── tests/
     └── chaos/                     # Chaos test harness (06-CHAOS-TESTING-STRATEGY.md)
@@ -173,7 +203,8 @@ Each phase follows:
                 ├── encryption.rs  # E-HS, E-ENC, E-PQ (16 scenarios)
                 ├── sync.rs        # S-SM, S-CONC, S-CONV, S-BLOB (16 scenarios)
                 ├── content.rs     # C-STOR, C-COLL (6 scenarios)
-                └── adversarial.rs # A-PROTO, A-RES (10 scenarios)
+                ├── adversarial.rs # A-PROTO, A-RES (10 scenarios)
+                └── bindings.rs    # B-FFI, B-RT, B-ERR (17 scenarios, Phase 8)
 ```
 
 ### 2.2 Workspace Cargo.toml
@@ -190,6 +221,9 @@ members = [
     "tauri-plugin-sync",
     "tests/chaos",        # Chaos test harness (Phases 1-2 skeleton, scenarios added per phase)
     # "sync-relay",  # Enable when implementing Phase 6
+    # "sync-bridge", # Phase 8A: FFI bridge crate
+    # "sync-node",   # Phase 8B: napi-rs (JS/TS bindings)
+    # "sync-python", # Phase 8C: PyO3 (Python bindings)
 ]
 
 [workspace.package]
@@ -273,7 +307,10 @@ bollard = "0.16"                 # Docker API client for topology management
 │  (custom relay + full topology chaos)                  │                 │
 │                                                        ▼                 │
 │  Phase 7: tauri-plugin      ◄──────────────────────────┘  ⚪ Optional   │
-│  (framework integration)                                                 │
+│  (framework integration)                                 │               │
+│                                                          ▼               │
+│  Phase 8: Multi-Language    ◄────────────────────────────┘  ⚪ Planned  │
+│  Bindings (bridge + node + python)                                       │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -290,6 +327,7 @@ bollard = "0.16"                 # Docker API client for topology management
 | 3.5 | sync-content | sync-client, IrohTransport | tauri-plugin | ✅ Complete |
 | 6 | sync-relay | sync-types, IrohTransport | None | ⬅️ Next |
 | 7 | tauri-plugin | sync-client, sync-content | None (optional) | ⚪ Not started |
+| 8 | sync-bridge, sync-node, sync-python | sync-client | None | ⚪ Planned |
 
 ---
 
@@ -1919,7 +1957,1022 @@ git tag v0.1.0-phase7
 
 ---
 
-## 11. Testing Strategy
+## 11. Phase 8: Multi-Language Bindings
+
+> **Added (2026-02-07):** Spec Section 18 defines the architecture. This phase implements it via TDD across three sub-phases.
+
+### 11.1 Objective
+
+Expose sync-client to JavaScript/TypeScript (Bun, Node.js) and Python via a shared bridge crate. All cryptography, protocol logic, and networking stays in Rust. The bindings are thin shells that convert types and manage async runtimes.
+
+### 11.2 Pre-Flight Checklist
+
+Before starting implementation, verify:
+
+- [ ] Spec Section 18 reviewed and understood
+- [ ] `cargo test --workspace` passes (321+ tests, 0 failures)
+- [ ] `sync-client` public API is stable (no breaking changes planned)
+- [ ] napi-rs v3 installed (`cargo install napi-cli`)
+- [ ] maturin installed (`pip install maturin`)
+- [ ] Bun installed and on PATH
+- [ ] Python 3.10+ installed and on PATH
+- [ ] `curve25519-dalek` patch resolves in a clean build
+
+### 11.3 Sub-Phase Overview
+
+Phase 8 has three sub-phases. Each builds on the last. Each follows the RED/GREEN/CHECKPOINT cycle independently.
+
+```
+Phase 8A: sync-bridge       (keystone — all bindings depend on this)
+       │
+       ├──► Phase 8B: sync-node    (napi-rs, can run in parallel with 8C)
+       │
+       └──► Phase 8C: sync-python  (PyO3, can run in parallel with 8B)
+```
+
+| Sub-Phase | Crate | Depends On | Estimated Effort | Test Count Target |
+|-----------|-------|------------|------------------|-------------------|
+| 8A | sync-bridge | sync-client | 1-2 days | ~25 tests |
+| 8B | sync-node | sync-bridge | 2-4 days | ~15 tests (Rust) + ~20 tests (JS) |
+| 8C | sync-python | sync-bridge | 3-5 days | ~15 tests (Rust) + ~20 tests (Python) |
+
+---
+
+### 11.4 Phase 8A: sync-bridge (Keystone)
+
+**Purpose:** Resolve the generic `SyncClient<T: Transport>` into a concrete `SyncHandle`. Define FFI-friendly types. Centralise error handling. This crate is pure Rust with no FFI dependencies — it's testable with standard `cargo test`.
+
+#### 11.4.1 Deliverables
+
+| File | Contents |
+|------|----------|
+| `sync-bridge/Cargo.toml` | Workspace member, depends on sync-client, tokio, thiserror |
+| `sync-bridge/src/lib.rs` | Public exports |
+| `sync-bridge/src/handle.rs` | `SyncHandle` — concrete wrapper around `SyncClient<IrohTransport>` |
+| `sync-bridge/src/types.rs` | `SyncHandleConfig`, `PushResult`, `SyncBlob`, `SyncInvite`, `SyncBridgeError` |
+| `sync-bridge/src/error.rs` | `SyncBridgeError` enum with `Display` and `From` impls |
+
+#### 11.4.2 TDD Sequence
+
+**Step 1: FFI-friendly types (RED → GREEN → REFACTOR)**
+
+Write tests for type conversion first. These prove that bridge types can be constructed from sync-client types and carry the right data.
+
+```rust
+// sync-bridge/src/types.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sync_handle_config_from_passphrase() {
+        let config = SyncHandleConfig {
+            passphrase: Some("correct-horse-battery-staple".into()),
+            secret_bytes: None,
+            salt: Some(vec![0u8; 16]),
+            relay_addresses: vec!["relay-node-id".into()],
+            device_name: Some("Test Device".into()),
+            ttl: None,
+        };
+        assert!(config.passphrase.is_some());
+        assert_eq!(config.relay_addresses.len(), 1);
+    }
+
+    #[test]
+    fn sync_handle_config_from_secret_bytes() {
+        let config = SyncHandleConfig {
+            passphrase: None,
+            secret_bytes: Some(vec![42u8; 32]),
+            salt: None,
+            relay_addresses: vec!["relay-node-id".into()],
+            device_name: None,
+            ttl: Some(3600),
+        };
+        assert!(config.secret_bytes.is_some());
+        assert_eq!(config.ttl, Some(3600));
+    }
+
+    #[test]
+    fn sync_handle_config_rejects_both_passphrase_and_secret() {
+        let config = SyncHandleConfig {
+            passphrase: Some("pass".into()),
+            secret_bytes: Some(vec![0u8; 32]),
+            salt: None,
+            relay_addresses: vec!["relay".into()],
+            device_name: None,
+            ttl: None,
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn sync_handle_config_rejects_empty_relay_addresses() {
+        let config = SyncHandleConfig {
+            passphrase: Some("pass".into()),
+            secret_bytes: None,
+            salt: Some(vec![0u8; 16]),
+            relay_addresses: vec![],
+            device_name: None,
+            ttl: None,
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn push_result_holds_blob_id_and_cursor() {
+        let result = PushResult {
+            blob_id: "abc-123".into(),
+            cursor: 42,
+        };
+        assert_eq!(result.blob_id, "abc-123");
+        assert_eq!(result.cursor, 42);
+    }
+
+    #[test]
+    fn sync_blob_holds_payload_and_metadata() {
+        let blob = SyncBlob {
+            blob_id: "def-456".into(),
+            payload: vec![1, 2, 3],
+            cursor: 10,
+            timestamp: 1700000000,
+        };
+        assert_eq!(blob.payload, vec![1, 2, 3]);
+        assert_eq!(blob.cursor, 10);
+    }
+}
+```
+
+**Step 2: Error conversion (RED → GREEN → REFACTOR)**
+
+Bridge error must convert cleanly from every sync-client error variant. Test each conversion path.
+
+```rust
+// sync-bridge/src/error.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sync_client::ClientError;
+
+    #[test]
+    fn bridge_error_from_client_not_connected() {
+        let client_err = ClientError::NotConnected;
+        let bridge_err: SyncBridgeError = client_err.into();
+        assert!(matches!(bridge_err, SyncBridgeError::NotConnected));
+    }
+
+    #[test]
+    fn bridge_error_from_client_connection_failed() {
+        let client_err = ClientError::ConnectionFailed("timeout".into());
+        let bridge_err: SyncBridgeError = client_err.into();
+        match bridge_err {
+            SyncBridgeError::ConnectionFailed(msg) => assert!(msg.contains("timeout")),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn bridge_error_from_client_all_relays_failed() {
+        let client_err = ClientError::AllRelaysFailed("all down".into());
+        let bridge_err: SyncBridgeError = client_err.into();
+        assert!(matches!(bridge_err, SyncBridgeError::AllRelaysFailed(_)));
+    }
+
+    #[test]
+    fn bridge_error_display_is_human_readable() {
+        let err = SyncBridgeError::NotConnected;
+        let msg = err.to_string();
+        assert!(!msg.is_empty());
+        assert!(msg.to_lowercase().contains("not connected"));
+    }
+
+    #[test]
+    fn bridge_error_from_crypto_error() {
+        let crypto_err = sync_client::CryptoError::DecryptionFailed("bad key".into());
+        let bridge_err: SyncBridgeError = crypto_err.into();
+        assert!(matches!(bridge_err, SyncBridgeError::CryptoError(_)));
+    }
+}
+```
+
+**Step 3: SyncHandle construction and config conversion (RED → GREEN → REFACTOR)**
+
+Test that `SyncHandleConfig` correctly converts to `SyncConfig` (the sync-client type). This is the core bridge logic — passphrase derivation, secret bytes, relay addresses.
+
+```rust
+// sync-bridge/src/handle.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_to_sync_config_with_passphrase() {
+        let config = SyncHandleConfig {
+            passphrase: Some("test-passphrase".into()),
+            secret_bytes: None,
+            salt: Some(vec![0u8; 16]),
+            relay_addresses: vec!["node-id-abc".into()],
+            device_name: Some("Test".into()),
+            ttl: Some(3600),
+        };
+        let sync_config = config.to_sync_config().unwrap();
+        assert_eq!(sync_config.primary_relay(), Some("node-id-abc"));
+    }
+
+    #[test]
+    fn config_to_sync_config_with_secret_bytes() {
+        let config = SyncHandleConfig {
+            passphrase: None,
+            secret_bytes: Some(vec![42u8; 32]),
+            salt: None,
+            relay_addresses: vec!["node-id-def".into()],
+            device_name: None,
+            ttl: None,
+        };
+        let sync_config = config.to_sync_config().unwrap();
+        assert_eq!(sync_config.primary_relay(), Some("node-id-def"));
+    }
+
+    #[test]
+    fn config_passphrase_requires_salt() {
+        let config = SyncHandleConfig {
+            passphrase: Some("test".into()),
+            secret_bytes: None,
+            salt: None,  // Missing!
+            relay_addresses: vec!["relay".into()],
+            device_name: None,
+            ttl: None,
+        };
+        let result = config.to_sync_config();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn config_secret_bytes_must_be_32() {
+        let config = SyncHandleConfig {
+            passphrase: None,
+            secret_bytes: Some(vec![0u8; 16]),  // Wrong length!
+            salt: None,
+            relay_addresses: vec!["relay".into()],
+            device_name: None,
+            ttl: None,
+        };
+        let result = config.to_sync_config();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn sync_handle_create_and_status() {
+        // This test requires a real iroh Endpoint binding to the network.
+        // It validates the full construction path but does NOT connect to a relay.
+        let config = SyncHandleConfig {
+            passphrase: None,
+            secret_bytes: Some(vec![42u8; 32]),
+            salt: None,
+            relay_addresses: vec!["fake-relay-id".into()],
+            device_name: Some("Test Handle".into()),
+            ttl: None,
+        };
+        let handle = SyncHandle::create(config).await.unwrap();
+        // Not connected yet — just constructed
+        assert!(!handle.is_connected().await);
+    }
+}
+```
+
+**Step 4: Invite operations (RED → GREEN → REFACTOR)**
+
+Test the bridge invite helpers that wrap sync-core's `Invite` type.
+
+```rust
+// sync-bridge/src/handle.rs (continued)
+
+#[cfg(test)]
+mod invite_tests {
+    use super::*;
+
+    #[test]
+    fn create_invite_returns_valid_structure() {
+        let invite = SyncHandle::create_invite(
+            vec!["relay-node-id".into()],
+            &[1u8; 32],   // group_id
+            &[2u8; 32],   // group_secret
+            &[3u8; 16],   // salt
+            Some(600),     // 10 minutes
+        ).unwrap();
+
+        assert_eq!(invite.relay_addresses.len(), 1);
+        assert!(!invite.group_id.is_empty());
+        assert_eq!(invite.group_secret.len(), 32);
+        assert_eq!(invite.salt.len(), 16);
+        assert!(invite.expires_at > 0);
+    }
+
+    #[test]
+    fn invite_qr_roundtrip() {
+        let invite = SyncHandle::create_invite(
+            vec!["relay".into()],
+            &[1u8; 32],
+            &[2u8; 32],
+            &[3u8; 16],
+            None,
+        ).unwrap();
+
+        let qr = SyncHandle::invite_to_qr(&invite).unwrap();
+        let restored = SyncHandle::invite_from_qr(&qr).unwrap();
+
+        assert_eq!(invite.group_id, restored.group_id);
+        assert_eq!(invite.group_secret, restored.group_secret);
+        assert_eq!(invite.relay_addresses, restored.relay_addresses);
+    }
+
+    #[test]
+    fn invite_short_code_format() {
+        let invite = SyncHandle::create_invite(
+            vec!["relay".into()],
+            &[1u8; 32],
+            &[2u8; 32],
+            &[3u8; 16],
+            None,
+        ).unwrap();
+
+        let code = SyncHandle::invite_to_short_code(&invite).unwrap();
+        // Format: XXXX-XXXX-XXXX-XXXX (19 chars with dashes)
+        assert_eq!(code.len(), 19);
+        assert_eq!(code.chars().filter(|c| *c == '-').count(), 3);
+    }
+
+    #[test]
+    fn create_invite_rejects_empty_relay_addresses() {
+        let result = SyncHandle::create_invite(
+            vec![],
+            &[1u8; 32],
+            &[2u8; 32],
+            &[3u8; 16],
+            None,
+        );
+        assert!(result.is_err());
+    }
+}
+```
+
+#### 11.4.3 Validation Gate (Phase 8A)
+
+```
+🟢 VALIDATE — Phase 8A Complete When:
+  [ ] All sync-bridge tests pass: cargo test -p zerok-sync-bridge
+  [ ] SyncHandleConfig validates passphrase vs secret_bytes correctly
+  [ ] SyncBridgeError converts from all ClientError variants
+  [ ] SyncHandle::create() works (iroh Endpoint binds)
+  [ ] Invite roundtrip (create → QR → restore) works
+  [ ] No sync-client public API changes needed
+  [ ] cargo clippy -p zerok-sync-bridge — 0 warnings
+```
+
+#### 11.4.4 Checkpoint
+
+```bash
+cargo test -p zerok-sync-bridge
+cargo clippy -p zerok-sync-bridge
+git add sync-bridge/
+git commit -m "Phase 8A: sync-bridge (FFI bridge crate)
+
+- SyncHandle wrapping SyncClient<IrohTransport>
+- FFI-friendly types: SyncHandleConfig, PushResult, SyncBlob, SyncInvite
+- SyncBridgeError with From impls for all sync-client errors
+- Invite operations: create, QR roundtrip, short code
+- Config validation: passphrase vs secret_bytes, salt, relay addresses
+- ~25 tests"
+
+git tag v0.1.0-phase8a
+```
+
+---
+
+### 11.5 Phase 8B: sync-node (napi-rs)
+
+**Purpose:** Expose `SyncHandle` to JavaScript/TypeScript via napi-rs. Produces an npm package (`@0k-sync/native`) that works with Bun, Node.js, and Deno.
+
+**Depends on:** Phase 8A (sync-bridge)
+
+#### 11.5.1 Deliverables
+
+| File | Contents |
+|------|----------|
+| `sync-node/Cargo.toml` | cdylib crate, depends on sync-bridge + napi v3 |
+| `sync-node/src/lib.rs` | `#[napi]` exports: JsSyncClient, JsSyncConfig, etc. |
+| `sync-node/package.json` | npm package config with napi-rs build |
+| `sync-node/build.rs` | napi-build |
+| `sync-node/__tests__/` | JavaScript/TypeScript integration tests |
+
+#### 11.5.2 TDD Sequence
+
+**Step 1: Rust-side type mapping (RED → GREEN → REFACTOR)**
+
+Test that napi-compatible types convert correctly to/from bridge types. These are standard `cargo test` — no JS runtime needed.
+
+```rust
+// sync-node/src/lib.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn js_config_to_bridge_config() {
+        let js_config = JsSyncConfig {
+            passphrase: Some("test".into()),
+            secret_bytes: None,
+            salt: Some(vec![0u8; 16].into()), // napi Buffer
+            relay_addresses: vec!["relay".into()],
+            device_name: Some("JS App".into()),
+            ttl: None,
+        };
+        let bridge_config: SyncHandleConfig = js_config.into();
+        assert_eq!(bridge_config.passphrase, Some("test".into()));
+        assert_eq!(bridge_config.device_name, Some("JS App".into()));
+    }
+
+    #[test]
+    fn bridge_push_result_to_js() {
+        let bridge = PushResult {
+            blob_id: "abc-123".into(),
+            cursor: 42,
+        };
+        let js: JsPushResult = bridge.into();
+        assert_eq!(js.blob_id, "abc-123");
+        assert_eq!(js.cursor, 42);
+    }
+
+    #[test]
+    fn bridge_blob_to_js() {
+        let bridge = SyncBlob {
+            blob_id: "def-456".into(),
+            payload: vec![1, 2, 3],
+            cursor: 10,
+            timestamp: 1700000000,
+        };
+        let js: JsSyncBlob = bridge.into();
+        assert_eq!(js.cursor, 10);
+        // Note: cursor is i64 in JS (no u64 in JS number)
+    }
+
+    #[test]
+    fn bridge_error_to_napi_error() {
+        let err = SyncBridgeError::NotConnected;
+        let napi_err: napi::Error = err.into();
+        assert!(napi_err.reason.contains("not connected"));
+    }
+}
+```
+
+**Step 2: JavaScript integration tests (RED → GREEN → REFACTOR)**
+
+These run with Bun (or Node) and test the actual native addon. Write them first; they'll fail until the Rust glue code compiles.
+
+```typescript
+// sync-node/__tests__/client.test.ts
+
+import { describe, test, expect } from 'bun:test';
+import { SyncClient } from '../index.js';
+
+describe('SyncClient', () => {
+    test('create() returns a client instance', async () => {
+        const client = await SyncClient.create({
+            secretBytes: Buffer.alloc(32, 42),
+            relayAddresses: ['fake-relay-id'],
+            deviceName: 'Test Client',
+        });
+        expect(client).toBeDefined();
+        expect(typeof client.isConnected).toBe('function');
+    });
+
+    test('create() with passphrase requires salt', async () => {
+        await expect(
+            SyncClient.create({
+                passphrase: 'test-pass',
+                // No salt!
+                relayAddresses: ['relay'],
+            })
+        ).rejects.toThrow();
+    });
+
+    test('create() with passphrase and salt succeeds', async () => {
+        const client = await SyncClient.create({
+            passphrase: 'test-pass',
+            salt: Buffer.alloc(16, 0),
+            relayAddresses: ['fake-relay'],
+        });
+        expect(client).toBeDefined();
+    });
+
+    test('isConnected returns false before connect', async () => {
+        const client = await SyncClient.create({
+            secretBytes: Buffer.alloc(32, 42),
+            relayAddresses: ['fake-relay'],
+        });
+        const connected = await client.isConnected();
+        expect(connected).toBe(false);
+    });
+
+    test('currentCursor returns 0 before any sync', async () => {
+        const client = await SyncClient.create({
+            secretBytes: Buffer.alloc(32, 42),
+            relayAddresses: ['fake-relay'],
+        });
+        const cursor = await client.currentCursor();
+        expect(cursor).toBe(0);
+    });
+
+    test('activeRelay returns null before connect', async () => {
+        const client = await SyncClient.create({
+            secretBytes: Buffer.alloc(32, 42),
+            relayAddresses: ['fake-relay'],
+        });
+        const relay = await client.activeRelay();
+        expect(relay).toBeNull();
+    });
+
+    test('push without connect throws', async () => {
+        const client = await SyncClient.create({
+            secretBytes: Buffer.alloc(32, 42),
+            relayAddresses: ['fake-relay'],
+        });
+        await expect(
+            client.push(Buffer.from('hello'))
+        ).rejects.toThrow(/not connected/i);
+    });
+
+    test('pull without connect throws', async () => {
+        const client = await SyncClient.create({
+            secretBytes: Buffer.alloc(32, 42),
+            relayAddresses: ['fake-relay'],
+        });
+        await expect(client.pull()).rejects.toThrow(/not connected/i);
+    });
+});
+
+describe('Invite', () => {
+    test('createInvite returns valid structure', () => {
+        const invite = SyncClient.createInvite({
+            relayAddresses: ['relay-id'],
+            groupId: Buffer.alloc(32, 1),
+            groupSecret: Buffer.alloc(32, 2),
+            salt: Buffer.alloc(16, 3),
+            ttlSeconds: 600,
+        });
+        expect(invite.relayAddresses).toHaveLength(1);
+        expect(invite.expiresAt).toBeGreaterThan(Date.now() / 1000);
+    });
+
+    test('inviteToQr and back roundtrips', () => {
+        const invite = SyncClient.createInvite({
+            relayAddresses: ['relay-id'],
+            groupId: Buffer.alloc(32, 1),
+            groupSecret: Buffer.alloc(32, 2),
+            salt: Buffer.alloc(16, 3),
+        });
+        const qr = SyncClient.inviteToQr(invite);
+        const restored = SyncClient.inviteFromQr(qr);
+        expect(restored.relayAddresses).toEqual(invite.relayAddresses);
+    });
+
+    test('inviteToShortCode returns formatted code', () => {
+        const invite = SyncClient.createInvite({
+            relayAddresses: ['relay-id'],
+            groupId: Buffer.alloc(32, 1),
+            groupSecret: Buffer.alloc(32, 2),
+            salt: Buffer.alloc(16, 3),
+        });
+        const code = SyncClient.inviteToShortCode(invite);
+        expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    });
+});
+```
+
+**Step 3: Build and compile (GREEN)**
+
+```bash
+# Build the native addon
+cd sync-node && napi build --release --strip
+
+# Run Rust tests
+cargo test -p zerok-sync-node
+
+# Run JS tests (Bun)
+cd sync-node && bun test
+
+# Run JS tests (Node — verify cross-runtime)
+cd sync-node && npx jest
+```
+
+#### 11.5.3 Validation Gate (Phase 8B)
+
+```
+🟢 VALIDATE — Phase 8B Complete When:
+  [ ] Rust tests pass: cargo test -p zerok-sync-node
+  [ ] Bun tests pass: cd sync-node && bun test
+  [ ] Node tests pass: cd sync-node && npx jest (or node --test)
+  [ ] TypeScript definitions generated (.d.ts)
+  [ ] SyncClient.create() works with passphrase and secretBytes
+  [ ] Push/pull throw NotConnected when not connected
+  [ ] Invite create/QR roundtrip/short code all work from JS
+  [ ] Binary size < 20 MB (stripped + LTO)
+  [ ] cargo clippy -p zerok-sync-node — 0 warnings
+```
+
+#### 11.5.4 Checkpoint
+
+```bash
+cargo test -p zerok-sync-node
+cd sync-node && bun test
+git add sync-node/
+git commit -m "Phase 8B: sync-node (napi-rs bindings for Bun/Node.js)
+
+- @0k-sync/native npm package
+- SyncClient: create, connect, disconnect, push, pull, shutdown
+- Invite: create, QR roundtrip, short code
+- Auto-generated TypeScript definitions
+- Tested on Bun and Node.js
+- ~15 Rust tests + ~20 JS integration tests"
+
+git tag v0.1.0-phase8b
+```
+
+---
+
+### 11.6 Phase 8C: sync-python (PyO3)
+
+**Purpose:** Expose `SyncHandle` to Python via PyO3. Produces a pip package (`zerok-sync`) with async/await support via `pyo3-async-runtimes`.
+
+**Depends on:** Phase 8A (sync-bridge). Can run in parallel with Phase 8B.
+
+#### 11.6.1 Deliverables
+
+| File | Contents |
+|------|----------|
+| `sync-python/Cargo.toml` | cdylib crate, depends on sync-bridge + pyo3 + pyo3-async-runtimes |
+| `sync-python/pyproject.toml` | maturin build config |
+| `sync-python/src/lib.rs` | `#[pymodule]` exports: PySyncClient, PySyncConfig, etc. |
+| `sync-python/python/zerok_sync/__init__.py` | Re-exports |
+| `sync-python/python/zerok_sync/_zerok_sync.pyi` | Type stubs for IDE support |
+| `sync-python/tests/` | pytest integration tests |
+
+#### 11.6.2 TDD Sequence
+
+**Step 1: Rust-side type mapping (RED → GREEN → REFACTOR)**
+
+```rust
+// sync-python/src/lib.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn py_config_to_bridge_config() {
+        let bridge = SyncHandleConfig {
+            passphrase: Some("test".into()),
+            secret_bytes: None,
+            salt: Some(vec![0u8; 16]),
+            relay_addresses: vec!["relay".into()],
+            device_name: Some("Python App".into()),
+            ttl: None,
+        };
+        // Verify the config we'd construct from Python args
+        assert_eq!(bridge.passphrase, Some("test".into()));
+    }
+
+    #[test]
+    fn bridge_error_to_py_err_string() {
+        let err = SyncBridgeError::NotConnected;
+        let msg = err.to_string();
+        // PyO3 will use this string for the Python exception message
+        assert!(msg.to_lowercase().contains("not connected"));
+    }
+
+    #[test]
+    fn bridge_error_connection_failed_preserves_reason() {
+        let err = SyncBridgeError::ConnectionFailed("relay unreachable".into());
+        let msg = err.to_string();
+        assert!(msg.contains("relay unreachable"));
+    }
+}
+```
+
+**Step 2: Python integration tests (RED → GREEN → REFACTOR)**
+
+Write pytest tests first. They fail until the Rust module compiles.
+
+```python
+# sync-python/tests/test_client.py
+
+import pytest
+import asyncio
+from zerok_sync import SyncClient, SyncConfig, Invite
+
+
+class TestSyncClient:
+    @pytest.mark.asyncio
+    async def test_create_with_secret_bytes(self):
+        config = SyncConfig(
+            secret_bytes=bytes(32),
+            relay_addresses=["fake-relay-id"],
+            device_name="Test Client",
+        )
+        client = await SyncClient.create(config)
+        assert client is not None
+
+    @pytest.mark.asyncio
+    async def test_create_with_passphrase_requires_salt(self):
+        with pytest.raises(Exception):
+            config = SyncConfig(
+                passphrase="test-pass",
+                # No salt!
+                relay_addresses=["relay"],
+            )
+            await SyncClient.create(config)
+
+    @pytest.mark.asyncio
+    async def test_create_with_passphrase_and_salt(self):
+        config = SyncConfig(
+            passphrase="test-pass",
+            salt=bytes(16),
+            relay_addresses=["fake-relay"],
+        )
+        client = await SyncClient.create(config)
+        assert client is not None
+
+    @pytest.mark.asyncio
+    async def test_is_connected_false_before_connect(self):
+        config = SyncConfig(
+            secret_bytes=bytes(32),
+            relay_addresses=["fake-relay"],
+        )
+        client = await SyncClient.create(config)
+        connected = await client.is_connected()
+        assert connected is False
+
+    @pytest.mark.asyncio
+    async def test_current_cursor_zero_before_sync(self):
+        config = SyncConfig(
+            secret_bytes=bytes(32),
+            relay_addresses=["fake-relay"],
+        )
+        client = await SyncClient.create(config)
+        cursor = await client.current_cursor()
+        assert cursor == 0
+
+    @pytest.mark.asyncio
+    async def test_push_without_connect_raises(self):
+        config = SyncConfig(
+            secret_bytes=bytes(32),
+            relay_addresses=["fake-relay"],
+        )
+        client = await SyncClient.create(config)
+        with pytest.raises(Exception, match="(?i)not connected"):
+            await client.push(b"hello")
+
+    @pytest.mark.asyncio
+    async def test_pull_without_connect_raises(self):
+        config = SyncConfig(
+            secret_bytes=bytes(32),
+            relay_addresses=["fake-relay"],
+        )
+        client = await SyncClient.create(config)
+        with pytest.raises(Exception, match="(?i)not connected"):
+            await client.pull()
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self):
+        config = SyncConfig(
+            secret_bytes=bytes(32),
+            relay_addresses=["fake-relay"],
+        )
+        async with SyncClient(config) as client:
+            assert client is not None
+            # Should not raise on exit even without connecting
+
+
+class TestInvite:
+    def test_create_invite(self):
+        invite = Invite.create(
+            relay_addresses=["relay-id"],
+            group_id=bytes(32),
+            group_secret=bytes(32),
+            salt=bytes(16),
+            ttl_seconds=600,
+        )
+        assert len(invite.relay_addresses) == 1
+        assert invite.expires_at > 0
+
+    def test_invite_qr_roundtrip(self):
+        invite = Invite.create(
+            relay_addresses=["relay-id"],
+            group_id=bytes(range(32)),
+            group_secret=bytes(range(32)),
+            salt=bytes(range(16)),
+        )
+        qr = invite.to_qr_payload()
+        restored = Invite.from_qr_payload(qr)
+        assert restored.relay_addresses == invite.relay_addresses
+
+    def test_invite_short_code_format(self):
+        invite = Invite.create(
+            relay_addresses=["relay-id"],
+            group_id=bytes(32),
+            group_secret=bytes(32),
+            salt=bytes(16),
+        )
+        code = invite.to_short_code()
+        parts = code.split("-")
+        assert len(parts) == 4
+        assert all(len(p) == 4 for p in parts)
+```
+
+**Step 3: Build and test**
+
+```bash
+# Build and install in virtualenv
+cd sync-python && maturin develop
+
+# Run Rust tests
+cargo test -p zerok-sync-python
+
+# Run Python tests
+cd sync-python && pytest tests/ -v
+
+# Verify async works
+cd sync-python && python -c "
+import asyncio
+from zerok_sync import SyncClient, SyncConfig
+async def main():
+    config = SyncConfig(secret_bytes=bytes(32), relay_addresses=['fake'])
+    client = await SyncClient.create(config)
+    print(f'Connected: {await client.is_connected()}')
+asyncio.run(main())
+"
+```
+
+#### 11.6.3 Validation Gate (Phase 8C)
+
+```
+🟢 VALIDATE — Phase 8C Complete When:
+  [ ] Rust tests pass: cargo test -p zerok-sync-python
+  [ ] Python tests pass: cd sync-python && pytest tests/ -v
+  [ ] Async/await works: all @pytest.mark.asyncio tests pass
+  [ ] Context manager (__aenter__/__aexit__) works
+  [ ] Type stubs (.pyi) provide IDE autocompletion
+  [ ] Python 3.10+ compatibility confirmed
+  [ ] Push/pull raise on NotConnected
+  [ ] Invite roundtrip works from Python
+  [ ] Wheel size < 15 MB
+  [ ] cargo clippy -p zerok-sync-python — 0 warnings
+```
+
+#### 11.6.4 Checkpoint
+
+```bash
+cargo test -p zerok-sync-python
+cd sync-python && pytest tests/ -v
+git add sync-python/
+git commit -m "Phase 8C: sync-python (PyO3 bindings for Python)
+
+- zerok-sync pip package
+- SyncClient: create, connect, disconnect, push, pull, shutdown
+- Async context manager (async with)
+- Invite: create, QR roundtrip, short code
+- Type stubs for IDE support
+- Tested with pytest + pytest-asyncio
+- ~15 Rust tests + ~20 Python integration tests"
+
+git tag v0.1.0-phase8c
+```
+
+---
+
+### 11.7 Phase 8 Rollback Procedures
+
+| Failure | Rollback |
+|---------|----------|
+| sync-bridge breaks existing tests | `git revert` the bridge commit. sync-bridge is additive — no existing crate depends on it yet. |
+| sync-node addon won't compile | Check napi-rs version, Bun compatibility. The bridge crate is independent — sync-node failures don't affect bridge or Python. |
+| sync-python wheel won't build | Check PyO3 version, maturin config. Same isolation — Python failures don't affect bridge or Node. |
+| iroh Endpoint fails in FFI context | Verify tokio runtime is active before creating Endpoint. Check `SyncHandle::create()` test in bridge. |
+| Argon2id blocks event loop | Move `derive_secret` to `tokio::task::spawn_blocking`. Test with a timer assertion. |
+
+### 11.8 Phase 8 Chaos Testing
+
+> **Cross-reference:** 06-CHAOS-TESTING-STRATEGY.md defines the chaos methodology, toolchain, and 68 core scenarios (Sections 5-10). Phase 8 adds **binding-specific chaos** — scenarios that only exist because of the FFI boundary between Rust and JS/Python.
+
+#### 11.8.1 Why Bindings Need Their Own Chaos
+
+The core chaos suite (T-\*, E-\*, S-\*, C-\*, A-\*) tests the protocol. Those scenarios don't change because of bindings — the protocol is identical whether driven by the CLI or by a JS/Python client. What's NEW is the FFI boundary itself:
+
+- **Tokio runtime** is owned by the bridge crate and shared across all `SyncHandle` instances. Runtime lifecycle bugs (startup, shutdown, panic recovery) are unique to bindings.
+- **Arc<Mutex<>>** pattern is the concurrency bridge. Contention from JS/Python async tasks hitting the same `SyncHandle` can cause deadlocks or data races that don't exist in single-threaded CLI usage.
+- **Cross-language GC** interaction. Python's cyclic GC and JS's V8 GC may collect wrapper objects while Rust still holds references. Drop ordering matters.
+- **Error propagation** across FFI. A `ClientError::AllRelaysFailed` in Rust must become a catchable JS exception or Python exception with the right message. Silent swallowing = data loss.
+
+#### 11.8.2 Binding Chaos Scenarios
+
+**Prefix: B-FFI (FFI Boundary)**
+
+| ID | Scenario | Language | Injection | Assertion |
+|----|----------|----------|-----------|-----------|
+| B-FFI-01 | 100 concurrent push() calls on same SyncClient | JS (Bun) | `Promise.all()` with 100 `client.push()` | All resolve or reject. No hang, no panic. Mutex contention handled. |
+| B-FFI-02 | disconnect() called while push is in-flight | JS + Python | Start push, immediately call disconnect | Push rejects with error. disconnect() completes. No leaked connection. |
+| B-FFI-03 | Rapid create/destroy cycle (50 clients in 5s) | JS + Python | Loop: create SyncClient, push, disconnect, drop | No file descriptor leak. No memory growth. Tokio runtime survives. |
+| B-FFI-04 | Python asyncio.CancelledError during push | Python | `asyncio.wait_for(client.push(...), timeout=0.001)` | CancelledError raised cleanly. SyncHandle remains usable for next operation. |
+| B-FFI-05 | JS AbortController signal during connect | JS (Bun) | AbortController timeout during HELLO handshake | Operation aborted. Client state reset. No dangling QUIC stream. |
+
+**Prefix: B-RT (Runtime Lifecycle)**
+
+| ID | Scenario | Language | Injection | Assertion |
+|----|----------|----------|-----------|-----------|
+| B-RT-01 | Process SIGTERM with active SyncHandle | Both | `process.kill(process.pid, 'SIGTERM')` / `os.kill()` | Graceful shutdown. No SQLite corruption. No orphaned QUIC connection. |
+| B-RT-02 | Multiple SyncHandle instances sharing tokio runtime | Both | Create 5 SyncHandles, connect all, push concurrently | All operations complete independently. No runtime starvation. |
+| B-RT-03 | SyncHandle dropped without disconnect | Both | Let variable go out of scope / set to null | Rust Drop impl cleans up. No connection leak. Finalizer fires. |
+| B-RT-04 | Long-running session (10,000 push/pull cycles) | Both | Loop push/pull with 10ms delay over ~100 seconds | Memory stable (±5%). No file descriptor growth. Cursor monotonically increasing. |
+
+**Prefix: B-ERR (Error Propagation)**
+
+| ID | Scenario | Language | Injection | Assertion |
+|----|----------|----------|-----------|-----------|
+| B-ERR-01 | AllRelaysFailed propagates to JS | JS | Configure dead relay addresses, call connect() | Rejects with Error. message contains "relay". Error is catchable. |
+| B-ERR-02 | AllRelaysFailed propagates to Python | Python | Same as B-ERR-01 | Raises exception with "relay" in message. `except` catches it. |
+| B-ERR-03 | CryptoError propagates with detail | Both | Inject corrupted secret_bytes (wrong length) | Error message includes reason. Not a generic "internal error". |
+| B-ERR-04 | Rust panic does not crash host process | Both | Trigger a code path that panics (e.g., unwrap on None) | JS: Error thrown, process alive. Python: exception raised, interpreter alive. No SIGSEGV. |
+
+#### 11.8.3 Protocol Chaos Through Bindings
+
+In addition to binding-specific chaos, a subset of the existing protocol chaos scenarios MUST be re-run through the bindings to verify the FFI layer doesn't mask failures:
+
+| Core Scenario | Binding Driver | What It Validates |
+|---------------|---------------|-------------------|
+| T-LOSS-02 (20% packet loss) | JS + Python client | Error propagation under network chaos through FFI |
+| S-CONC-01 (concurrent push) | JS + Python client | Arc<Mutex<>> contention under real protocol load |
+| MR-3 (all relays killed) | JS + Python client | AllRelaysFailed error crosses FFI cleanly |
+| E-HS-01 (handshake disruption) | JS + Python client | Timeout/retry behaviour visible to binding consumer |
+
+These use the existing Docker+Toxiproxy topology from Section 4 of the chaos strategy, with the binding client replacing sync-cli as the driver.
+
+#### 11.8.4 Phase Mapping
+
+Following the chaos strategy's "assertions first, infrastructure second" principle (Section 15.1):
+
+| Sub-Phase | Chaos Work | What's Runnable |
+|-----------|-----------|-----------------|
+| **8A** (sync-bridge) | Write B-RT-\* assertions against SyncHandle. Test tokio runtime lifecycle, Arc<Mutex<>> contention in-process. No FFI needed yet — pure Rust. | `cargo test -p zerok-sync-bridge` includes runtime chaos. |
+| **8B** (sync-node) | Write B-FFI-\* and B-ERR-\* for JS. Run B-FFI-01 through B-FFI-05 with Bun. Error propagation tests in Jest/Bun test runner. | `bun test` includes binding chaos. |
+| **8C** (sync-python) | Write B-FFI-\* and B-ERR-\* for Python. Run B-FFI-01 through B-FFI-05 with pytest. CancelledError test (B-FFI-04). | `pytest tests/` includes binding chaos. |
+| **Post-8** (integration) | Wire binding clients into Docker topology. Run protocol-through-bindings scenarios from 11.8.3. Nightly on Beast. | `cargo nextest run -p chaos-tests -E 'test(/^bindings/)'` |
+
+#### 11.8.5 Iteration Counts
+
+| Scenario Type | Iterations | Rationale |
+|---------------|-----------|-----------|
+| B-FFI (concurrency) | 50 | Mutex contention and GC interaction are timing-dependent |
+| B-RT (lifecycle) | 25 | Runtime startup/shutdown is fairly deterministic |
+| B-ERR (propagation) | 10 | Error paths are deterministic once wired |
+| Protocol-through-bindings | 10 | Same protocol, different driver — mostly checking FFI fidelity |
+
+#### 11.8.6 Scenario ID Summary
+
+| Prefix | Section | Count |
+|--------|---------|-------|
+| B-FFI | FFI Boundary | 5 |
+| B-RT | Runtime Lifecycle | 4 |
+| B-ERR | Error Propagation | 4 |
+| Protocol re-runs | Through bindings | 4 |
+| **Total** | | **17 scenarios** |
+
+> **Chaos strategy update:** After Phase 8 ships, update 06-CHAOS-TESTING-STRATEGY.md to add Section 16 (Bindings Chaos), update Appendix A to include B-\* prefixes, and update the total scenario count from 68 to 85.
+
+### 11.9 Phase 8 Complete When
+
+```
+🔵 CHECKPOINT — Phase 8 (All Sub-Phases) Complete When:
+  [ ] sync-bridge: ~25 tests passing (includes B-RT runtime chaos)
+  [ ] sync-node: ~35 tests passing (Rust + JS, includes B-FFI + B-ERR)
+  [ ] sync-python: ~35 tests passing (Rust + Python, includes B-FFI + B-ERR)
+  [ ] Binding chaos: 17 binding-specific chaos scenarios authored
+  [ ] Protocol-through-bindings: 4 core scenarios re-run via JS + Python drivers
+  [ ] Full workspace still passes: cargo test --workspace
+  [ ] No existing test regressions
+  [ ] All three crates added to workspace Cargo.toml
+  [ ] Binary sizes within budget (node: <20MB, wheel: <15MB)
+  [ ] README updated with binding usage examples
+  [ ] Tagged: v0.1.0-phase8
+```
+
+---
+
+## 12. Testing Strategy
 
 ### 11.1 Test Pyramid
 
@@ -2313,16 +3366,24 @@ If a breaking change reaches users:
 | 3.5 | sync-content | Content transfer | Encrypt-then-hash, iroh-blobs | 10 content chaos scenarios (mock: S-BLOB, C-STOR, C-COLL) |
 | 6 | sync-relay | Custom relay | Message routing | Full suite activation: 68 scenarios, Docker topology, nightly runs |
 | 7 | tauri-plugin-sync | Tauri integration | Commands, events | None (framework-specific, not protocol-level) |
+| 8 | sync-bridge, sync-node, sync-python | Multi-language bindings | FFI boundary, cross-runtime async | 17 binding chaos scenarios (B-FFI, B-RT, B-ERR) + 4 protocol re-runs through bindings |
 
 **Remember:** Tests first. Every time. No exceptions.
 
 ---
 
-*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.4.0 | Date: 2026-02-03*
+*Document: 03-IMPLEMENTATION-PLAN.md | Version: 2.5.0 | Date: 2026-02-07*
 
 ---
 
 ## Changelog
+
+**v2.5.0 (2026-02-07):** Added Phase 8 (Multi-Language Bindings). Three sub-phases: 8A
+sync-bridge (keystone FFI crate), 8B sync-node (napi-rs for Bun/Node.js), 8C sync-python
+(PyO3 for Python). Full TDD sequences with test code for all sub-phases. Added 17 binding-
+specific chaos scenarios (B-FFI, B-RT, B-ERR) plus 4 protocol-through-bindings re-runs.
+Updated phase overview, dependency table, summary table. Corresponds to Spec Section 18
+(v2.5.0).
 
 **v2.4.0 (2026-02-03):** Phase reconciliation. Phase 3 scope clarified as encryption-focused
 (iroh transport deferred). Phase 5 redefined as IrohTransport implementation (was Tauri
