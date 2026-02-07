@@ -31,4 +31,7 @@ uuid = { workspace = true }
 rand = { workspace = true }
 tracing = { workspace = true }
 
+# Temp directories for distributed test state
+tempfile = "3"
+
 [dev-dependencies]

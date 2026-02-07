@@ -22,6 +22,7 @@
 //! - `crossplatform` - X-PLAT-* (4 scenarios) - Multi-OS testing
 
 pub mod content;
+pub mod distributed;
 pub mod encryption;
 pub mod sync;
 pub mod transport;

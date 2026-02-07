@@ -1,0 +1,80 @@
+# Distributed Chaos Testing — 3-Relay Topology
+#
+# Deployed on Beast (100.71.79.25) via SSH from Q.
+# Each relay has its own HTTP port for health checks.
+# QUIC ports are ephemeral (iroh discovery via Pkarr).
+# No internal network — relays need internet for iroh discovery.
+
+services:
+  relay-1:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.relay
+    ports:
+      - "8090:8080"
+    stop_signal: SIGINT
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - relay-1-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  relay-2:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.relay
+    ports:
+      - "8091:8080"
+    stop_signal: SIGINT
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - relay-2-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  relay-3:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.relay
+    ports:
+      - "8092:8080"
+    stop_signal: SIGINT
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - relay-3-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  client-beast:
+    build:
+      context: ../..
+      dockerfile: tests/chaos/Dockerfile.cli
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      relay-1:
+        condition: service_healthy
+    volumes:
+      - beast-client-data:/data
+    command: ["sleep", "infinity"]
+
+volumes:
+  relay-1-data:
+  relay-2-data:
+  relay-3-data:
+  beast-client-data:
