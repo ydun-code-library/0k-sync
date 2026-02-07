@@ -1,7 +1,7 @@
 # 0k-Sync - Technical Specification
 
-**Version:** 2.4.0
-**Date:** 2026-02-06
+**Version:** 2.5.0
+**Date:** 2026-02-07
 **Author:** James (LTIS Investments AB)
 **Audience:** Implementers, Developers
 
@@ -26,6 +26,7 @@
 15. [Device Revocation](#15-device-revocation)
 16. [Push Notification Integration](#16-push-notification-integration)
 17. [Large Content Transfer Protocol](#17-large-content-transfer-protocol)
+18. [Multi-Language Bindings](#18-multi-language-bindings)
 - [Appendix A: Crate Dependencies](#appendix-a-crate-dependencies)
 
 ---
@@ -1868,6 +1869,460 @@ This ensures zero runtime dependency on any third party.
 
 ---
 
+## 18. Multi-Language Bindings
+
+> **Amendment (2026-02-07):** Added per multi-language bindings feasibility research. Defines the architecture for exposing sync-client to JavaScript/TypeScript (Bun, Node.js), Python, and Tauri via a shared bridge crate.
+
+### 18.1 Design Rationale
+
+The sync protocol is implemented in Rust. To serve consumers beyond Rust — Bun/Node.js applications, Python services, and Tauri desktop apps — the client library must be accessible from multiple languages without duplicating protocol logic.
+
+**Design constraint:** All bindings wrap the same Rust core. The API is designed once, informed by all consumers. Cryptography, protocol logic, and networking never leave Rust.
+
+**Approach:** Manual bindings via napi-rs (JavaScript) and PyO3 (Python). UniFFI was evaluated and rejected — its JavaScript/Bun story is immature and unproven in production. The manual approach is validated by Temporal SDK-Core, BAML (BoundaryML), and Spikard, all of which use the identical pattern at production scale.
+
+### 18.2 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     sync-client (existing)                        │
+│  • SyncClient<T: Transport> — generic over transport             │
+│  • All crypto, protocol logic, connection management             │
+│  • sync-types, sync-core, sync-content as dependencies           │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────────┐
+│                     sync-bridge (new crate)                      │
+│  • Resolves generic: SyncClient<IrohTransport> → SyncHandle     │
+│  • Defines FFI-friendly types (no generics, no lifetimes)        │
+│  • Centralised error mapping                                     │
+│  • Tokio runtime lifecycle management                            │
+│  • crate-type: rlib (regular Rust library, NOT cdylib)           │
+└──┬───────────────┬────────────────┬─────────────────────────────┘
+   │               │                │
+   ▼               ▼                ▼
+┌────────┐  ┌──────────┐  ┌─────────────────┐
+│sync-node│  │sync-python│  │tauri-plugin-sync│
+│(napi-rs)│  │(PyO3)    │  │(Tauri commands) │
+│ cdylib  │  │ cdylib   │  │ rlib            │
+│→ npm    │  │→ pip     │  │→ Tauri plugin   │
+└────────┘  └──────────┘  └─────────────────┘
+
+sync-cli (existing) ──► sync-client directly (no bridge needed)
+```
+
+**Why `sync-bridge`?**
+
+`SyncClient<T: Transport>` is generic — generics cannot cross FFI boundaries. napi-rs and PyO3 both require concrete types. The bridge monomorphizes the generic into `SyncHandle`, which holds `SyncClient<IrohTransport>` with a managed tokio runtime. Each binding crate does thin type conversion from bridge types to its native representation.
+
+### 18.3 sync-bridge Crate
+
+**Purpose:** Single source of truth for the FFI-facing API. All binding crates depend on this; none depend directly on sync-client.
+
+#### 18.3.1 SyncHandle
+
+```rust
+/// Concrete, non-generic client handle for FFI consumers.
+/// Owns the tokio runtime lifecycle when used from non-Rust contexts.
+pub struct SyncHandle {
+    client: SyncClient<IrohTransport>,
+}
+
+impl SyncHandle {
+    /// Create a new handle. Async — binds to network via iroh Endpoint.
+    pub async fn create(config: SyncHandleConfig) -> Result<Self, SyncBridgeError>;
+
+    /// Connect to relay. Performs HELLO/Welcome handshake.
+    pub async fn connect(&self) -> Result<(), SyncBridgeError>;
+
+    /// Disconnect gracefully.
+    pub async fn disconnect(&self) -> Result<(), SyncBridgeError>;
+
+    /// Push encrypted data. Returns blob ID and assigned cursor.
+    pub async fn push(&self, data: &[u8]) -> Result<PushResult, SyncBridgeError>;
+
+    /// Pull all blobs since last known cursor.
+    pub async fn pull(&self) -> Result<Vec<SyncBlob>, SyncBridgeError>;
+
+    /// Pull blobs after a specific cursor.
+    pub async fn pull_after(&self, cursor: u64) -> Result<Vec<SyncBlob>, SyncBridgeError>;
+
+    /// Check connection status.
+    pub async fn is_connected(&self) -> bool;
+
+    /// Get current cursor position.
+    pub async fn current_cursor(&self) -> u64;
+
+    /// Get the active relay address (if connected).
+    pub async fn active_relay(&self) -> Option<String>;
+
+    /// Graceful shutdown. Disconnects client, closes iroh Endpoint,
+    /// ensures background tasks are cleaned up.
+    pub async fn shutdown(&self) -> Result<(), SyncBridgeError>;
+}
+```
+
+#### 18.3.2 FFI-Friendly Types
+
+All types in the bridge use plain scalars, `String`, `Vec<u8>`, and flat structs. No generics, no lifetimes, no trait objects.
+
+```rust
+/// Configuration for creating a SyncHandle.
+pub struct SyncHandleConfig {
+    /// Passphrase for key derivation (mutually exclusive with secret_bytes).
+    pub passphrase: Option<String>,
+    /// Pre-derived secret bytes (32 bytes, mutually exclusive with passphrase).
+    pub secret_bytes: Option<Vec<u8>>,
+    /// Argon2id salt (16 bytes). Required if passphrase is used.
+    pub salt: Option<Vec<u8>>,
+    /// Relay addresses in preference order (first = primary).
+    pub relay_addresses: Vec<String>,
+    /// Human-readable device name.
+    pub device_name: Option<String>,
+    /// Default TTL for pushed blobs (seconds). Default: 604800 (7 days).
+    pub ttl: Option<u32>,
+}
+
+/// Result of a push operation.
+pub struct PushResult {
+    pub blob_id: String,
+    pub cursor: u64,
+}
+
+/// A received blob from a pull operation.
+pub struct SyncBlob {
+    pub blob_id: String,
+    pub payload: Vec<u8>,
+    pub cursor: u64,
+    pub timestamp: u64,
+}
+
+/// Invite for device pairing.
+pub struct SyncInvite {
+    pub relay_addresses: Vec<String>,
+    pub group_id: String,
+    pub group_secret: Vec<u8>,
+    pub salt: Vec<u8>,
+    pub expires_at: u64,
+}
+
+/// Bridge error type. String-based for easy conversion to napi::Error and PyErr.
+pub enum SyncBridgeError {
+    NotConnected,
+    ConnectionFailed(String),
+    AllRelaysFailed(String),
+    CryptoError(String),
+    ProtocolError(String),
+    TransportError(String),
+    InvalidConfig(String),
+    Shutdown,
+}
+```
+
+#### 18.3.3 Invite Operations
+
+```rust
+impl SyncHandle {
+    /// Create a pairing invite with the current group credentials.
+    pub fn create_invite(
+        relay_addresses: Vec<String>,
+        group_id: &[u8],
+        group_secret: &[u8],
+        salt: &[u8],
+        ttl_seconds: Option<u64>,
+    ) -> Result<SyncInvite, SyncBridgeError>;
+
+    /// Encode invite as QR payload string.
+    pub fn invite_to_qr(invite: &SyncInvite) -> Result<String, SyncBridgeError>;
+
+    /// Decode invite from QR payload string.
+    pub fn invite_from_qr(payload: &str) -> Result<SyncInvite, SyncBridgeError>;
+
+    /// Encode invite as short code (XXXX-XXXX-XXXX-XXXX).
+    pub fn invite_to_short_code(invite: &SyncInvite) -> Result<String, SyncBridgeError>;
+}
+```
+
+#### 18.3.4 Key Derivation
+
+```rust
+/// Derive group secret from passphrase. CPU-intensive (Argon2id).
+/// Binding crates MUST run this off the main thread / event loop.
+pub fn derive_secret(
+    passphrase: &str,
+    salt: Option<&[u8]>,
+) -> Result<(Vec<u8>, Vec<u8>), SyncBridgeError>;
+// Returns: (secret_bytes, salt_bytes)
+```
+
+> **Performance note:** `derive_secret` runs Argon2id with device-adaptive parameters (19-64 MiB, 200-500ms). Binding crates must dispatch this to a background thread to avoid blocking the caller's event loop (Bun's main thread, Python's asyncio loop).
+
+### 18.4 sync-node (napi-rs — npm package)
+
+**Package name:** `@0k-sync/native`
+**Crate type:** `cdylib`
+**Target runtimes:** Bun (primary), Node.js, Deno (via Node compat)
+**Platform packages:** `@0k-sync/darwin-arm64`, `@0k-sync/linux-x64-gnu`, etc.
+
+#### 18.4.1 Bun Compatibility
+
+Bun implements >95% of Node-API (the stable C ABI). The napi-rs patterns used by this binding (async fn, classes, Buffer, ThreadsafeFunction) are all within Bun's confirmed-working surface. Bun does not support `uv_*` (libuv) functions — irrelevant since we use tokio. As of Bun 1.3, each native module gets its own `napi_env`.
+
+#### 18.4.2 Async Model
+
+napi-rs creates a global multi-threaded tokio runtime (lazy-initialized). All `#[napi] async fn` methods execute on this runtime and return JavaScript `Promise` objects. The iroh Endpoint's background tasks (relay connections, NAT traversal) run on this same runtime.
+
+`SyncClient` uses `&self` (not `&mut self`) for all async methods, with interior mutability via `Arc<Mutex<>>`. This avoids napi-rs's `unsafe` requirement for `&mut self` in async class methods.
+
+#### 18.4.3 TypeScript API
+
+napi-rs auto-generates TypeScript definitions (`.d.ts`). The consumer API:
+
+```typescript
+import { SyncClient, SyncConfig, Invite } from '@0k-sync/native';
+
+// Create client (async — binds to network)
+const client = await SyncClient.create({
+    passphrase: 'correct-horse-battery-staple',
+    salt: Buffer.from(savedSalt),
+    relayAddresses: ['primary-node-id', 'secondary-node-id'],
+    deviceName: 'My App',
+    ttl: 604800,
+});
+
+// Connect to relay
+await client.connect();
+
+// Push data (encrypted before it leaves the process)
+const { blobId, cursor } = await client.push(Buffer.from(data));
+
+// Pull new data
+const blobs = await client.pull();
+for (const blob of blobs) {
+    const data = blob.payload;  // Buffer — already decrypted
+    const cursor = blob.cursor;
+}
+
+// Pull after specific cursor
+const newBlobs = await client.pullAfter(lastKnownCursor);
+
+// Status
+const connected = await client.isConnected();
+const cursor = await client.currentCursor();
+const relay = await client.activeRelay();  // string | null
+
+// Pairing
+const invite = SyncClient.createInvite({
+    relayAddresses: ['node-id'],
+    groupId: Buffer.from(groupId),
+    groupSecret: Buffer.from(secret),
+    salt: Buffer.from(salt),
+    ttlSeconds: 600,
+});
+const qrPayload = SyncClient.inviteToQr(invite);
+const shortCode = SyncClient.inviteToShortCode(invite);
+
+// Graceful shutdown
+await client.shutdown();
+```
+
+#### 18.4.4 Constructor Pattern
+
+`IrohTransport::new()` is async (binds to network). napi-rs constructors must be synchronous. Use a static async factory method:
+
+```rust
+#[napi]
+impl JsSyncClient {
+    #[napi(factory)]
+    pub async fn create(config: JsSyncConfig) -> napi::Result<Self> {
+        let handle = SyncHandle::create(config.into()).await
+            .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+        Ok(Self { handle })
+    }
+}
+```
+
+#### 18.4.5 Binary Distribution
+
+Per-platform npm packages, published via napi-rs's standard tooling:
+
+| Platform | Package |
+|----------|---------|
+| macOS arm64 | `@0k-sync/darwin-arm64` |
+| macOS x64 | `@0k-sync/darwin-x64` |
+| Linux x64 (glibc) | `@0k-sync/linux-x64-gnu` |
+| Linux arm64 (glibc) | `@0k-sync/linux-arm64-gnu` |
+| Windows x64 | `@0k-sync/win32-x64-msvc` |
+
+Users install `@0k-sync/native`; the correct platform package is resolved automatically via npm `optionalDependencies`.
+
+**Estimated binary size:** 8-15 MB per platform (stripped, with LTO).
+
+### 18.5 sync-python (PyO3 — pip package)
+
+**Package name:** `zerok-sync`
+**Crate type:** `cdylib`
+**Build system:** maturin
+**Python versions:** 3.10-3.14 (via ABI3 stable)
+
+#### 18.5.1 Async Model
+
+`pyo3-async-runtimes` bridges tokio to Python's asyncio. A tokio runtime runs on a background thread; Python controls the main thread (asyncio requirement). All async methods use `future_into_py` to convert Rust futures into Python awaitables.
+
+The GIL is released during all Rust-side I/O and crypto operations (`py.allow_threads`), preventing GIL contention.
+
+#### 18.5.2 Python API
+
+```python
+import asyncio
+from zerok_sync import SyncClient, SyncConfig, Invite
+
+async def main():
+    # Create config
+    config = SyncConfig(
+        passphrase="correct-horse-battery-staple",
+        salt=saved_salt,
+        relay_addresses=["primary-node-id", "secondary-node-id"],
+        device_name="My Scraper",
+    )
+
+    # Context manager handles connect + shutdown
+    async with SyncClient(config) as client:
+        # Push data
+        blob_id, cursor = await client.push(b"signal data")
+
+        # Pull new data
+        blobs = await client.pull()
+        for blob in blobs:
+            data = blob.payload    # bytes
+            cursor = blob.cursor   # int
+
+        # Pull after specific cursor
+        new_blobs = await client.pull_after(last_cursor)
+
+        # Status
+        connected = await client.is_connected()
+        cursor = await client.current_cursor()
+        relay = await client.active_relay()  # str | None
+
+    # Pairing
+    invite = Invite.create(
+        relay_addresses=["node-id"],
+        group_id=group_id_bytes,
+        group_secret=secret_bytes,
+        salt=salt_bytes,
+        ttl_seconds=600,
+    )
+    qr = invite.to_qr_payload()
+    code = invite.to_short_code()
+
+asyncio.run(main())
+```
+
+#### 18.5.3 Context Manager
+
+The `async with` pattern ensures graceful shutdown:
+
+```rust
+#[pymethods]
+impl PySyncClient {
+    fn __aenter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // Connect and return self
+    }
+
+    fn __aexit__<'py>(&self, py: Python<'py>, ...) -> PyResult<Bound<'py, PyAny>> {
+        // Disconnect and shutdown
+    }
+}
+```
+
+#### 18.5.4 Binary Distribution
+
+maturin builds platform-specific wheels. Using ABI3 (`abi3-py310`), a single wheel works across Python 3.10-3.14 per platform.
+
+| Platform | Wheel tag |
+|----------|-----------|
+| Linux x86_64 | `zerok_sync-*-cp310-abi3-manylinux_2_17_x86_64.whl` |
+| Linux aarch64 | `zerok_sync-*-cp310-abi3-manylinux_2_17_aarch64.whl` |
+| macOS arm64 | `zerok_sync-*-cp310-abi3-macosx_11_0_arm64.whl` |
+| macOS x64 | `zerok_sync-*-cp310-abi3-macosx_10_12_x86_64.whl` |
+| Windows x64 | `zerok_sync-*-cp310-abi3-win_amd64.whl` |
+
+**Estimated wheel size:** 5-12 MB per platform.
+
+### 18.6 tauri-plugin-sync (Updated)
+
+The existing Tauri plugin specification (Section 9) is updated to depend on `sync-bridge` rather than directly on `sync-client`. This gives the Tauri plugin the same concrete `SyncHandle` type used by the other bindings.
+
+```rust
+use sync_bridge::SyncHandle;
+use tauri::State;
+
+#[tauri::command]
+async fn sync_push(
+    state: State<'_, SyncHandle>,
+    data: Vec<u8>,
+) -> Result<PushResult, String> {
+    state.push(&data).await.map_err(|e| e.to_string())
+}
+```
+
+The TypeScript API defined in Section 9.2 remains unchanged — it is the same interface, now backed by the bridge.
+
+### 18.7 sync-cli (No Changes)
+
+The CLI is pure Rust with `#[tokio::main]`. It depends directly on `sync-client` and owns its own tokio runtime. No bridge needed. No changes required.
+
+### 18.8 Error Handling Across Boundaries
+
+Each binding converts `SyncBridgeError` to its native error type:
+
+| Binding | Conversion | Consumer sees |
+|---------|-----------|---------------|
+| napi-rs | `SyncBridgeError` → `napi::Error` via `.to_string()` | Rejected `Promise` with error message |
+| PyO3 | `SyncBridgeError` → `PyErr` via `From` impl | Python exception (`RuntimeError`, `ConnectionError`, etc.) |
+| Tauri | `SyncBridgeError` → `String` via `.to_string()` | Tauri command error |
+
+### 18.9 Tokio Runtime Management
+
+| Binding | Runtime ownership | Notes |
+|---------|-------------------|-------|
+| **sync-node** | napi-rs creates a global multi-threaded tokio runtime | Lazy-initialized, lives until Node process exits. iroh background tasks run on this runtime. |
+| **sync-python** | `pyo3-async-runtimes` manages a background tokio runtime | Python asyncio on main thread, tokio on background thread. |
+| **tauri-plugin** | Tauri's own tokio runtime | Tauri commands are already async. No additional runtime needed. |
+| **sync-cli** | `#[tokio::main]` | Standard Rust async entry point. |
+
+**Shutdown ordering:** Client disconnect → iroh Endpoint close → runtime teardown. The `SyncHandle::shutdown()` method encapsulates this sequence. Binding crates must call it (or trigger it via context manager / Drop) before the runtime is dropped.
+
+### 18.10 Security Properties
+
+All bindings preserve the same security guarantees as the Rust client:
+
+| Property | Guarantee |
+|----------|-----------|
+| **Zero-knowledge** | Encryption/decryption happens in Rust. Plaintext never crosses the network. |
+| **Key material in Rust** | `GroupSecret`, `GroupKey` are Rust types with `Zeroize + ZeroizeOnDrop`. They are never serialized to JS/Python. |
+| **No key exposure** | The bridge API accepts passphrases (strings) or pre-derived secret bytes. It never returns raw key material. |
+| **Crypto in compiled code** | XChaCha20-Poly1305, Argon2id, HKDF all execute in Rust. No JS/Python crypto. |
+| **Transport security** | iroh QUIC (TLS 1.3) is managed entirely in Rust. |
+
+> **Caveat:** Python's garbage collector does not guarantee immediate deallocation. A passphrase passed as a Python `str` may linger in Python's heap. The Rust-side `GroupSecret` is zeroized on drop. The passphrase lifetime in the host language is the caller's responsibility.
+
+### 18.11 iroh Isolation
+
+The `Transport` trait in sync-client abstracts iroh completely. No iroh types appear in the bridge or binding APIs:
+
+| iroh type | Exposed as | Notes |
+|-----------|-----------|-------|
+| `EndpointId` | `String` (via `Display`) | Only for diagnostics. Not part of core API. |
+| `Endpoint` | Not exposed | Internal to `IrohTransport`. |
+| `Connection` | Not exposed | Internal to `IrohTransport`. |
+| `EndpointAddr` | Not exposed | Internal to `IrohTransport`. |
+
+iroh's February 2025 decision to pause their own FFI bindings does not affect this project. We bind sync-client, not iroh.
+
+---
+
 ## Appendix A: Crate Dependencies
 
 ### sync-types
@@ -1930,11 +2385,60 @@ tracing-subscriber = "0.3"
 config = "0.14"
 ```
 
-### Framework Integration Example: Tauri Plugin
+### sync-bridge
 ```toml
-# tauri-plugin-sync (optional - example integration)
+[package]
+name = "zerok-sync-bridge"
+
+[lib]
+crate-type = ["rlib"]
+
 [dependencies]
 sync-client = { path = "../sync-client" }
+sync-types = { path = "../sync-types" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+thiserror = "1"
+tracing = "0.1"
+```
+
+### sync-node (napi-rs)
+```toml
+[package]
+name = "zerok-sync-node"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sync-bridge = { path = "../sync-bridge" }
+napi = { version = "3", features = ["async", "tokio_rt"] }
+napi-derive = "3"
+
+[build-dependencies]
+napi-build = "2"
+```
+
+### sync-python (PyO3)
+```toml
+[package]
+name = "zerok-sync-python"
+
+[lib]
+name = "zerok_sync"
+crate-type = ["cdylib"]
+
+[dependencies]
+sync-bridge = { path = "../sync-bridge" }
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py310"] }
+pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+```
+
+### Framework Integration: Tauri Plugin (updated)
+```toml
+# tauri-plugin-sync — now depends on sync-bridge, not sync-client directly
+[dependencies]
+sync-bridge = { path = "../sync-bridge" }
 tauri = "2"
 tauri-plugin = "2"
 serde = { version = "1", features = ["derive"] }
@@ -1947,10 +2451,12 @@ serde_json = "1"
 
 ## Changelog
 
+**v2.5.0 (2026-02-07):** Added Section 18 (Multi-Language Bindings). Defines sync-bridge crate architecture, napi-rs bindings (@0k-sync/native for Bun/Node.js), PyO3 bindings (zerok-sync for Python), updated Tauri plugin to use bridge. Added FFI-friendly type definitions, tokio runtime management, error handling across boundaries, security properties, and iroh isolation guarantees. Updated Appendix A with new crate dependencies.
+
 **v2.3.0 (2026-02-03):** Removed WebSocket transport from all tiers. All connections now use iroh QUIC. sync-relay (Phase 6) redesigned as iroh Endpoint instead of WebSocket server. Removed tokio-tungstenite dependency. Updated RelayBackend enum to use NodeId addressing. Fixed ManagedCloud enum variant (space in name). Updated data flow diagram, tier configs, pairing format, mobile lifecycle section, CLI config, and dependency lists.
 
 **v2.2.0 (2026-02-02):** Layer structure updated per iroh-deep-dive-report.md. Added Layer 3 (Content Transfer) for large file handling via iroh-blobs. Added Section 17 (Large Content Transfer Protocol).
 
 ---
 
-*Document: 02-SPECIFICATION.md | Version: 2.3.0 | Date: 2026-02-03*
+*Document: 02-SPECIFICATION.md | Version: 2.5.0 | Date: 2026-02-07*
