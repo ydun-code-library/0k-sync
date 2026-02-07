@@ -204,16 +204,9 @@ We don't just test the happy path. We test what happens when the world falls apa
 | **Single-host** (28 tests) | Toxiproxy-mediated chaos — latency, packet loss, bandwidth limits, connection drops | Docker Compose on Beast |
 | **Distributed** (37 tests) | Real multi-machine sync across a Tailscale mesh — relay failover, edge device behavior, network partitions | Q (Mac Mini) + Beast (Linux server) + Guardian (Raspberry Pi) |
 
-**Distributed test topology:**
-
-```
-Q (Mac Mini) ──── Tailscale ──── Beast (91GB server)
-     │                               ├── Relay-1 (:8090)
-     │                               ├── Relay-2 (:8091)
-     │                               └── Relay-3 (:8092)
-     │
-     └──────── Tailscale ──── Guardian (Raspberry Pi)
-```
+<p align="center">
+  <img src="assets/testing-topology.svg" alt="Distributed testing topology: Q orchestrates tests across Beast (3 relays) and Guardian (Raspberry Pi) over Tailscale" width="800">
+</p>
 
 Three permanent relays run on Beast. Tests connect to them, push/pull data, kill relays, inject network chaos, partition machines, and verify that data converges after recovery. Every test verifies the zero-knowledge invariant — no plaintext in any relay log.
 
