@@ -1,7 +1,7 @@
 # Sync-Relay Documentation Map
 
-**Version**: 1.4
-**Last Updated**: 2026-02-05
+**Version**: 1.5
+**Last Updated**: 2026-02-07
 **Purpose**: Navigation index for humans and AI assistants
 
 ---
@@ -51,12 +51,12 @@
 | File | Lines | Purpose | When to Read |
 |------|-------|---------|--------------|
 | `00-PLAN.md` | 174 | Documentation planning | Understanding doc structure |
-| `01-EXECUTIVE-SUMMARY.md` | 256 | Technical overview | High-level understanding |
-| `02-SPECIFICATION.md` | 1,684 | **PRIMARY SPEC** — Full protocol | Implementation reference |
-| `03-IMPLEMENTATION-PLAN.md` | 1,845 | TDD implementation guide | Before writing code |
+| `01-EXECUTIVE-SUMMARY.md` | 265 | Technical overview (v2.4.0) | High-level understanding |
+| `02-SPECIFICATION.md` | 2,200+ | **PRIMARY SPEC** — Full protocol (v2.5.0, incl. Section 18 bindings) | Implementation reference |
+| `03-IMPLEMENTATION-PLAN.md` | 3,400+ | TDD implementation guide (v2.5.0, incl. Phase 8 bindings) | Before writing code |
 | `04-RESEARCH-VALIDATION.md` | 652 | Technology choices | Understanding "why" decisions |
 | `05-RELEASE-STRATEGY.md` | 930 | Versioning, publishing, CI/CD | Before release activities |
-| `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 scenarios | Building chaos test harness |
+| `06-CHAOS-TESTING-STRATEGY.md` | 775 | Failure testing, 68 core + 17 binding scenarios | Building chaos test harness |
 | `E2E-TESTING-GUIDE.md` | ~150 | Manual E2E testing Q ↔ Beast | Running integration tests |
 | `MULTI-RELAY-SPEC.md` | ~200 | Multi-relay fan-out architecture (Phase 6.5) | Multi-relay implementation |
 
@@ -115,10 +115,11 @@ research/tactical-mesh-profile-appendix-d.md
 
 06-CHAOS-TESTING-STRATEGY.md (Failure Testing)
 ├── references → 02-SPECIFICATION.md, 03-IMPLEMENTATION-PLAN.md, 05-RELEASE-STRATEGY.md
-├── defines → 68 chaos scenarios across 6 categories
+├── defines → 68 core chaos scenarios across 6 categories
 ├── defines → Test environment (The Beast)
 ├── integrates with → CI/CD pipeline (smoke chaos in PRs)
-└── phased with → 03-IMPLEMENTATION-PLAN.md (chaos per impl phase)
+├── phased with → 03-IMPLEMENTATION-PLAN.md (chaos per impl phase)
+└── extended by → 03-IMPLEMENTATION-PLAN.md Phase 8 (17 binding chaos scenarios: B-FFI, B-RT, B-ERR)
 
 Dockerfile + Docker files (Containerization)
 ├── builds → sync-relay binary (multi-stage)
@@ -178,7 +179,7 @@ Dockerfile + Docker files (Containerization)
 
 ### Release & Quality Documents
 - `05-RELEASE-STRATEGY.md` — Versioning, publishing, CI/CD, quality gates
-- `06-CHAOS-TESTING-STRATEGY.md` — Chaos testing, 68 failure scenarios
+- `06-CHAOS-TESTING-STRATEGY.md` — Chaos testing, 68 core + 17 binding failure scenarios
 
 ### Docker & Deployment Files
 - `../Dockerfile` — Production relay image (multi-stage build)
@@ -203,6 +204,8 @@ Dockerfile + Docker files (Containerization)
 
 ### Handoff Documents (docs/handoffs/)
 - `P2-MONEY-Q-0k-sync-implementation-handoff.md` — Q's implementation handoff from Moneypenny
+- `P2-MARKETING-Q-0k-sync-bindings-request.md` — Marketing's formal request for multi-language bindings
+- `P3-Q-MARKETING-0k-sync-favicon-request.md` — Favicon asset request to marketing
 
 ### Amendment Documents (docs/)
 - `WEBSOCKET-REMOVAL-AMENDMENT.md` — Unified transport to iroh QUIC (applied 2026-02-03)
@@ -235,6 +238,6 @@ Dockerfile + Docker files (Containerization)
 
 ---
 
-**Navigation Index Version**: 1.5
-**Active Documents**: 28 (excludes archive/ and reference/; includes Docker files + audit reports)
-**Last Audit**: 2026-02-05
+**Navigation Index Version**: 1.6
+**Active Documents**: 30 (excludes archive/ and reference/; includes Docker files, audit reports, handoffs)
+**Last Audit**: 2026-02-07
