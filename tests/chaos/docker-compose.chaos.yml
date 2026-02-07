@@ -90,7 +90,6 @@ services:
 networks:
   chaos-net:
     driver: bridge
-    internal: true  # Isolated from external network
 
 volumes:
   relay-data:
