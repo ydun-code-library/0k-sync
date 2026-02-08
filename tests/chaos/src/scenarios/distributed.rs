@@ -450,7 +450,7 @@ async fn edge_02_guardian_bandwidth_limit() {
 
 /// EDGE_03: Block Guardian, Q pushes 10 messages, unblock, Guardian catches up.
 #[tokio::test]
-#[ignore = "requires distributed"]
+#[ignore = "requires distributed + passwordless sudo for iptables on Beast"]
 async fn edge_03_guardian_partition_recovery() {
     let harness = setup_full_harness().await;
 
@@ -541,7 +541,7 @@ async fn edge_04_guardian_slow_relay_fast_client() {
 
 /// NET_01: Block Q↔Beast, verify error, heal, verify recovery.
 #[tokio::test]
-#[ignore = "requires distributed"]
+#[ignore = "requires distributed + passwordless sudo for iptables on Beast"]
 async fn net_01_partition_q_beast() {
     let harness = setup_full_harness().await;
 

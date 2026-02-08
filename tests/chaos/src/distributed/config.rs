@@ -32,6 +32,18 @@ pub const BEAST_REPO: &str = "~/0k-sync";
 /// Path to the release CLI binary on Beast.
 pub const BEAST_CLI: &str = "~/0k-sync/target/release/sync-cli";
 
+/// Get the path to the release CLI binary on Q (Mac Mini).
+/// Resolves relative to the workspace root at runtime.
+pub fn q_cli_path() -> std::path::PathBuf {
+    // Navigate from chaos-tests manifest to workspace root
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent() // tests/
+        .and_then(|p| p.parent()) // workspace root
+        .map(|p| p.join("target/release/sync-cli"))
+        .unwrap_or_else(|| std::path::PathBuf::from("target/release/sync-cli"))
+}
+
 /// Path to the cross-compiled ARM binary on Guardian.
 pub const GUARDIAN_CLI: &str = "/tmp/sync-cli-arm";
 

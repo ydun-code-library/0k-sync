@@ -125,21 +125,15 @@ pub struct DistributedHarness {
 impl DistributedHarness {
     /// Connect to the permanent relays and create fresh client state.
     ///
-    /// Does NOT start relays — they must already be running.
-    /// Fails fast with `RelaysNotRunning` if they're down.
+    /// If any relays are down, restarts them before proceeding.
     pub async fn connect() -> Result<Self, DistributedError> {
         let test_id = uuid::Uuid::new_v4().as_simple().to_string()[..12].to_string();
         let passphrase = format!("dist-test-{}", &test_id);
         let q_data_dir = tempfile::tempdir()?;
         let guardian_data_dir = format!("{}/dist-{}", config::GUARDIAN_DATA_DIR, &test_id);
 
-        // Verify relays are running by checking health
-        let health = config::BEAST
-            .exec("curl -sf http://localhost:8090/health")
-            .await?;
-        if !health.success() {
-            return Err(DistributedError::RelaysNotRunning);
-        }
+        // Check if all relays are healthy, restart if needed
+        Self::ensure_relays_healthy().await?;
 
         // Discover Endpoint IDs from existing relay logs
         let mut relay_endpoint_ids = Vec::new();
@@ -154,6 +148,9 @@ impl DistributedHarness {
             .exec_ok(&format!("mkdir -p {}", guardian_data_dir))
             .await?;
 
+        // Clear any stale chaos rules from prior test runs
+        Self::clear_stale_chaos().await?;
+
         Ok(Self {
             passphrase,
             relay_endpoint_ids,
@@ -163,23 +160,110 @@ impl DistributedHarness {
         })
     }
 
+    /// Ensure all 3 relays are healthy. Restart any that are down.
+    async fn ensure_relays_healthy() -> Result<(), DistributedError> {
+        // Check health of each relay
+        let mut any_down = false;
+        for port in [8090, 8091, 8092] {
+            let health = config::BEAST
+                .exec(&format!("curl -sf http://localhost:{}/health", port))
+                .await?;
+            if !health.success() {
+                any_down = true;
+                break;
+            }
+        }
+
+        // If any relay is down, restart all of them
+        if any_down {
+            let restart_cmd = format!(
+                "cd ~/0k-sync/tests/chaos && docker compose -f docker-compose.distributed.yml -p {} restart",
+                COMPOSE_PROJECT
+            );
+            config::BEAST.exec_ok(&restart_cmd).await.map_err(|e| {
+                DistributedError::Compose(format!("relay restart failed: {}", e))
+            })?;
+
+            // Wait for relays to become healthy
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+            // Verify they're all healthy now
+            for port in [8090, 8091, 8092] {
+                let health = config::BEAST
+                    .exec(&format!("curl -sf http://localhost:{}/health", port))
+                    .await?;
+                if !health.success() {
+                    return Err(DistributedError::RelaysNotRunning);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Clear any stale chaos rules (iptables, tc netem) from prior test runs.
+    /// Called on connect() to ensure clean state.
+    async fn clear_stale_chaos() -> Result<(), DistributedError> {
+        // Remove any DROP rules for our partition tests (Guardian ↔ Beast)
+        // The partition() function adds: -s GUARDIAN -d BEAST and -s BEAST -d GUARDIAN
+        // Use -D repeatedly until it fails (no more matching rules)
+        let iptables_cmd = format!(
+            "while sudo iptables -D INPUT -s {} -d {} -j DROP 2>/dev/null; do :; done; \
+             while sudo iptables -D OUTPUT -s {} -d {} -j DROP 2>/dev/null; do :; done; \
+             true",
+            config::GUARDIAN_IP, config::BEAST_IP,
+            config::BEAST_IP, config::GUARDIAN_IP
+        );
+        config::BEAST.exec(&iptables_cmd).await?;
+
+        // Clear tc netem on relay containers
+        for i in 1..=3 {
+            let container = format!("{}-relay-{}-1", COMPOSE_PROJECT, i);
+            let cmd = format!("docker exec {} tc qdisc del dev eth0 root 2>/dev/null || true", container);
+            config::BEAST.exec(&cmd).await?;
+        }
+
+        // Clear tc netem on Guardian
+        config::GUARDIAN
+            .exec("sudo tc qdisc del dev eth0 root 2>/dev/null || true")
+            .await?;
+
+        Ok(())
+    }
+
     /// Clean up client state only. Does NOT touch relays.
     pub async fn cleanup(&self) -> Result<(), DistributedError> {
-        // Clean Guardian data for this test
+        self.cleanup_client_state().await
+    }
+
+    /// Clean up client state on all machines. Safe to call even if state doesn't exist.
+    /// This is called by cleanup() and also at the start of init_and_pair_all() to ensure
+    /// idempotent initialization.
+    async fn cleanup_client_state(&self) -> Result<(), DistributedError> {
+        // Clean Guardian data for this test (ignore errors if dir doesn't exist)
         config::GUARDIAN
-            .exec(&format!("rm -rf {}", self.guardian_data_dir))
+            .exec(&format!("rm -rf {} 2>/dev/null || true", self.guardian_data_dir))
             .await?;
 
         // Clean Beast client-beast container data for this test
         // (The container persists, but we can clean /data between tests)
         config::BEAST
             .exec(&format!(
-                "docker exec {}-client-beast-1 sh -c 'rm -rf /data/*'",
+                "docker exec {}-client-beast-1 sh -c 'rm -rf /data/* 2>/dev/null || true'",
                 COMPOSE_PROJECT
             ))
             .await?;
 
-        // Q data dir cleaned up by TempDir drop
+        // Q data dir is a TempDir, but we should still clean it if it has stale data
+        let q_data = self.q_data_dir.path();
+        if q_data.exists() {
+            for entry in std::fs::read_dir(q_data).into_iter().flatten() {
+                if let Ok(entry) = entry {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -375,6 +459,9 @@ impl DistributedHarness {
     /// Initialize and pair all 3 clients with the primary relay, then
     /// inject secondary relay addresses.
     pub async fn init_and_pair_all(&self) -> Result<(), DistributedError> {
+        // Clean up any stale state first (makes this function idempotent)
+        self.cleanup_client_state().await?;
+
         let primary_relay = &self.relay_endpoint_ids[0];
 
         // Init + pair on Q (local)
@@ -440,7 +527,7 @@ impl DistributedHarness {
         let mut cmd_args = vec!["--data-dir", data_dir];
         cmd_args.extend_from_slice(args);
 
-        let output = tokio::process::Command::new("sync-cli")
+        let output = tokio::process::Command::new(config::q_cli_path())
             .args(&cmd_args)
             .output()
             .await?;
@@ -508,62 +595,116 @@ impl DistributedHarness {
     // ========================================================================
 
     /// Inject all relay Endpoint IDs into a client's group.json.
+    /// Uses native JSON manipulation for Q, Python for remote machines.
     async fn inject_multi_relay_config(&self, machine: Machine) -> Result<(), DistributedError> {
-        let json_array = format!(
-            "[{}]",
-            self.relay_endpoint_ids
-                .iter()
-                .map(|id| format!("\"{}\"", id))
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-
-        let sed_cmd = format!(
-            r#"sed -i 's/"relay_node_ids":\[[^]]*\]/"relay_node_ids":{}/g' "#,
-            json_array,
-        );
+        let relay_ids = &self.relay_endpoint_ids;
 
         match machine {
             Machine::Q => {
+                // For Q (local), use Rust JSON manipulation
                 let group_json = self.q_data_dir.path().join("group.json");
-                let path = group_json.to_str().unwrap_or("");
-                let mac_sed = format!(
-                    r#"sed -i '' 's/"relay_node_ids":\[[^]]*\]/"relay_node_ids":{}/g' "{}""#,
-                    json_array, path,
-                );
-                let output = tokio::process::Command::new("sh")
-                    .args(["-c", &mac_sed])
-                    .output()
-                    .await?;
-                if !output.status.success() {
-                    return Err(DistributedError::ClientError {
+                let content = tokio::fs::read_to_string(&group_json).await.map_err(|e| {
+                    DistributedError::ClientError {
                         machine: "Q".into(),
-                        detail: format!("sed failed: {}", String::from_utf8_lossy(&output.stderr)),
-                    });
-                }
+                        detail: format!("read group.json failed: {}", e),
+                    }
+                })?;
+
+                let mut json: serde_json::Value = serde_json::from_str(&content).map_err(|e| {
+                    DistributedError::ClientError {
+                        machine: "Q".into(),
+                        detail: format!("parse group.json failed: {}", e),
+                    }
+                })?;
+
+                json["relay_addresses"] = serde_json::json!(relay_ids);
+
+                let new_content = serde_json::to_string_pretty(&json).map_err(|e| {
+                    DistributedError::ClientError {
+                        machine: "Q".into(),
+                        detail: format!("serialize group.json failed: {}", e),
+                    }
+                })?;
+
+                tokio::fs::write(&group_json, new_content).await.map_err(|e| {
+                    DistributedError::ClientError {
+                        machine: "Q".into(),
+                        detail: format!("write group.json failed: {}", e),
+                    }
+                })?;
             }
             Machine::Beast => {
+                // For Beast (Docker container), use jq
+                // Write JSON to temp file on Beast, docker cp into container
                 let container = format!("{}-client-beast-1", COMPOSE_PROJECT);
-                let cmd = format!(
-                    "docker exec {} sh -c '{}\"/data/group.json\"'",
-                    container, sed_cmd
+                let json_array = serde_json::to_string(relay_ids).unwrap();
+
+                // Step 1: Write relay array to temp file on Beast host
+                let write_cmd = format!(
+                    "cat > /tmp/relays.json << 'RELAYS_EOF'\n{}\nRELAYS_EOF",
+                    json_array
                 );
-                config::BEAST.exec_ok(&cmd).await.map_err(|e| {
+                config::BEAST.exec_ok(&write_cmd).await.map_err(|e| {
                     DistributedError::ClientError {
                         machine: "Beast".into(),
-                        detail: format!("sed failed: {}", e),
+                        detail: format!("write relays.json failed: {}", e),
+                    }
+                })?;
+
+                // Step 2: Copy into container
+                let cp_cmd = format!("docker cp /tmp/relays.json {}:/tmp/relays.json", container);
+                config::BEAST.exec_ok(&cp_cmd).await.map_err(|e| {
+                    DistributedError::ClientError {
+                        machine: "Beast".into(),
+                        detail: format!("docker cp failed: {}", e),
+                    }
+                })?;
+
+                // Step 3: Use jq with slurpfile
+                let jq_cmd = format!(
+                    "docker exec {} sh -c 'jq --slurpfile addrs /tmp/relays.json \".relay_addresses = \\$addrs[0]\" /data/group.json > /data/group.json.tmp && mv /data/group.json.tmp /data/group.json'",
+                    container
+                );
+                config::BEAST.exec_ok(&jq_cmd).await.map_err(|e| {
+                    DistributedError::ClientError {
+                        machine: "Beast".into(),
+                        detail: format!("jq inject failed: {}", e),
                     }
                 })?;
             }
             Machine::Guardian => {
-                let cmd = format!(
-                    "{}\"{}/group.json\"",
-                    sed_cmd, self.guardian_data_dir,
+                // For Guardian (SSH), use Python via temp script file
+                let json_array = serde_json::to_string(relay_ids).unwrap();
+                let group_path = format!("{}/group.json", self.guardian_data_dir);
+
+                // Write both the relay array and Python script via heredoc
+                let script = format!(
+                    r#"import json
+relays = {}
+with open('{}', 'r') as f:
+    group = json.load(f)
+group['relay_addresses'] = relays
+with open('{}', 'w') as f:
+    json.dump(group, f, indent=2)
+"#,
+                    json_array, group_path, group_path
                 );
-                config::GUARDIAN.exec_ok(&cmd).await.map_err(|e| {
+
+                let write_cmd = format!(
+                    "cat > /tmp/inject_relays.py << 'SCRIPT_EOF'\n{}\nSCRIPT_EOF",
+                    script
+                );
+                config::GUARDIAN.exec_ok(&write_cmd).await.map_err(|e| {
                     DistributedError::ClientError {
                         machine: "Guardian".into(),
-                        detail: format!("sed failed: {}", e),
+                        detail: format!("write script failed: {}", e),
+                    }
+                })?;
+
+                config::GUARDIAN.exec_ok("python3 /tmp/inject_relays.py").await.map_err(|e| {
+                    DistributedError::ClientError {
+                        machine: "Guardian".into(),
+                        detail: format!("python inject failed: {}", e),
                     }
                 })?;
             }
@@ -642,8 +783,10 @@ impl DistributedHarness {
     }
 }
 
-/// Extract an iroh Endpoint ID from log text.
+/// Extract the LATEST iroh Endpoint ID from log text.
+/// Returns the last endpoint ID found, since relays may have been restarted.
 fn extract_endpoint_id(text: &str) -> Option<String> {
+    let mut last_id = None;
     for line in text.lines() {
         if let Some(pos) = line.find("Endpoint ID: ") {
             let after = &line[pos + 13..];
@@ -652,11 +795,11 @@ fn extract_endpoint_id(text: &str) -> Option<String> {
                 .take_while(|c| c.is_ascii_hexdigit())
                 .collect();
             if hex_str.len() == 64 {
-                return Some(hex_str);
+                last_id = Some(hex_str);
             }
         }
     }
-    None
+    last_id
 }
 
 #[cfg(test)]
@@ -976,7 +1119,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires distributed"]
+    #[ignore = "requires distributed + passwordless sudo for iptables on Beast"]
     async fn distributed_partition_beast_guardian() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
 
@@ -1003,7 +1146,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires distributed"]
+    #[ignore = "requires distributed + passwordless sudo for iptables on Beast"]
     async fn distributed_heal_partition() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
 
