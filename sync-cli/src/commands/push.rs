@@ -24,8 +24,12 @@ pub async fn run(data_dir: &Path, data: &[u8], use_mock: bool) -> Result<()> {
         .primary_relay()
         .ok_or_else(|| anyhow::anyhow!("No relay addresses configured"))?
         .to_string();
-    let config =
-        SyncConfig::from_secret_bytes(&bytes, &primary_relay).with_device_name(&device.device_name);
+
+    // Use all relay addresses for failover, not just primary
+    let relay_addrs: Vec<&str> = group.relay_addresses.iter().map(|s| s.as_str()).collect();
+    let config = SyncConfig::from_secret_bytes(&bytes, &primary_relay)
+        .with_device_name(&device.device_name)
+        .with_relay_addresses(&relay_addrs);
 
     // Create transport and client based on mode
     if use_mock {
