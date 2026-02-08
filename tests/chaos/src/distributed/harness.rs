@@ -204,15 +204,19 @@ impl DistributedHarness {
     /// Clear any stale chaos rules (iptables, tc netem) from prior test runs.
     /// Called on connect() to ensure clean state.
     async fn clear_stale_chaos() -> Result<(), DistributedError> {
-        // Remove any DROP rules for our partition tests (Guardian ↔ Beast)
-        // The partition() function adds: -s GUARDIAN -d BEAST and -s BEAST -d GUARDIAN
+        // Remove any DROP rules for our partition tests
+        // Tests may partition: Guardian ↔ Beast, Q ↔ Beast
         // Use -D repeatedly until it fails (no more matching rules)
         let iptables_cmd = format!(
             "while sudo iptables -D INPUT -s {} -d {} -j DROP 2>/dev/null; do :; done; \
              while sudo iptables -D OUTPUT -s {} -d {} -j DROP 2>/dev/null; do :; done; \
+             while sudo iptables -D INPUT -s {} -d {} -j DROP 2>/dev/null; do :; done; \
+             while sudo iptables -D OUTPUT -s {} -d {} -j DROP 2>/dev/null; do :; done; \
              true",
             config::GUARDIAN_IP, config::BEAST_IP,
-            config::BEAST_IP, config::GUARDIAN_IP
+            config::BEAST_IP, config::GUARDIAN_IP,
+            config::Q_IP, config::BEAST_IP,
+            config::BEAST_IP, config::Q_IP
         );
         config::BEAST.exec(&iptables_cmd).await?;
 
