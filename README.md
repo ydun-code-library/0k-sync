@@ -303,7 +303,7 @@ The client library is identical across all tiers. Only the relay endpoint change
 | Crates.io publish | 🔜 When ready |
 | Hybrid post-quantum (Noise + ML-KEM) | 📋 Designed, not implemented |
 
-**518 tests (466 Rust + 21 JS + 31 Python), with 63 chaos scenarios (Docker + distributed).** This isn't vaporware — it's working code.
+**530 tests (478 Rust + 21 JS + 31 Python), with 63 chaos scenarios (Docker + distributed).** This isn't vaporware — it's working code.
 
 **What's next:**
 - UniFFI bindings for Kotlin/Swift (mobile)
