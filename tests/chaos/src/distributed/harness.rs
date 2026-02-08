@@ -809,6 +809,7 @@ fn extract_endpoint_id(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn extract_endpoint_id_from_docker_logs() {
@@ -838,6 +839,7 @@ mod tests {
     // ====================================================================
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_connect_to_relays() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -868,6 +870,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_relay_health_checks() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -888,6 +891,7 @@ mod tests {
     // ====================================================================
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_guardian_binary_exists() {
         DistributedHarness::ensure_guardian_binary()
@@ -902,6 +906,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_guardian_cli_version() {
         DistributedHarness::ensure_guardian_binary()
@@ -919,6 +924,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_guardian_init() {
         DistributedHarness::ensure_guardian_binary()
@@ -947,6 +953,7 @@ mod tests {
     // ====================================================================
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_init_pair_q() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -962,6 +969,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_init_pair_guardian() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -984,6 +992,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_init_pair_beast_container() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -1002,6 +1011,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_push_pull_q_to_guardian() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -1041,6 +1051,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_configure_multi_relay() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -1072,6 +1083,7 @@ mod tests {
     // ====================================================================
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_netem_relay_latency() {
         let harness = DistributedHarness::connect().await.expect("connect failed");
@@ -1098,6 +1110,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     #[ignore = "requires distributed"]
     async fn distributed_netem_guardian_loss() {
         let harness = DistributedHarness::connect().await.expect("connect failed");

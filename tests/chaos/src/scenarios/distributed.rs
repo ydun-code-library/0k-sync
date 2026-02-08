@@ -4,7 +4,10 @@
 //! - Q (Mac Mini), Beast (Linux server), Guardian (Raspberry Pi)
 //! - 3 relay instances on Beast, real QUIC over Tailscale
 //!
-//! All tests: `#[ignore = "requires distributed"]`
+//! All tests: `#[ignore = "requires distributed"]` + `#[serial]`
+//!
+//! **IMPORTANT**: Tests run sequentially via `serial_test` crate because they
+//! share state (device.json, group.json) on Beast and Guardian.
 //!
 //! Run: `cargo test -p chaos-tests distributed -- --ignored`
 //!
@@ -24,6 +27,7 @@ use crate::assertions::assert_no_plaintext_in_logs;
 use crate::distributed::config;
 use crate::distributed::harness::{ChaosTarget, DistributedHarness, Machine};
 use crate::netem::NetemConfig;
+use serial_test::serial;
 
 /// Set up a fully paired 3-machine harness with Guardian binary ready.
 async fn setup_full_harness() -> DistributedHarness {
@@ -52,6 +56,7 @@ async fn settle_long() {
 
 /// MR_01: Kill relay-1, verify Q reconnects to relay-2, push/pull still works.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn mr_01_relay_crash_failover() {
     let harness = setup_full_harness().await;
@@ -92,6 +97,7 @@ async fn mr_01_relay_crash_failover() {
 
 /// MR_02: Push from Q, verify data reachable from all 3 relays.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn mr_02_fan_out_all_relays() {
     let harness = setup_full_harness().await;
@@ -132,6 +138,7 @@ async fn mr_02_fan_out_all_relays() {
 
 /// MR_03: Restart relay-1, verify new Endpoint ID, reconfigure, push/pull works.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn mr_03_relay_restart_new_endpoint() {
     let harness = setup_full_harness().await;
@@ -175,6 +182,7 @@ async fn mr_03_relay_restart_new_endpoint() {
 
 /// MR_04: Kill all 3 relays, verify error, restart 1, verify recovery.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn mr_04_all_relays_down() {
     let harness = setup_full_harness().await;
@@ -227,6 +235,7 @@ async fn mr_04_all_relays_down() {
 
 /// CM_01: Q pushes 10 messages, Guardian pulls all 10.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn cm_01_q_push_guardian_pull() {
     let harness = setup_full_harness().await;
@@ -259,6 +268,7 @@ async fn cm_01_q_push_guardian_pull() {
 
 /// CM_02: Q pushes 5, Guardian pushes 5, both see all 10.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn cm_02_bidirectional_sync() {
     let harness = setup_full_harness().await;
@@ -293,6 +303,7 @@ async fn cm_02_bidirectional_sync() {
 
 /// CM_03: Q, Beast container, Guardian all push, all see all messages.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn cm_03_three_way_sync() {
     let harness = setup_full_harness().await;
@@ -326,6 +337,7 @@ async fn cm_03_three_way_sync() {
 
 /// CM_04: Q pushes continuously, Guardian pulls continuously, no data loss.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn cm_04_concurrent_push_pull() {
     let harness = setup_full_harness().await;
@@ -371,6 +383,7 @@ async fn cm_04_concurrent_push_pull() {
 
 /// EDGE_01: 500ms + 100ms jitter on Guardian, push/pull still works.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn edge_01_guardian_high_latency() {
     let harness = setup_full_harness().await;
@@ -409,6 +422,7 @@ async fn edge_01_guardian_high_latency() {
 
 /// EDGE_02: 128kbps bandwidth limit on Guardian, small messages still sync.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn edge_02_guardian_bandwidth_limit() {
     let harness = setup_full_harness().await;
@@ -497,6 +511,7 @@ async fn edge_03_guardian_partition_recovery() {
 
 /// EDGE_04: 200ms on relay-1, Guardian pushes, Q pulls — bidirectional under chaos.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn edge_04_guardian_slow_relay_fast_client() {
     let harness = setup_full_harness().await;
@@ -592,6 +607,7 @@ async fn net_01_partition_q_beast() {
 
 /// NET_02: Block relay-1 from Guardian only, Guardian fails over to relay-2.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn net_02_selective_relay_partition() {
     let harness = setup_full_harness().await;
@@ -631,6 +647,7 @@ async fn net_02_selective_relay_partition() {
 
 /// NET_03: Relay-1: 200ms latency, Relay-2: 10% loss, Relay-3: clean — verify convergence.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn net_03_asymmetric_chaos() {
     let harness = setup_full_harness().await;
@@ -675,6 +692,7 @@ async fn net_03_asymmetric_chaos() {
 /// CONV_01: Kill relay-1, partition Guardian, Q pushes. Restart relay-1,
 /// heal Guardian. All converge.
 #[tokio::test]
+#[serial]
 #[ignore = "requires distributed"]
 async fn conv_01_convergence_after_multi_failure() {
     let harness = setup_full_harness().await;

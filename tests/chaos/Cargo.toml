@@ -34,4 +34,7 @@ tracing = { workspace = true }
 # Temp directories for distributed test state
 tempfile = "3"
 
+# Sequential test execution for distributed tests (shared state)
+serial_test = "3"
+
 [dev-dependencies]
