@@ -298,12 +298,12 @@ The client library is identical across all tiers. Only the relay endpoint change
 | Security audit | ✅ 2 audits, 0 critical/high remaining |
 | Docker deployment | ✅ Working |
 | Chaos testing (single-host) | ✅ 28 Docker scenarios (Toxiproxy) |
-| Distributed testing | ✅ 37 scenarios across Q/Beast/Guardian mesh |
+| Distributed testing | ✅ 35 scenarios across Q/Beast/Guardian mesh (28 passing) |
 | Relay observability | ✅ Prometheus metrics (14 metrics), JSON health endpoint |
 | Crates.io publish | 🔜 When ready |
 | Hybrid post-quantum (Noise + ML-KEM) | 📋 Designed, not implemented |
 
-**449 tests passing (397 Rust + 21 JS + 31 Python), plus 65 infrastructure-dependent tests.** This isn't vaporware — it's working code.
+**518 tests (466 Rust + 21 JS + 31 Python), with 63 chaos scenarios (Docker + distributed).** This isn't vaporware — it's working code.
 
 **What's next:**
 - UniFFI bindings for Kotlin/Swift (mobile)
