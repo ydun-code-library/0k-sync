@@ -180,7 +180,7 @@ let blobs = client.pull().await?;
 |-------|---------|-------|
 | `sync-types` | Wire format, message definitions | 33 |
 | `sync-core` | Pure logic, no I/O (instant tests) | 70 |
-| `sync-client` | Client library for applications | 63 |
+| `sync-client` | Client library for applications | 69 |
 | `sync-content` | Large file transfer (encrypt-then-hash) | 24 |
 | `sync-cli` | CLI tool for testing/debugging | 30 |
 | `sync-relay` | Relay server | 51 |
@@ -189,7 +189,7 @@ let blobs = client.pull().await?;
 | `sync-python` | Python bindings (PyO3) | 11 + 31 pytest |
 | `chaos-tests` | Chaos + distributed testing | 68 + 65 ignored |
 
-**397 Rust tests + 21 JS + 31 Python = 449 total.** Two tiers of chaos testing: 28 single-host Docker scenarios (Toxiproxy) and 37 distributed scenarios across 3 machines over Tailscale.
+**403 Rust tests + 21 JS + 31 Python = 455 total.** Two tiers of chaos testing: 28 single-host Docker scenarios (Toxiproxy) and 37 distributed scenarios across 3 machines over Tailscale.
 
 ---
 
@@ -286,7 +286,7 @@ The client library is identical across all tiers. Only the relay endpoint change
 |------|--------|
 | Wire format (sync-types) | ✅ Done — 33 tests |
 | Core logic (sync-core) | ✅ Done — 70 tests |
-| Client library (sync-client) | ✅ Done — 63 tests |
+| Client library (sync-client) | ✅ Done — 69 tests |
 | Large file transfer (sync-content) | ✅ Done — 24 tests |
 | CLI tool (sync-cli) | ✅ Done — 30 tests |
 | Relay server (sync-relay) | ✅ Done — 51 tests |

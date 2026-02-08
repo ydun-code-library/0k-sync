@@ -18,7 +18,7 @@ highlights:
   - "Zero-knowledge relay — the server can't read your data, even if compromised"
   - "No accounts — devices pair via passphrase or QR code"
   - "Multi-relay failover — connect failover, push fan-out, per-relay cursor tracking"
-  - "518 tests (466 Rust + 21 JS + 31 Python) with 63 chaos scenarios (35 distributed + 28 Docker)"
+  - "524 tests (472 Rust + 21 JS + 31 Python) with 63 chaos scenarios (35 distributed + 28 Docker)"
   - "Relay observability — 14 Prometheus metrics, JSON health endpoint, per-request debug logging"
   - "Transport-agnostic core — sync-types and sync-core have zero iroh dependencies"
   - "Multi-language bindings — Node.js/Bun (napi-rs) and Python (PyO3)"

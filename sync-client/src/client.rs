@@ -312,6 +312,88 @@ impl<T: Transport> SyncClient<T> {
         self.active_relay.lock().await.clone()
     }
 
+    /// Try to reconnect to a different relay after the current one failed.
+    ///
+    /// Attempts each relay address after the current active one. If the current
+    /// relay is unknown or at the end of the list, starts from the beginning
+    /// (excluding the failed relay).
+    async fn try_reconnect(&self) -> Result<(), ClientError> {
+        // Close the failed connection
+        let _ = self.transport.close().await;
+
+        // Update state to disconnected
+        {
+            let mut state = self.state.lock().await;
+            let (new_state, _) = state.clone().on_event(Event::DisconnectRequested);
+            *state = new_state;
+        }
+
+        let current_relay = self.active_relay.lock().await.clone();
+        let addresses = &self.config.relay_addresses;
+
+        if addresses.is_empty() {
+            return Err(ClientError::AllRelaysFailed(
+                "no relay addresses configured".to_string(),
+            ));
+        }
+
+        // Find the index of the current relay
+        let current_index = current_relay
+            .as_ref()
+            .and_then(|r| addresses.iter().position(|a| a == r));
+
+        // Collect relays to try: all relays after current, then wrap around (excluding current)
+        let mut relays_to_try: Vec<&String> = Vec::new();
+        if let Some(idx) = current_index {
+            // Add relays after current
+            relays_to_try.extend(addresses.iter().skip(idx + 1));
+            // Add relays before current (wrap around)
+            relays_to_try.extend(addresses.iter().take(idx));
+        } else {
+            // Current relay unknown, try all
+            relays_to_try.extend(addresses.iter());
+        }
+
+        let mut errors: Vec<(String, String)> = Vec::new();
+
+        for address in relays_to_try {
+            match self.try_connect_relay(address).await {
+                Ok(server_cursor) => {
+                    // Update state machine
+                    {
+                        let mut state = self.state.lock().await;
+                        let (new_state, _) = state.clone().on_event(Event::ConnectSucceeded);
+                        *state = new_state;
+                    }
+                    {
+                        let mut state = self.state.lock().await;
+                        let (final_state, _) = state.clone().on_event(Event::HandshakeCompleted {
+                            cursor: server_cursor,
+                        });
+                        *state = final_state;
+                    }
+                    // Track the new active relay
+                    {
+                        let mut active = self.active_relay.lock().await;
+                        *active = Some(address.clone());
+                    }
+                    return Ok(());
+                }
+                Err(e) => {
+                    let _ = self.transport.close().await;
+                    errors.push((address.clone(), e.to_string()));
+                }
+            }
+        }
+
+        // All remaining relays failed
+        let error_details: Vec<String> = errors
+            .iter()
+            .map(|(addr, err)| format!("{}: {}", addr, err))
+            .collect();
+        Err(ClientError::AllRelaysFailed(error_details.join("; ")))
+    }
+
     /// Disconnect from the relay.
     pub async fn disconnect(&self) -> Result<(), ClientError> {
         {
@@ -327,6 +409,7 @@ impl<T: Transport> SyncClient<T> {
     /// Push encrypted data to the sync group.
     ///
     /// Returns the blob ID and assigned cursor.
+    /// On transport failure, automatically fails over to another relay and retries.
     pub async fn push(&self, plaintext: &[u8]) -> Result<(BlobId, Cursor), ClientError> {
         if !self.is_connected().await {
             return Err(ClientError::NotConnected);
@@ -348,13 +431,32 @@ impl<T: Transport> SyncClient<T> {
             ttl: self.config.default_ttl,
         });
 
-        // Serialize and send
+        // Serialize
         let bytes = push
             .to_bytes()
             .map_err(|e| ClientError::Serialization(e.to_string()))?;
-        self.transport.send(&bytes).await?;
 
-        // Receive acknowledgement
+        // Try to push, with failover on transport error
+        match self.try_push_bytes(&bytes, blob_id).await {
+            Ok(result) => Ok(result),
+            Err(ClientError::Transport(_)) => {
+                // Transport failed, try to reconnect to another relay
+                self.try_reconnect().await?;
+                // Retry the push on the new relay
+                self.try_push_bytes(&bytes, blob_id).await
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Internal: attempt to send push message and receive ack.
+    async fn try_push_bytes(
+        &self,
+        bytes: &[u8],
+        blob_id: BlobId,
+    ) -> Result<(BlobId, Cursor), ClientError> {
+        self.transport.send(bytes).await?;
+
         let response_bytes = self.transport.recv().await?;
         let response = Message::from_bytes(&response_bytes)
             .map_err(|e| ClientError::Serialization(e.to_string()))?;
@@ -383,6 +485,7 @@ impl<T: Transport> SyncClient<T> {
     /// Pull blobs after a specific cursor.
     ///
     /// If `after` is None, uses the last known cursor.
+    /// On transport failure, automatically fails over to another relay and retries.
     pub async fn pull_after(
         &self,
         after: Option<Cursor>,
@@ -405,13 +508,28 @@ impl<T: Transport> SyncClient<T> {
             limit: 100, // Default batch size
         });
 
-        // Serialize and send
+        // Serialize
         let bytes = pull
             .to_bytes()
             .map_err(|e| ClientError::Serialization(e.to_string()))?;
-        self.transport.send(&bytes).await?;
 
-        // Receive response
+        // Try to pull, with failover on transport error
+        match self.try_pull_bytes(&bytes).await {
+            Ok(result) => Ok(result),
+            Err(ClientError::Transport(_)) => {
+                // Transport failed, try to reconnect to another relay
+                self.try_reconnect().await?;
+                // Retry the pull on the new relay
+                self.try_pull_bytes(&bytes).await
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Internal: attempt to send pull request and receive/decrypt response.
+    async fn try_pull_bytes(&self, bytes: &[u8]) -> Result<Vec<ReceivedBlob>, ClientError> {
+        self.transport.send(bytes).await?;
+
         let response_bytes = self.transport.recv().await?;
         let response = Message::from_bytes(&response_bytes)
             .map_err(|e| ClientError::Serialization(e.to_string()))?;
@@ -943,6 +1061,193 @@ mod tests {
         assert!(
             !debug.contains("DEAD") && !debug.contains("dead"),
             "payload bytes must not appear in Debug output"
+        );
+    }
+
+    // ===========================================
+    // Failover Tests (Option A: transparent retry)
+    // ===========================================
+
+    #[tokio::test]
+    async fn push_reconnects_on_send_failure() {
+        let transport = MockTransport::new();
+        // Queue Welcome for initial connect to relay-a
+        transport.queue_response(mock_welcome(0, 0));
+        // Queue Welcome for reconnect to relay-b
+        transport.queue_response(mock_welcome(0, 0));
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        // Connect initially to relay-a
+        client.connect().await.unwrap();
+        assert_eq!(client.active_relay().await, Some("relay-a".to_string()));
+
+        // Simulate relay-a dying: next send will fail
+        transport.fail_next_send("connection reset");
+
+        // Queue PushAck for the retried push on relay-b
+        // We need to know the blob_id, but we can't predict it
+        // So let's just verify the reconnect happened by checking active_relay
+        let ack = Message::PushAck(PushAck {
+            blob_id: BlobId::new(), // Won't match, but we test reconnect
+            cursor: Cursor::new(1),
+        });
+        transport.queue_response(ack.to_bytes().unwrap());
+
+        // Push should fail on relay-a, reconnect to relay-b, and retry
+        let _result = client.push(b"test data").await;
+
+        // The push will fail due to blob_id mismatch, but we should have reconnected
+        // Verify we switched to relay-b
+        assert_eq!(
+            client.active_relay().await,
+            Some("relay-b".to_string()),
+            "should have failed over to relay-b"
+        );
+    }
+
+    #[tokio::test]
+    async fn push_reconnects_on_recv_failure() {
+        let transport = MockTransport::new();
+        // Queue Welcome for initial connect
+        transport.queue_response(mock_welcome(0, 0));
+        // Queue Welcome for reconnect
+        transport.queue_response(mock_welcome(0, 0));
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+        assert_eq!(client.active_relay().await, Some("relay-a".to_string()));
+
+        // Simulate relay-a dying after send but before recv
+        transport.fail_next_recv("connection reset");
+
+        // Queue PushAck for the retried push
+        let ack = Message::PushAck(PushAck {
+            blob_id: BlobId::new(),
+            cursor: Cursor::new(1),
+        });
+        transport.queue_response(ack.to_bytes().unwrap());
+
+        let _ = client.push(b"test data").await;
+
+        // Verify failover occurred
+        assert_eq!(
+            client.active_relay().await,
+            Some("relay-b".to_string()),
+            "should have failed over to relay-b after recv failure"
+        );
+    }
+
+    #[tokio::test]
+    async fn pull_reconnects_on_send_failure() {
+        let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
+        transport.queue_response(mock_welcome(0, 0));
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+        assert_eq!(client.active_relay().await, Some("relay-a".to_string()));
+
+        // Simulate relay dying on pull's send
+        transport.fail_next_send("connection reset");
+
+        // Queue empty PullResponse for retry
+        let response = Message::PullResponse(PullResponse {
+            blobs: vec![],
+            has_more: false,
+            max_cursor: Cursor::new(0),
+        });
+        transport.queue_response(response.to_bytes().unwrap());
+
+        let blobs = client.pull().await.unwrap();
+
+        assert!(blobs.is_empty());
+        assert_eq!(
+            client.active_relay().await,
+            Some("relay-b".to_string()),
+            "should have failed over to relay-b"
+        );
+    }
+
+    #[tokio::test]
+    async fn pull_reconnects_on_recv_failure() {
+        let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
+        transport.queue_response(mock_welcome(0, 0));
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+
+        transport.fail_next_recv("connection reset");
+
+        let response = Message::PullResponse(PullResponse {
+            blobs: vec![],
+            has_more: false,
+            max_cursor: Cursor::new(0),
+        });
+        transport.queue_response(response.to_bytes().unwrap());
+
+        let blobs = client.pull().await.unwrap();
+
+        assert!(blobs.is_empty());
+        assert_eq!(
+            client.active_relay().await,
+            Some("relay-b".to_string()),
+            "should have failed over to relay-b"
+        );
+    }
+
+    #[tokio::test]
+    async fn push_fails_when_all_relays_exhausted() {
+        let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
+        // No more welcomes - reconnect attempts will fail
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+
+        // Fail send on relay-a
+        transport.fail_next_send("connection reset");
+        // Fail connect to relay-b
+        transport.fail_next_connect("unreachable");
+
+        let result = client.push(b"test data").await;
+
+        assert!(
+            matches!(result, Err(ClientError::AllRelaysFailed(_))),
+            "should return AllRelaysFailed when no relays left, got: {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn pull_fails_when_all_relays_exhausted() {
+        let transport = MockTransport::new();
+        transport.queue_response(mock_welcome(0, 0));
+
+        let config = test_config().with_relay_addresses(&["relay-a", "relay-b"]);
+        let client = SyncClient::new(config, transport.clone());
+
+        client.connect().await.unwrap();
+
+        transport.fail_next_send("connection reset");
+        transport.fail_next_connect("unreachable");
+
+        let result = client.pull().await;
+
+        assert!(
+            matches!(result, Err(ClientError::AllRelaysFailed(_))),
+            "should return AllRelaysFailed when no relays left, got: {:?}",
+            result
         );
     }
 }
